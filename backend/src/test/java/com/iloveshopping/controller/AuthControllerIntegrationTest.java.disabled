@@ -1,0 +1,201 @@
+package com.iloveshopping.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.iloveshopping.dto.auth.LoginRequest;
+import com.iloveshopping.dto.auth.RegisterRequest;
+import com.iloveshopping.entity.User;
+import com.iloveshopping.repository.UserRepository;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+import java.time.LocalDateTime;
+import java.util.Set;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@Testcontainers
+@ActiveProfiles("test")
+@ExtendWith(SpringExtension.class)
+class AuthControllerIntegrationTest {
+
+    @Container
+    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+            .withDatabaseName("testdb")
+            .withUsername("test")
+            .withPassword("test");
+
+    @DynamicPropertySource
+    static void configureProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", postgres::getJdbcUrl);
+        registry.add("spring.datasource.username", postgres::getUsername);
+        registry.add("spring.datasource.password", postgres::getPassword);
+        registry.add("spring.flyway.enabled", () -> "false");
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "create-drop");
+        registry.add("spring.redis.host", () -> "localhost");
+        registry.add("spring.redis.port", () -> "6379");
+        registry.add("jwt.access.secret", () -> "test-access-secret-key-min-32-chars-length");
+        registry.add("jwt.refresh.secret", () -> "test-refresh-secret-key-min-32-chars-l");
+    }
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @BeforeEach
+    void setUp() {
+        userRepository.deleteAll();
+
+        User existingUser = User.builder()
+                .email("existing@example.com")
+                .passwordHash(passwordEncoder.encode("Password123!"))
+                .name("Existing User")
+                .emailVerified(LocalDateTime.now())
+                .roles(Set.of(User.Role.USER))
+                .build();
+        userRepository.save(existingUser);
+    }
+
+    @Test
+    void shouldRegisterUserSuccessfully() throws Exception {
+        RegisterRequest request = RegisterRequest.builder()
+                .email("newuser@example.com")
+                .password("Password123!")
+                .name("New User")
+                .captchaToken("test-token")
+                .build();
+
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.message").value("Registration successful. Check your email for verification."));
+    }
+
+    @Test
+    void shouldRejectRegistrationWithInvalidEmail() throws Exception {
+        RegisterRequest request = RegisterRequest.builder()
+                .email("not-an-email")
+                .password("Password123!")
+                .captchaToken("test-token")
+                .build();
+
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.error.statusCode").value(400));
+    }
+
+    @Test
+    void shouldRejectRegistrationWithDuplicateEmail() throws Exception {
+        RegisterRequest request = RegisterRequest.builder()
+                .email("existing@example.com")
+                .password("Password123!")
+                .captchaToken("test-token")
+                .build();
+
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void shouldRejectLoginWithInvalidCredentials() throws Exception {
+        LoginRequest request = LoginRequest.builder()
+                .email("existing@example.com")
+                .password("wrong-password")
+                .build();
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void shouldRejectLoginWithUnverifiedEmail() throws Exception {
+        User unverifiedUser = User.builder()
+                .email("unverified@example.com")
+                .passwordHash(passwordEncoder.encode("Password123!"))
+                .name("Unverified User")
+                .emailVerified(null)
+                .roles(Set.of(User.Role.USER))
+                .build();
+        userRepository.save(unverifiedUser);
+
+        LoginRequest request = LoginRequest.builder()
+                .email("unverified@example.com")
+                .password("Password123!")
+                .build();
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error.message").value("Email not verified"));
+    }
+
+    @Test
+    void shouldRequireAuthenticationForProtectedEndpoints() throws Exception {
+        mockMvc.perform(get("/auth/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void shouldRequireCaptchaForRegistration() throws Exception {
+        RegisterRequest request = RegisterRequest.builder()
+                .email("nocaptcha@example.com")
+                .password("Password123!")
+                .name("No Captcha")
+                .build();
+
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldRejectForgotPasswordWithInvalidEmail() throws Exception {
+        mockMvc.perform(post("/auth/forgot-password")
+                        .param("email", "not-an-email"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void shouldHandleNonExistentEmailInForgotPassword() throws Exception {
+        mockMvc.perform(post("/auth/forgot-password")
+                        .param("email", "nonexistent@example.com"))
+                .andExpect(status().isOk());
+    }
+}
