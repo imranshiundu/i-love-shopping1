@@ -442,6 +442,8 @@ This starts:
 
 ### 4. Run Locally (Without Docker)
 
+#### Linux/macOS
+
 ```bash
 # Start dependencies
 docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
@@ -449,6 +451,28 @@ docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
 # Run the application
 cd backend
 ./mvnw spring-boot:run
+```
+
+#### Windows (PowerShell)
+
+```powershell
+# Start dependencies
+docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
+
+# Run the application
+cd backend
+.\mvnw.cmd spring-boot:run
+```
+
+#### Windows (Command Prompt)
+
+```cmd
+REM Start dependencies
+docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
+
+REM Run the application
+cd backend
+mvnw.cmd spring-boot:run
 ```
 
 The API will be available at: `http://localhost:8080/api/v1`
@@ -653,6 +677,68 @@ cd backend
 - **Surefire Reports**: `backend/target/surefire-reports/`
 - **JaCoCo Coverage**: `backend/target/site/jacoco/index.html`
 
+### Running Tests on Different Operating Systems
+
+#### Linux/macOS
+
+```bash
+cd backend
+
+# Run all tests
+./mvnw test
+
+# Run specific test class
+./mvnw test -Dtest=JwtServiceTest
+
+# Run with coverage report
+./mvnw test jacoco:report
+
+# View coverage report
+xdg-open target/site/jacoco/index.html  # Linux
+open target/site/jacoco/index.html      # macOS
+```
+
+#### Windows (PowerShell)
+
+```powershell
+cd backend
+
+# Run all tests
+.\mvnw.cmd test
+
+# Run specific test class
+.\mvnw.cmd test -Dtest=JwtServiceTest
+
+# Run with coverage report
+.\mvnw.cmd test jacoco:report
+
+# View coverage report
+start target\site\jacoco\index.html
+```
+
+#### Windows (Command Prompt)
+
+```cmd
+cd backend
+
+REM Run all tests
+mvnw.cmd test
+
+REM Run specific test class
+mvnw.cmd test -Dtest=JwtServiceTest
+
+REM Run with coverage report
+mvnw.cmd test jacoco:report
+
+REM View coverage report
+start target\site\jacoco\index.html
+```
+
+### Test Reports
+
+- **Surefire Reports**: `backend/target/surefire-reports/`
+- **JaCoCo Coverage**: `backend/target/site/jacoco/index.html`
+
 ### Test Categories
 
 | Test Class | Category | Description |
@@ -689,6 +775,58 @@ docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up
 |------|---------|
 | `docker-compose.yml` | Development (with Mailhog) |
 | `docker-compose.prod.yml` | Production (no Mailhog, production configs) |
+
+### Docker Commands on Different Operating Systems
+
+#### Linux/macOS
+
+```bash
+# Build and start all services
+docker-compose -f docker/docker-compose.yml up -d
+
+# View logs
+docker-compose -f docker/docker-compose.yml logs -f api
+
+# Stop services
+docker-compose -f docker/docker-compose.yml down
+
+# Build production images
+docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+```
+
+#### Windows (PowerShell)
+
+```powershell
+# Build and start all services
+docker-compose -f docker\docker-compose.yml up -d
+
+# View logs
+docker-compose -f docker\docker-compose.yml logs -f api
+
+# Stop services
+docker-compose -f docker\docker-compose.yml down
+
+# Build production images
+docker-compose -f docker\docker-compose.yml -f docker\docker-compose.prod.yml build
+```
+
+#### Windows (Command Prompt)
+
+```cmd
+REM Build and start all services
+docker-compose -f docker\docker-compose.yml up -d
+
+REM View logs
+docker-compose -f docker\docker-compose.yml logs -f api
+
+REM Stop services
+docker-compose -f docker\docker-compose.yml down
+
+REM Build production images
+docker-compose -f docker\docker-compose.yml -f docker\docker-compose.prod.yml build
+```
+
+### Health Checks
 
 ### Health Checks
 
