@@ -1,0 +1,63 @@
+version: 2
+updates:
+  - package-ecosystem: "maven"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "maven"
+    commit-message:
+      prefix: "build(deps): "
+    groups:
+      spring-boot:
+        patterns:
+          - "org.springframework.boot:*"
+      spring-framework:
+        patterns:
+          - "org.springframework:*"
+      jackson:
+        patterns:
+          - "com.fasterxml.jackson:*"
+      hibernate:
+        patterns:
+          - "org.hibernate:*"
+      test:
+        patterns:
+          - "org.junit:*"
+          - "org.mockito:*"
+          - "org.assertj:*"
+          - "org.testcontainers:*"
+      security:
+        patterns:
+          - "io.jsonwebtoken:*"
+          - "org.bouncycastle:*"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+    commit-message:
+      prefix: "build(deps-docker): "
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "build(deps-github): "
