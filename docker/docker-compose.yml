@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: iloveshopping-postgres
+    environment:
+      POSTGRES_USER: iloveshopping
+      POSTGRES_PASSWORD: iloveshopping
+      POSTGRES_DB: iloveshopping
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iloveshopping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - iloveshopping-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: iloveshopping-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - iloveshopping-network
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: iloveshopping-mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    networks:
+      - iloveshopping-network
+
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    container_name: iloveshopping-api
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/iloveshopping
+      - DATABASE_USER=iloveshopping
+      - DATABASE_PASSWORD=iloveshopping
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SERVER_PORT=8080
+      - FRONTEND_URL=http://localhost:3000
+      - CORS_ALLOWED_ORIGINS=http://localhost:3000
+      - JWT_ACCESS_SECRET=dev-access-secret-min-32-chars-long-for-test
+      - JWT_REFRESH_SECRET=dev-refresh-secret-min-32-chars-long-for-test
+      - JWT_ACCESS_EXPIRY_MINUTES=15
+      - JWT_REFRESH_EXPIRY_DAYS=7
+      - RECAPTCHA_SECRET_KEY=dev-test-secret
+      - RECAPTCHA_SITE_KEY=dev-test-site
+      - GOOGLE_CLIENT_ID=dev-google-id
+      - GOOGLE_CLIENT_SECRET=dev-google-secret
+      - GITHUB_CLIENT_ID=dev-github-id
+      - GITHUB_CLIENT_SECRET=dev-github-secret
+      - MAIL_HOST=mailhog
+      - MAIL_PORT=1025
+      - MAIL_USERNAME=
+      - MAIL_PASSWORD=
+      - MAIL_FROM=noreply@iloveshopping.com
+      - MPESA_CONSUMER_KEY=dev-mpesa-key
+      - MPESA_CONSUMER_SECRET=dev-mpesa-secret
+      - MPESA_SHORTCODE=174379
+      - MPESA_PASSKEY=dev-mpesa-passkey
+      - MPESA_CALLBACK_URL=http://host.docker.internal:8080/api/v1/orders/payments/mpesa/callback
+      - MPESA_BASE_URL=https://sandbox.safaricom.co.ke
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+    networks:
+      - iloveshopping-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  iloveshopping-network:
+    driver: bridge
