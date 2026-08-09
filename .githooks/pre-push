@@ -1,0 +1,32 @@
+#!/bin/bash
+# Pre-push hook - runs before each push
+
+set -e
+
+echo "Running pre-push checks..."
+
+# Run unit tests
+echo "Running unit tests..."
+cd backend
+./mvnw test -q
+if [ $? -ne 0 ]; then
+    echo "ERROR: Unit tests failed! Push aborted."
+    exit 1
+fi
+
+# Check for secrets in all committed files
+echo "Checking for secrets..."
+if git diff --name-only HEAD~1 | xargs grep -l -E "(password|secret|key|token).*=.*[\"'].{8,}" 2>/dev/null; then
+    echo "ERROR: Potential secrets found in committed files!"
+    echo "Please remove secrets before pushing."
+    exit 1
+fi
+
+# Check for TODO/FIXME in new code
+echo "Checking for TODO/FIXME..."
+if git diff --name-only HEAD~1 | xargs grep -n "TODO\|FIXME" 2>/dev/null; then
+    echo "WARNING: TODO/FIXME found in new code. Consider resolving before merge."
+fi
+
+echo "Pre-push checks passed!"
+exit 0
