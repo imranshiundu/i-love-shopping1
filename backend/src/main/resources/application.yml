@@ -1,0 +1,268 @@
+spring:
+  application:
+    name: i-love-shopping
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:development}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        show_sql: false
+        jdbc:
+          time_zone: UTC
+        default_batch_fetch_size: 20
+    open-in-view: false
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/iloveshopping}
+    username: ${DATABASE_USER:iloveshopping}
+    password: ${DATABASE_PASSWORD:iloveshopping}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  redis:
+    host: ${REDIS_HOST:localhost}
+    port: ${REDIS_PORT:6379}
+    password: ${REDIS_PASSWORD:}
+    timeout: 5000ms
+    lettuce:
+      pool:
+        max-active: 20
+        max-idle: 10
+        min-idle: 5
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    from: ${MAIL_FROM:noreply@iloveshopping.com}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+    validate-on-migrate: true
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 50MB
+  cache:
+    type: redis
+    redis:
+      time-to-live: 3600000
+      key-prefix: "iloveshopping:"
+
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /api/v1
+    session:
+      cookie:
+        secure: ${SERVER_SSL_ENABLED:false}
+        http-only: true
+        same-site: lax
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain,application/javascript,text/css
+    min-response-size: 1024
+  error:
+    include-message: always
+    include-binding-errors: always
+
+security:
+  jwt:
+    access-secret: ${JWT_ACCESS_SECRET:your-access-secret-min-32-chars-long-for-hs256}
+    refresh-secret: ${JWT_REFRESH_SECRET:your-refresh-secret-min-32-chars-long-for-hs256}
+    access-expiry-minutes: ${JWT_ACCESS_EXPIRY_MINUTES:15}
+    refresh-expiry-days: ${JWT_REFRESH_EXPIRY_DAYS:7}
+    issuer: ${JWT_ISSUER:i-love-shopping}
+    audience: ${JWT_AUDIENCE:i-love-shopping-api}
+  oauth2:
+    google:
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_REDIRECT_URI:http://localhost:8080/api/v1/auth/oauth2/code/google}
+    github:
+      client-id: ${GITHUB_CLIENT_ID:}
+      client-secret: ${GITHUB_CLIENT_SECRET:}
+      redirect-uri: ${GITHUB_REDIRECT_URI:http://localhost:8080/api/v1/auth/oauth2/code/github}
+  recaptcha:
+    secret-key: ${RECAPTCHA_SECRET_KEY:}
+    site-key: ${RECAPTCHA_SITE_KEY:}
+    verify-url: https://www.google.com/recaptcha/api/siteverify
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000}
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: "*"
+    allow-credentials: true
+  rate-limit:
+    auth-requests-per-minute: 10
+    api-requests-per-minute: 100
+
+mpesa:
+  environment: ${MPESA_ENVIRONMENT:sandbox}
+  consumer-key: ${MPESA_CONSUMER_KEY:}
+  consumer-secret: ${MPESA_CONSUMER_SECRET:}
+  shortcode: ${MPESA_SHORTCODE:174379}
+  passkey: ${MPESA_PASSKEY:}
+  callback-url: ${MPESA_CALLBACK_URL:http://localhost:8080/api/v1/payments/mpesa/callback}
+  timeout-url: ${MPESA_TIMEOUT_URL:http://localhost:8080/api/v1/payments/mpesa/timeout}
+  base-url: ${MPESA_BASE_URL:https://sandbox.safaricom.co.ke}
+
+app:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  api-url: ${API_URL:http://localhost:8080/api/v1}
+  order-number-prefix: "ILS"
+  default-currency: KES
+  tax-rate: 0.16
+  free-shipping-threshold: 5000
+  max-cart-items: 50
+  max-cart-quantity-per-item: 99
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+    jmx:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: true
+    diskspace:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.iloveshopping: DEBUG
+    org.springframework.security: DEBUG
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  file:
+    name: logs/application.log
+    max-size: 100MB
+    max-history: 30
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /docs
+    operations-sorter: method
+    tags-sorter: alpha
+    try-it-out-enabled: true
+  packages-to-scan: com.iloveshopping.controller
+  paths-to-match: /api/v1/**
+
+---
+spring:
+  config:
+    activate:
+      on-profile: test
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    properties:
+      hibernate:
+        show_sql: false
+  datasource:
+    url: jdbc:tc:postgresql:16:///iloveshopping_test
+    username: test
+    password: test
+  redis:
+    host: localhost
+    port: 6379
+  flyway:
+    enabled: false
+  mail:
+    host: localhost
+    port: 1025
+
+security:
+  jwt:
+    access-secret: test-access-secret-min-32-chars-long-for-hs256-test
+    refresh-secret: test-refresh-secret-min-32-chars-long-for-hs256-test
+  recaptcha:
+    secret-key: test-secret
+    site-key: test-site-key
+
+mpesa:
+  environment: sandbox
+  consumer-key: test
+  consumer-secret: test
+  shortcode: 174379
+  passkey: test-passkey
+  callback-url: http://localhost:8080/api/v1/payments/mpesa/callback
+  base-url: https://sandbox.safaricom.co.ke
+
+logging:
+  level:
+    com.iloveshopping: DEBUG
+    org.springframework.security: DEBUG
+  file:
+    name: logs/test-application.log
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+  datasource:
+    url: jdbc:postgresql://postgres:5432/iloveshopping
+    username: ${DATABASE_USER:iloveshopping}
+    password: ${DATABASE_PASSWORD:iloveshopping}
+  redis:
+    host: redis
+    port: 6379
+  flyway:
+    enabled: true
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+      probes:
+        enabled: true
+
+logging:
+  file:
+    name: /var/log/application.log
