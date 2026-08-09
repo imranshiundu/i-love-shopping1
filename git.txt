@@ -1,0 +1,7 @@
+git
+
+Push: https://gitea.kood.tech/imranshiundu/i-love-shopping1.git 
+
+create a github repo: same name as that on gitea. 
+
+push code for every successfull - verified implementation - code has to be validated and you are sure there are no errors, no unnecessary comments, very detailed do not push and name commits anyhowly, have standers you are not communicating with me - it's with other developers and coordinators and tutors so - the code comments and documentation should be proffessional. 
