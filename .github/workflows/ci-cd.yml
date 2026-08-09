@@ -133,7 +133,7 @@ jobs:
       
       - name: Extract metadata for Backend
         id: meta-backend
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/iloveshopping-backend
           tags: |
@@ -154,7 +154,7 @@ jobs:
       
       - name: Extract metadata for Nginx
         id: meta-nginx
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ${{ secrets.DOCKERHUB_USERNAME }}/iloveshopping-nginx
           tags: |
