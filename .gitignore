@@ -1,0 +1,53 @@
+# Gradle/Maven
+target/
+build/
+.gradle/
+.mvn/
+mvnw
+mvnw.cmd
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.iws
+*.class
+*.jar
+*.war
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+logback-spring.xml
+
+# IDE specific files
+.idea/
+.vscode/
+*.ipr
+*.iws
+
+# Testing
+.coverage/
+jacoco/
+
+# Docker
+*.pid
+
+# Database
+*.db
+*.sqlite
+db/*.db
+
+# Temp files
+tmp/
+temp/
+*.tmp
