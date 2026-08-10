@@ -44,7 +44,7 @@ jobs:
         run: cd backend && ./mvnw jacoco:report -q
       
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           files: ./backend/target/site/jacoco/jacoco.xml
           fail_ci_if_error: false
