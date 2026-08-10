@@ -1,0 +1,1225 @@
+{
+	"info": {
+		"name": "I Love Shopping - B2C E-commerce Platform",
+		"description": "Complete API collection for the I Love Shopping B2C e-commerce platform with M-Pesa integration.\n\n**Base URL:** http://localhost:8080\n\n**Authentication:**\n- Register/Login to get access token and refresh token\n- Set `accessToken` variable in the collection\n- Refresh token is stored in cookie automatically\n\n**Environment Variables:**\n- `baseUrl`: http://localhost:8080\n- `accessToken`: (auto-set after login)\n- `refreshToken`: (auto-set after login)\n- `cartSessionId`: (auto-set after cart creation)\n\n**Admin Role Required:**\n- Category/Brand/Product CRUD operations require ADMIN role",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080"
+		},
+		{
+			"key": "accessToken",
+			"value": ""
+		},
+		{
+			"key": "refreshToken",
+			"value": ""
+		},
+		{
+			"key": "cartSessionId",
+			"value": ""
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"description": "User registration, login, and authentication endpoints",
+			"item": [
+				{
+					"name": "Register User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "register"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"Password123!\",\n  \"phone\": \"+254712345678\",\n  \"recaptchaToken\": \"test-token\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.accessToken) {",
+									"    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.data.refreshToken);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Login User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"Password123!\",\n  \"recaptchaToken\": \"test-token\"\n}"
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.accessToken) {",
+									"    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.data.refreshToken);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Cookie",
+								"value": "refreshToken={{refreshToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/refresh",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "refresh"]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.accessToken) {",
+									"    pm.collectionVariables.set('accessToken', jsonData.data.accessToken);",
+									"    pm.collectionVariables.set('refreshToken', jsonData.data.refreshToken);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Logout User",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Cookie",
+								"value": "refreshToken={{refreshToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "logout"]
+						}
+					}
+				},
+				{
+					"name": "Logout All Sessions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/logout-all",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "logout-all"]
+						}
+					}
+				},
+				{
+					"name": "Forgot Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/forgot-password",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "forgot-password"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"john@example.com\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Reset Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/reset-password",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "reset-password"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"token\": \"reset-token-here\",\n  \"newPassword\": \"NewPassword123!\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Verify Email",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/auth/verify-email?token=verification-token",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "verify-email"],
+							"query": [
+								{
+									"key": "token",
+									"value": "verification-token"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get CAPTCHA Site Key",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/auth/verify-captcha",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "verify-captcha"]
+						}
+					}
+				},
+				{
+					"name": "Setup 2FA",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/2fa/setup",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "2fa", "setup"]
+						}
+					}
+				},
+				{
+					"name": "Enable 2FA",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/2fa/enable",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "2fa", "enable"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"code\": \"123456\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Disable 2FA",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/2fa/disable",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "2fa", "disable"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"password\": \"Password123!\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Verify 2FA Code",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/2fa/verify",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "2fa", "verify"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"john@example.com\",\n  \"code\": \"123456\",\n  \"password\": \"Password123!\"\n}"
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Catalog",
+			"description": "Product catalog, categories, and brands",
+			"item": [
+				{
+					"name": "Get All Categories",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/categories?includeChildren=true",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories"],
+							"query": [
+								{
+									"key": "includeChildren",
+									"value": "true"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Category by Slug",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/categories/electronics",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories", "electronics"]
+						}
+					}
+				},
+				{
+					"name": "Get Category Products",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/categories/electronics/products?page=0&size=20&sortBy=newest",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories", "electronics", "products"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "sortBy",
+									"value": "newest"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get All Brands",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/brands",
+							"host": ["{{baseUrl}}"],
+							"path": ["brands"]
+						}
+					}
+				},
+				{
+					"name": "Get Brand by Slug",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/brands/samsung",
+							"host": ["{{baseUrl}}"],
+							"path": ["brands", "samsung"]
+						}
+					}
+				},
+				{
+					"name": "Get Brand Products",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/brands/samsung/products?page=0&size=20&sortBy=newest",
+							"host": ["{{baseUrl}}"],
+							"path": ["brands", "samsung", "products"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "sortBy",
+									"value": "newest"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Search Products",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/products?query=phone&categories=electronics&brands=samsung&minPrice=10000&maxPrice=50000&inStockOnly=true&onSaleOnly=false&sortBy=relevance&page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["products"],
+							"query": [
+								{
+									"key": "query",
+									"value": "phone"
+								},
+								{
+									"key": "categories",
+									"value": "electronics"
+								},
+								{
+									"key": "brands",
+									"value": "samsung"
+								},
+								{
+									"key": "minPrice",
+									"value": "10000"
+								},
+								{
+									"key": "maxPrice",
+									"value": "50000"
+								},
+								{
+									"key": "inStockOnly",
+									"value": "true"
+								},
+								{
+									"key": "onSaleOnly",
+									"value": "false"
+								},
+								{
+									"key": "sortBy",
+									"value": "relevance"
+								},
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Product by Slug",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/products/samsung-galaxy-s24",
+							"host": ["{{baseUrl}}"],
+							"path": ["products", "samsung-galaxy-s24"]
+						}
+					}
+				},
+				{
+					"name": "Get Search Suggestions",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/products/search/suggestions?query=sam",
+							"host": ["{{baseUrl}}"],
+							"path": ["products", "search", "suggestions"],
+							"query": [
+								{
+									"key": "query",
+									"value": "sam"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Similar Products",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/products/similar/samsung-galaxy-s24?limit=6",
+							"host": ["{{baseUrl}}"],
+							"path": ["products", "similar", "samsung-galaxy-s24"],
+							"query": [
+								{
+									"key": "limit",
+									"value": "6"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Create Category (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/categories",
+							"host": ["{{baseUrl}}"],
+							"path": ["categories"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"New Category\",\n  \"slug\": \"new-category\",\n  \"description\": \"A new category\",\n  \"parentId\": null\n}"
+						}
+					}
+				},
+				{
+					"name": "Create Brand (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/brands",
+							"host": ["{{baseUrl}}"],
+							"path": ["brands"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"New Brand\",\n  \"slug\": \"new-brand\",\n  \"description\": \"A new brand\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Create Product (Admin)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/products",
+							"host": ["{{baseUrl}}"],
+							"path": ["products"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"New Product\",\n  \"slug\": \"new-product\",\n  \"description\": \"A new product\",\n  \"price\": 25000.00,\n  \"compareAtPrice\": 30000.00,\n  \"sku\": \"NP-001\",\n  \"stockQuantity\": 100,\n  \"brandId\": \"brand-id-here\",\n  \"categoryIds\": [\"category-id-here\"]\n}"
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Cart",
+			"description": "Shopping cart operations",
+			"item": [
+				{
+					"name": "Get Cart",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/cart",
+							"host": ["{{baseUrl}}"],
+							"path": ["cart"]
+						}
+					}
+				},
+				{
+					"name": "Create Cart (Anonymous)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Cookie",
+								"value": "cartSessionId={{cartSessionId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/cart",
+							"host": ["{{baseUrl}}"],
+							"path": ["cart"]
+						}
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.data && jsonData.data.sessionId) {",
+									"    pm.collectionVariables.set('cartSessionId', jsonData.data.sessionId);",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Add Item to Cart",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							},
+							{
+								"key": "Cookie",
+								"value": "cartSessionId={{cartSessionId}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/cart/items",
+							"host": ["{{baseUrl}}"],
+							"path": ["cart", "items"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"productId\": \"product-id-here\",\n  \"quantity\": 2\n}"
+						}
+					}
+				},
+				{
+					"name": "Update Cart Item Quantity",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/cart/items/{{itemId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["cart", "items", "{{itemId}}"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"quantity\": 3\n}"
+						}
+					}
+				},
+				{
+					"name": "Remove Cart Item",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/cart/items/{{itemId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["cart", "items", "{{itemId}}"]
+						}
+					}
+				},
+				{
+					"name": "Clear Cart",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/cart",
+							"host": ["{{baseUrl}}"],
+							"path": ["cart"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Orders",
+			"description": "Order management and checkout",
+			"item": [
+				{
+					"name": "Checkout (Create Order)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/checkout",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "checkout"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"shippingAddressId\": \"address-id-here\",\n  \"billingAddressId\": \"address-id-here\",\n  \"paymentMethod\": \"MPESA\",\n  \"deliveryInstructions\": \"Leave at the gate\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Get User Orders",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Get Order by Number",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/ORD-2024-001",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "ORD-2024-001"]
+						}
+					}
+				},
+				{
+					"name": "Cancel Order",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/ORD-2024-001/cancel",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "ORD-2024-001", "cancel"]
+						}
+					}
+				},
+				{
+					"name": "Get Order Payments",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/ORD-2024-001/payments",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "ORD-2024-001", "payments"]
+						}
+					}
+				},
+				{
+					"name": "Retry Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/ORD-2024-001/retry-payment",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "ORD-2024-001", "retry-payment"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Payments",
+			"description": "M-Pesa payment integration",
+			"item": [
+				{
+					"name": "Initiate M-Pesa STK Push",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/payments/mpesa/stk-push",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "payments", "mpesa", "stk-push"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"orderNumber\": \"ORD-2024-001\",\n  \"phoneNumber\": \"+254712345678\",\n  \"amount\": 25000.00,\n  \"accountReference\": \"ORD-2024-001\",\n  \"transactionDescription\": \"Payment for order\"\n}"
+						}
+					}
+				},
+				{
+					"name": "M-Pesa Callback (Daraja)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/payments/mpesa/callback",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "payments", "mpesa", "callback"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Body\": {\n    \"stkCallback\": {\n      \"MerchantRequestID\": \"merchant-id\",\n      \"CheckoutRequestID\": \"checkout-id\",\n      \"ResultCode\": 0,\n      \"ResultDesc\": \"Success\"\n    }\n  }\n}"
+						}
+					}
+				},
+				{
+					"name": "M-Pesa Timeout Callback",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/orders/payments/mpesa/timeout",
+							"host": ["{{baseUrl}}"],
+							"path": ["orders", "payments", "mpesa", "timeout"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"Body\": {\n    \"stkCallback\": {\n      \"MerchantRequestID\": \"merchant-id\",\n      \"CheckoutRequestID\": \"checkout-id\",\n      \"ResultCode\": 1032,\n      \"ResultDesc\": \"Request timed out\"\n    }\n  }\n}"
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "User Profile",
+			"description": "User profile and address management",
+			"item": [
+				{
+					"name": "Get User Profile",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "profile"]
+						}
+					}
+				},
+				{
+					"name": "Update User Profile",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/profile",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "profile"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"firstName\": \"John\",\n  \"lastName\": \"Doe\",\n  \"phone\": \"+254712345678\",\n  \"dateOfBirth\": \"1990-01-15\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/password",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "password"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currentPassword\": \"Password123!\",\n  \"newPassword\": \"NewPassword456!\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Get User Addresses",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/addresses",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "addresses"]
+						}
+					}
+				},
+				{
+					"name": "Add New Address",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/addresses",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "addresses"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"SHIPPING\",\n  \"streetAddress\": \"123 Kenyatta Avenue\",\n  \"city\": \"Nairobi\",\n  \"state\": \"Nairobi County\",\n  \"postalCode\": \"00100\",\n  \"country\": \"KE\",\n  \"isDefault\": true\n}"
+						}
+					}
+				},
+				{
+					"name": "Update Address",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/addresses/{{addressId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "addresses", "{{addressId}}"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"type\": \"SHIPPING\",\n  \"streetAddress\": \"456 Moi Avenue\",\n  \"city\": \"Mombasa\",\n  \"state\": \"Mombasa County\",\n  \"postalCode\": \"80100\",\n  \"country\": \"KE\",\n  \"isDefault\": false\n}"
+						}
+					}
+				},
+				{
+					"name": "Delete Address",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/addresses/{{addressId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "addresses", "{{addressId}}"]
+						}
+					}
+				},
+				{
+					"name": "Set Default Address",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/user/addresses/{{addressId}}/default",
+							"host": ["{{baseUrl}}"],
+							"path": ["user", "addresses", "{{addressId}}", "default"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Reviews",
+			"description": "Product reviews and ratings",
+			"item": [
+				{
+					"name": "Get Product Reviews",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{baseUrl}}/products/samsung-galaxy-s24/reviews?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["products", "samsung-galaxy-s24", "reviews"],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Add Product Review",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/products/samsung-galaxy-s24/reviews",
+							"host": ["{{baseUrl}}"],
+							"path": ["products", "samsung-galaxy-s24", "reviews"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rating\": 5,\n  \"title\": \"Great phone!\",\n  \"comment\": \"Excellent camera and battery life. Highly recommend for the price.\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Update Review",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/reviews/{{reviewId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["reviews", "{{reviewId}}"]
+						},
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"rating\": 4,\n  \"title\": \"Good phone\",\n  \"comment\": \"Updated: Camera is good but battery could be better.\"\n}"
+						}
+					}
+				},
+				{
+					"name": "Delete Review",
+					"request": {
+						"method": "DELETE",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/reviews/{{reviewId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["reviews", "{{reviewId}}"]
+						}
+					}
+				}
+			]
+		}
+	]
+}
