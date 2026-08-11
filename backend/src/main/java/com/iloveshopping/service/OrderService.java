@@ -116,9 +116,6 @@ public class OrderService {
         // Clear cart
         cartItemRepository.deleteByCartId(cart.getId());
 
-        // Send order confirmation email
-        // emailService.sendOrderConfirmation(currentUser.getEmail(), orderNumber, order.getId());
-
         return OrderResponse.from(order);
     }
 
