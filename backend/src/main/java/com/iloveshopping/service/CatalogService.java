@@ -131,20 +131,44 @@ public class CatalogService {
                                                  boolean onSaleOnly, String sortBy,
                                                  int page, int size) {
 
-        Sort sort = getSort(sortBy);
-        Pageable pageable = PageRequest.of(page, size, sort);
+        List<Product> allProducts = productRepository.findAllActive();
 
-        Page<Product> productPage = productRepository.search(
-                query, categorySlugs, brandSlugs, minPrice, maxPrice, inStockOnly, onSaleOnly, pageable
-        );
+        List<Product> filtered = allProducts.stream()
+                .filter(p -> query == null || query.isBlank() ||
+                        p.getName().toLowerCase().contains(query.toLowerCase()))
+                .filter(p -> categorySlugs == null || categorySlugs.isEmpty() ||
+                        categorySlugs.contains(p.getCategory().getSlug()) ||
+                        (p.getCategory().getParent() != null && categorySlugs.contains(p.getCategory().getParent().getSlug())))
+                .filter(p -> brandSlugs == null || brandSlugs.isEmpty() ||
+                        brandSlugs.contains(p.getBrand().getSlug()))
+                .filter(p -> minPrice == null || p.getPrice().compareTo(minPrice) >= 0)
+                .filter(p -> maxPrice == null || p.getPrice().compareTo(maxPrice) <= 0)
+                .filter(p -> !inStockOnly || p.getStock() > 0)
+                .filter(p -> !onSaleOnly || p.isOnSale())
+                .sorted(getProductComparator(sortBy))
+                .collect(Collectors.toList());
 
-        List<ProductResponse> products = productPage.getContent().stream()
+        int totalElements = filtered.size();
+        int fromIndex = Math.min(page * size, totalElements);
+        int toIndex = Math.min(fromIndex + size, totalElements);
+        List<Product> pageContent = filtered.subList(fromIndex, toIndex);
+
+        List<ProductResponse> products = pageContent.stream()
                 .map(this::toProductResponseWithDetails)
                 .collect(Collectors.toList());
 
+        ProductSearchResponse.PageInfo pageInfo = ProductSearchResponse.PageInfo.builder()
+                .page(page)
+                .size(size)
+                .totalElements(totalElements)
+                .totalPages((int) Math.ceil(totalElements / (double) size))
+                .hasNext(toIndex < totalElements)
+                .hasPrevious(fromIndex > 0)
+                .build();
+
         return ProductSearchResponse.builder()
                 .products(products)
-                .pagination(toPageInfo(productPage))
+                .pagination(pageInfo)
                 .facets(getFacets(query, categorySlugs, brandSlugs, minPrice, maxPrice))
                 .build();
     }
@@ -201,8 +225,10 @@ public class CatalogService {
 
         // Set rating from cache or database
         String productKey = PRODUCT_CACHE_PREFIX + product.getId();
-        Double avgRating = (Double) redisTemplate.opsForHash().get(productKey, "avgRating");
-        Long reviewCount = (Long) redisTemplate.opsForHash().get(productKey, "reviewCount");
+        Object cachedAvg = redisTemplate.opsForHash().get(productKey, "avgRating");
+        Object cachedCount = redisTemplate.opsForHash().get(productKey, "reviewCount");
+        Double avgRating = cachedAvg instanceof Number n ? n.doubleValue() : null;
+        Long reviewCount = cachedCount instanceof Number n ? n.longValue() : null;
 
         if (avgRating == null) {
             avgRating = reviewRepository.getAverageRating(product.getId());
@@ -248,6 +274,15 @@ public class CatalogService {
             case "newest" -> Sort.by(Sort.Direction.DESC, "createdAt");
             case "rating" -> Sort.by(Sort.Direction.DESC, "reviews");
             default -> Sort.by(Sort.Direction.DESC, "createdAt");
+        };
+    }
+
+    private java.util.Comparator<Product> getProductComparator(String sortBy) {
+        return switch (sortBy != null ? sortBy.toLowerCase() : "relevance") {
+            case "price_asc" -> java.util.Comparator.comparing(Product::getPrice);
+            case "price_desc" -> java.util.Comparator.comparing(Product::getPrice).reversed();
+            case "newest" -> java.util.Comparator.comparing(Product::getCreatedAt).reversed();
+            default -> java.util.Comparator.comparing(Product::getCreatedAt).reversed();
         };
     }
 }

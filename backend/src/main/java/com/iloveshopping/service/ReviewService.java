@@ -12,6 +12,7 @@ import com.iloveshopping.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -94,6 +95,11 @@ public class ReviewService {
     }
 
     private User getCurrentUser() {
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User user) {
+            return userRepository.findById(user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", user.getId()));
+        }
         return null;
     }
 }

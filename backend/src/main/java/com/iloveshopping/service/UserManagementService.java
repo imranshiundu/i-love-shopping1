@@ -6,6 +6,7 @@ import com.iloveshopping.dto.user.UserProfileResponse;
 import com.iloveshopping.entity.User;
 import com.iloveshopping.exception.AuthenticationException;
 import com.iloveshopping.exception.ResourceConflictException;
+import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -67,7 +68,8 @@ public class UserManagementService {
     private User getCurrentUser() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User user) {
-            return user;
+            return userRepository.findById(user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", user.getId()));
         }
         throw new AuthenticationException("User not authenticated");
     }

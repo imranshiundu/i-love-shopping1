@@ -1,12 +1,9 @@
 -- V1__Create_initial_schema.sql
 -- Initial database schema for i-love-shopping
 
--- Enable UUID extension
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- Users table
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id VARCHAR(36) PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     password_hash VARCHAR(255),
     name VARCHAR(100),
@@ -20,7 +17,7 @@ CREATE TABLE users (
 
 -- User roles
 CREATE TABLE user_roles (
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL CHECK (role IN ('USER', 'ADMIN', 'MODERATOR')),
     PRIMARY KEY (user_id, role)
 );
@@ -30,8 +27,8 @@ CREATE INDEX idx_users_email_verified ON users(email_verified);
 
 -- Sessions table
 CREATE TABLE sessions (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     refresh_token_hash VARCHAR(512) NOT NULL UNIQUE,
     user_agent VARCHAR(500),
     ip VARCHAR(45),
@@ -46,9 +43,9 @@ CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
 
 -- Refresh tokens table
 CREATE TABLE refresh_tokens (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id VARCHAR(36) PRIMARY KEY,
     token_hash VARCHAR(512) NOT NULL UNIQUE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     expires_at TIMESTAMP NOT NULL,
     revoked_at TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -60,13 +57,13 @@ CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens(expires_at);
 
 -- Categories table
 CREATE TABLE categories (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(120) NOT NULL UNIQUE,
     description TEXT,
     image VARCHAR(500),
     sort_order INTEGER NOT NULL DEFAULT 0,
-    parent_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+    parent_id VARCHAR(36) REFERENCES categories(id) ON DELETE SET NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -77,7 +74,7 @@ CREATE INDEX idx_categories_sort_order ON categories(sort_order);
 
 -- Brands table
 CREATE TABLE brands (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     slug VARCHAR(120) NOT NULL UNIQUE,
     logo VARCHAR(500),
@@ -90,7 +87,7 @@ CREATE INDEX idx_brands_slug ON brands(slug);
 
 -- Products table
 CREATE TABLE products (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id VARCHAR(36) PRIMARY KEY,
     name VARCHAR(200) NOT NULL,
     slug VARCHAR(220) NOT NULL UNIQUE,
     description TEXT NOT NULL,
@@ -101,8 +98,8 @@ CREATE TABLE products (
     weight DECIMAL(8, 3),
     dimensions JSONB,
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    category_id UUID NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
-    brand_id UUID NOT NULL REFERENCES brands(id) ON DELETE RESTRICT,
+    category_id VARCHAR(36) NOT NULL REFERENCES categories(id) ON DELETE RESTRICT,
+    brand_id VARCHAR(36) NOT NULL REFERENCES brands(id) ON DELETE RESTRICT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -117,8 +114,8 @@ CREATE INDEX idx_products_created_at ON products(created_at);
 
 -- Product images table
 CREATE TABLE product_images (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    id VARCHAR(36) PRIMARY KEY,
+    product_id VARCHAR(36) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
     url VARCHAR(500) NOT NULL,
     alt VARCHAR(200),
     sort_order INTEGER NOT NULL DEFAULT 0,
@@ -130,8 +127,8 @@ CREATE INDEX idx_product_images_sort_order ON product_images(sort_order);
 
 -- Carts table
 CREATE TABLE carts (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     session_id VARCHAR(255) UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -142,9 +139,9 @@ CREATE INDEX idx_carts_session_id ON carts(session_id);
 
 -- Cart items table
 CREATE TABLE cart_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    cart_id UUID NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    id VARCHAR(36) PRIMARY KEY,
+    cart_id VARCHAR(36) NOT NULL REFERENCES carts(id) ON DELETE CASCADE,
+    product_id VARCHAR(36) NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
     variant_id VARCHAR(100),
     quantity INTEGER NOT NULL DEFAULT 1,
     price_snapshot DECIMAL(10, 2) NOT NULL,
@@ -158,9 +155,9 @@ CREATE INDEX idx_cart_items_product_id ON cart_items(product_id);
 
 -- Orders table
 CREATE TABLE orders (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id VARCHAR(36) PRIMARY KEY,
     number VARCHAR(20) NOT NULL UNIQUE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED')),
     subtotal DECIMAL(10, 2) NOT NULL,
     tax DECIMAL(10, 2) NOT NULL DEFAULT 0.00,
@@ -181,9 +178,9 @@ CREATE INDEX idx_orders_created_at ON orders(created_at);
 
 -- Order items table
 CREATE TABLE order_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+    id VARCHAR(36) PRIMARY KEY,
+    order_id VARCHAR(36) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    product_id VARCHAR(36) NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
     variant_id VARCHAR(100),
     name VARCHAR(200) NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
@@ -197,8 +194,8 @@ CREATE INDEX idx_order_items_product_id ON order_items(product_id);
 
 -- Payments table
 CREATE TABLE payments (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+    id VARCHAR(36) PRIMARY KEY,
+    order_id VARCHAR(36) NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
     provider VARCHAR(20) NOT NULL CHECK (provider IN ('MPESA', 'STRIPE', 'PAYPAL', 'BANK_TRANSFER')),
     provider_id VARCHAR(100) NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,
@@ -217,8 +214,8 @@ CREATE INDEX idx_payments_created_at ON payments(created_at);
 
 -- Addresses table
 CREATE TABLE addresses (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     type VARCHAR(10) NOT NULL CHECK (type IN ('SHIPPING', 'BILLING')),
     name VARCHAR(100) NOT NULL,
     line1 VARCHAR(200) NOT NULL,
@@ -238,9 +235,9 @@ CREATE INDEX idx_addresses_type ON addresses(type);
 
 -- Reviews table
 CREATE TABLE reviews (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id VARCHAR(36) PRIMARY KEY,
+    product_id VARCHAR(36) NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
     title VARCHAR(200),
     content TEXT,

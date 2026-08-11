@@ -116,8 +116,8 @@ public class AuthService {
             sessionRepository.deleteById(sessionId);
         }
 
-        String refreshToken = jwtService.generateRefreshToken(user);
         String sessionId = UUID.randomUUID().toString();
+        String refreshToken = jwtService.generateRefreshToken(user, sessionId);
         String refreshTokenHash = passwordEncoder.encode(refreshToken);
 
         sessionRepository.findByUserId(user.getId())
@@ -179,8 +179,8 @@ public class AuthService {
 
         sessionRepository.revokeSession(sessionOpt.get().getId(), LocalDateTime.now());
 
-        String newRefreshToken = jwtService.generateRefreshToken(user);
         String newSessionId = UUID.randomUUID().toString();
+        String newRefreshToken = jwtService.generateRefreshToken(user, newSessionId);
         String refreshTokenHash = passwordEncoder.encode(newRefreshToken);
 
         Session newSession = Session.builder()

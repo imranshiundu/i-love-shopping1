@@ -59,13 +59,13 @@ public class Order {
     @Builder.Default
     private String currency = "KES";
 
-    @Column(name = "shipping_address", columnDefinition = "JSONB", nullable = false)
+    @Column(name = "shipping_address", columnDefinition = "jsonb", nullable = false)
     private String shippingAddress;
 
-    @Column(name = "billing_address", columnDefinition = "JSONB", nullable = false)
+    @Column(name = "billing_address", columnDefinition = "jsonb", nullable = false)
     private String billingAddress;
 
-    @Column(name = "notes", columnDefinition = "TEXT")
+    @Column(name = "notes")
     private String notes;
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)

@@ -12,7 +12,9 @@ import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.CartItemRepository;
 import com.iloveshopping.repository.CartRepository;
 import com.iloveshopping.repository.ProductRepository;
+import com.iloveshopping.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +28,7 @@ public class CartService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
+    private final UserRepository userRepository;
 
     public CartResponse getCurrentUserCart() {
         // In production, get user from SecurityContext
@@ -172,7 +175,11 @@ public class CartService {
     }
 
     private User getCurrentUser() {
-        // In production, use SecurityContextHolder.getContext().getAuthentication()
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User user) {
+            return userRepository.findById(user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", user.getId()));
+        }
         return null;
     }
 }

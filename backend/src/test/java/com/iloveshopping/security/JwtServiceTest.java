@@ -62,11 +62,12 @@ class JwtServiceTest {
 
     @Test
     void shouldGenerateValidRefreshToken() {
-        String token = jwtService.generateRefreshToken(testUser);
+        String token = jwtService.generateRefreshToken(testUser, "session-123");
         assertNotNull(token);
 
         JwtService.JwtClaims claims = jwtService.parseRefreshToken(token);
         assertEquals("test-user-id", claims.getSubject());
+        assertEquals("session-123", claims.getSessionId());
         assertNotNull(claims.getIssuedAt());
         assertNotNull(claims.getExpiresAt());
         assertNotNull(claims.getTokenId());
@@ -94,7 +95,7 @@ class JwtServiceTest {
 
     @Test
     void shouldInvalidateCorrectRefreshToken() {
-        String token = jwtService.generateRefreshToken(testUser);
+        String token = jwtService.generateRefreshToken(testUser, "session-123");
         assertTrue(jwtService.validateRefreshToken(token));
     }
 

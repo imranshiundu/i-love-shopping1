@@ -15,11 +15,11 @@ public interface AddressRepository extends JpaRepository<Address, String> {
 
     List<Address> findByUserId(String userId);
 
-    List<Address> findByUserIdAndTypeId(String userId, Address.AddressType type);
+    List<Address> findByUserIdAndType(String userId, Address.AddressType type);
 
     @Modifying
     @Transactional
-    @Query("UPDATE Address a SET a.isDefault = false WHERE a.userId = :userId AND a.type = :type AND a.isDefault = true")
+    @Query("UPDATE Address a SET a.isDefault = false WHERE a.user.id = :userId AND a.type = :type AND a.isDefault = true")
     int unsetDefaultAddress(@Param("userId") String userId, @Param("type") Address.AddressType type);
 
     @Modifying
