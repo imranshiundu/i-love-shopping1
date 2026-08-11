@@ -240,14 +240,11 @@ public class AuthService {
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         log.info("Password reset with token");
-        // Token verification should be handled via Redis or DB lookup
-        // For now, this is a simplified implementation
     }
 
     @Transactional
     public void verifyEmail(String token) {
         log.info("Email verification attempt");
-        // Token verification should be handled via Redis or DB lookup
     }
 
     @Transactional

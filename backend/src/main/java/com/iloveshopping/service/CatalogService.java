@@ -243,17 +243,6 @@ public class CatalogService {
         return response;
     }
 
-    private ProductSearchResponse.PageInfo toPageInfo(Page<Product> page) {
-        return ProductSearchResponse.PageInfo.builder()
-                .page(page.getNumber())
-                .size(page.getSize())
-                .totalElements(page.getTotalElements())
-                .totalPages(page.getTotalPages())
-                .hasNext(page.hasNext())
-                .hasPrevious(page.hasPrevious())
-                .build();
-    }
-
     private ProductSearchResponse.FacetCounts getFacets(String query, List<String> categorySlugs,
                                                         List<String> brandSlugs, BigDecimal minPrice,
                                                         BigDecimal maxPrice) {

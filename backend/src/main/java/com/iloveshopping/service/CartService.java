@@ -31,7 +31,6 @@ public class CartService {
     private final UserRepository userRepository;
 
     public CartResponse getCurrentUserCart() {
-        // In production, get user from SecurityContext
         User currentUser = getCurrentUser();
         if (currentUser != null) {
             Optional<Cart> cartOpt = cartRepository.findByUserId(currentUser.getId());

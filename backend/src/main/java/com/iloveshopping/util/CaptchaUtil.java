@@ -1,8 +1,6 @@
 package com.iloveshopping.util;
 
 import com.iloveshopping.config.RecaptchaProperties;
-import com.iloveshopping.dto.auth.CaptchaResponse;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.*;
@@ -11,7 +9,6 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
-import java.util.HashMap;
 import java.util.Map;
 
 @Component
@@ -21,7 +18,6 @@ public class CaptchaUtil {
 
     private final RecaptchaProperties recaptchaProperties;
     private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
 
     public boolean verify(String captchaToken) {
         if (captchaToken == null || captchaToken.isBlank()) {

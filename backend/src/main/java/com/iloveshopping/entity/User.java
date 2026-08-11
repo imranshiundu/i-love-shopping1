@@ -88,10 +88,6 @@ public class User implements UserDetails {
     @Builder.Default
     private List<Review> reviews = new java.util.ArrayList<>();
 
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
-    @Builder.Default
-    private List<RefreshToken> refreshTokens = new java.util.ArrayList<>();
-
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return roles.stream()

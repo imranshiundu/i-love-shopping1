@@ -72,11 +72,9 @@ public class AuthController {
 
     @PostMapping("/logout-all")
     @Operation(summary = "Logout from all devices and sessions")
-    public ResponseEntity<ApiResponse<Void>> logoutAll(
-            @RequestHeader("Authorization") String authHeader) {
+    public ResponseEntity<ApiResponse<Void>> logoutAll(@AuthenticationPrincipal User user) {
 
-        String userId = ""; // Extract from JWT
-        authService.logoutAllSessions(userId);
+        authService.logoutAllSessions(user.getId());
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
