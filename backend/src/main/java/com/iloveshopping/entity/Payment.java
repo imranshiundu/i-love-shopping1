@@ -50,10 +50,10 @@ public class Payment {
     @Builder.Default
     private PaymentStatus status = PaymentStatus.PENDING;
 
-    @Column(name = "metadata", columnDefinition = "JSONB")
+    @Column(name = "metadata", columnDefinition = "jsonb")
     private String metadata;
 
-    @Column(name = "callback_data", columnDefinition = "JSONB")
+    @Column(name = "callback_data", columnDefinition = "jsonb")
     private String callbackData;
 
     @CreationTimestamp

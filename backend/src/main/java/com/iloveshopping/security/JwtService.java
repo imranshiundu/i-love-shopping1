@@ -55,10 +55,11 @@ public class JwtService {
                 .compact();
     }
 
-    public String generateRefreshToken(User user) {
+    public String generateRefreshToken(User user, String sessionId) {
         Instant now = Instant.now();
         return Jwts.builder()
                 .subject(user.getId())
+                .claim("sessionId", sessionId)
                 .issuer(jwtProperties.getIssuer())
                 .audience().add(jwtProperties.getAudience()).and()
                 .issuedAt(Date.from(now))

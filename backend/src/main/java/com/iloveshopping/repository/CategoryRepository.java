@@ -20,10 +20,10 @@ public interface CategoryRepository extends JpaRepository<Category, String> {
 
     List<Category> findByParentIdOrderBySortOrderAscNameAsc(String parentId);
 
-    @Query("SELECT c FROM Category c WHERE c.parentId IS NULL ORDER BY c.sortOrder ASC, c.name ASC")
+    @Query("SELECT c FROM Category c WHERE c.parent IS NULL ORDER BY c.sortOrder ASC, c.name ASC")
     List<Category> findRootCategories();
 
-    @Query("SELECT c FROM Category c WHERE c.parentId = :parentId ORDER BY c.sortOrder ASC, c.name ASC")
+    @Query("SELECT c FROM Category c WHERE c.parent.id = :parentId ORDER BY c.sortOrder ASC, c.name ASC")
     List<Category> findChildCategories(@Param("parentId") String parentId);
 
     boolean existsBySlug(String slug);

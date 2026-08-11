@@ -19,6 +19,6 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, Stri
     Optional<ProductImage> findFirstByProductIdOrderBySortOrderAsc(String productId);
 
     @Modifying
-    @Query("DELETE FROM ProductImage pi WHERE pi.productId = :productId")
+    @Query("DELETE FROM ProductImage pi WHERE pi.product.id = :productId")
     int deleteByProductId(@Param("productId") String productId);
 }

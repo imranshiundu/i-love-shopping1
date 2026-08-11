@@ -38,7 +38,7 @@ public class Product {
     @Column(name = "slug", unique = true, nullable = false, length = 220)
     private String slug;
 
-    @Column(name = "description", columnDefinition = "TEXT", nullable = false)
+    @Column(name = "description", nullable = false)
     private String description;
 
     @Column(name = "price", nullable = false, precision = 10, scale = 2)
@@ -57,7 +57,7 @@ public class Product {
     @Column(name = "weight", precision = 8, scale = 3)
     private BigDecimal weight;
 
-    @Column(name = "dimensions", columnDefinition = "JSONB")
+    @Column(name = "dimensions", columnDefinition = "jsonb")
     private String dimensions; // JSON: {"length": 10, "width": 5, "height": 3, "unit": "cm"}
 
     @Column(name = "is_active", nullable = false)

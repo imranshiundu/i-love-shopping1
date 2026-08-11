@@ -4,10 +4,12 @@ import com.iloveshopping.dto.user.AddressRequest;
 import com.iloveshopping.dto.user.UserProfileResponse;
 import com.iloveshopping.entity.Address;
 import com.iloveshopping.entity.User;
+import com.iloveshopping.exception.AuthenticationException;
 import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.AddressRepository;
 import com.iloveshopping.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -115,7 +117,11 @@ public class AddressService {
     }
 
     private User getCurrentUser() {
-        // In production, use SecurityContextHolder
-        return null;
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User user) {
+            return userRepository.findById(user.getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("User", "id", user.getId()));
+        }
+        throw new AuthenticationException("User not authenticated");
     }
 }

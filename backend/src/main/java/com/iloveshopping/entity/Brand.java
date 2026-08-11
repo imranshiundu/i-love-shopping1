@@ -35,7 +35,7 @@ public class Brand {
     @Column(name = "logo", length = 500)
     private String logo;
 
-    @Column(name = "description", columnDefinition = "TEXT")
+    @Column(name = "description")
     private String description;
 
     @OneToMany(mappedBy = "brand", cascade = CascadeType.ALL, orphanRemoval = true)

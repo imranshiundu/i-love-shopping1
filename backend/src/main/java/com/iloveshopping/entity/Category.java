@@ -33,7 +33,7 @@ public class Category {
     @Column(name = "slug", unique = true, nullable = false, length = 120)
     private String slug;
 
-    @Column(name = "description", columnDefinition = "TEXT")
+    @Column(name = "description")
     private String description;
 
     @Column(name = "image", length = 500)

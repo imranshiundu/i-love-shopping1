@@ -2,6 +2,7 @@ package com.iloveshopping.controller;
 
 import com.iloveshopping.dto.auth.*;
 import com.iloveshopping.dto.common.ApiResponse;
+import com.iloveshopping.entity.User;
 import com.iloveshopping.service.AuthService;
 import com.iloveshopping.util.RequestUtil;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -113,29 +115,29 @@ public class AuthController {
 
     @PostMapping("/2fa/setup")
     @Operation(summary = "Setup two-factor authentication")
-    public ResponseEntity<ApiResponse<TwoFASetupResponse>> setup2FA() {
-        String userId = ""; // Extract from JWT
-        TwoFASetupResponse response = authService.setup2FA(userId);
+    public ResponseEntity<ApiResponse<TwoFASetupResponse>> setup2FA(
+            @AuthenticationPrincipal User user) {
+        TwoFASetupResponse response = authService.setup2FA(user.getId());
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @PostMapping("/2fa/enable")
     @Operation(summary = "Enable two-factor authentication")
     public ResponseEntity<ApiResponse<Void>> enable2FA(
+            @AuthenticationPrincipal User user,
             @Valid @RequestBody Enable2FARequest request) {
 
-        String userId = ""; // Extract from JWT
-        authService.enable2FA(userId, request);
+        authService.enable2FA(user.getId(), request);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @PostMapping("/2fa/disable")
     @Operation(summary = "Disable two-factor authentication")
     public ResponseEntity<ApiResponse<Void>> disable2FA(
+            @AuthenticationPrincipal User user,
             @Valid @RequestBody Disable2FARequest request) {
 
-        String userId = ""; // Extract from JWT
-        authService.disable2FA(userId, request);
+        authService.disable2FA(user.getId(), request);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 

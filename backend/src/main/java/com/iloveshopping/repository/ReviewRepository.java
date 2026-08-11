@@ -20,13 +20,13 @@ public interface ReviewRepository extends JpaRepository<Review, String> {
 
     Page<Review> findByProductIdOrderByCreatedAtDesc(String productId, Pageable pageable);
 
-    @Query("SELECT AVG(r.rating) FROM Review r WHERE r.productId = :productId")
+    @Query("SELECT AVG(r.rating) FROM Review r WHERE r.product.id = :productId")
     Double getAverageRating(@Param("productId") String productId);
 
-    @Query("SELECT COUNT(r) FROM Review r WHERE r.productId = :productId")
+    @Query("SELECT COUNT(r) FROM Review r WHERE r.product.id = :productId")
     Long getReviewCount(@Param("productId") String productId);
 
-    @Query("SELECT COUNT(r) FROM Review r WHERE r.productId = :productId AND r.rating = :rating")
+    @Query("SELECT COUNT(r) FROM Review r WHERE r.product.id = :productId AND r.rating = :rating")
     Long getRatingCount(@Param("productId") String productId, @Param("rating") Integer rating);
 
     boolean existsByProductIdAndUserId(String productId, String userId);

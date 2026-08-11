@@ -23,16 +23,16 @@ public interface OrderRepository extends JpaRepository<Order, String> {
 
     List<Order> findByStatus(Order.OrderStatus status);
 
-    @Query("SELECT o FROM Order o WHERE o.userId = :userId AND o.status IN :statuses ORDER BY o.createdAt DESC")
+    @Query("SELECT o FROM Order o WHERE o.user.id = :userId AND o.status IN :statuses ORDER BY o.createdAt DESC")
     List<Order> findByUserIdAndStatusIn(@Param("userId") String userId, @Param("statuses") List<Order.OrderStatus> statuses);
 
     @Query("SELECT o FROM Order o WHERE o.createdAt >= :startDate AND o.createdAt <= :endDate ORDER BY o.createdAt DESC")
     List<Order> findByDateRange(@Param("startDate") LocalDateTime startDate, @Param("endDate") LocalDateTime endDate);
 
-    @Query("SELECT COUNT(o) FROM Order o WHERE o.userId = :userId")
+    @Query("SELECT COUNT(o) FROM Order o WHERE o.user.id = :userId")
     long countByUserId(@Param("userId") String userId);
 
-    @Query("SELECT SUM(o.total) FROM Order o WHERE o.userId = :userId AND o.status != 'CANCELLED' AND o.status != 'REFUNDED'")
+    @Query("SELECT SUM(o.total) FROM Order o WHERE o.user.id = :userId AND o.status != 'CANCELLED' AND o.status != 'REFUNDED'")
     java.math.BigDecimal getTotalSpentByUser(@Param("userId") String userId);
 
     boolean existsByNumber(String number);

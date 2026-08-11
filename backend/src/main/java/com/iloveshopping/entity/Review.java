@@ -39,7 +39,7 @@ public class Review {
     @Column(name = "title", length = 200)
     private String title;
 
-    @Column(name = "content", columnDefinition = "TEXT")
+    @Column(name = "content")
     private String content;
 
     @Column(name = "is_verified_purchase", nullable = false)

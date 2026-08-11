@@ -23,7 +23,7 @@ public interface SessionRepository extends JpaRepository<Session, String> {
 
     @Modifying
     @Transactional
-    @Query("UPDATE Session s SET s.revokedAt = :now WHERE s.userId = :userId AND s.revokedAt IS NULL")
+    @Query("UPDATE Session s SET s.revokedAt = :now WHERE s.user.id = :userId AND s.revokedAt IS NULL")
     int revokeAllUserSessions(@Param("userId") String userId, @Param("now") LocalDateTime now);
 
     @Modifying
