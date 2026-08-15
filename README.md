@@ -82,7 +82,7 @@ erDiagram
         datetime email_verified
         string two_factor_secret
         boolean two_factor_enabled
-        string[] roles
+        string roles
         datetime created_at
         datetime updated_at
     }
@@ -166,7 +166,7 @@ erDiagram
     CART ||--o{ CART_ITEM : contains
     CART {
         uuid id PK
-        uuid user_id UK FK
+        uuid user_id FK, UK
         string session_id UK
         datetime created_at
         datetime updated_at
