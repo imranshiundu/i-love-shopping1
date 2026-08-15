@@ -109,11 +109,14 @@ public class MpesaService {
             stkRequest.put("BusinessShortCode", mpesaProperties.getShortcode());
             stkRequest.put("Password", password);
             stkRequest.put("Timestamp", timestamp);
-            stkRequest.put("TransactionAmount", request.getAmount().toString());
+            stkRequest.put("TransactionType", "CustomerPayBillOnline");
+            stkRequest.put("Amount", String.valueOf(request.getAmount().intValue()));
             stkRequest.put("PartyA", partyA);
+            stkRequest.put("PartyB", mpesaProperties.getShortcode());
+            stkRequest.put("PhoneNumber", partyA);
             stkRequest.put("IdentifierType", "4");
             stkRequest.put("Remarks", "Payment for order " + order.getNumber());
-            stkRequest.put("CallbackURL", callbackUrl);
+            stkRequest.put("CallBackURL", callbackUrl);
             stkRequest.put("AccountName", "i-love-shopping");
             stkRequest.put("AccountReference", request.getAccountReference() != null ? request.getAccountReference() : order.getNumber());
             stkRequest.put("TransactionDesc", request.getTransactionDesc() != null ? request.getTransactionDesc() : "Order payment");
