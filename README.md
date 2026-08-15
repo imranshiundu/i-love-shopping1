@@ -21,6 +21,8 @@ B2C E-commerce Platform for the Kenyan market, built with Spring Boot 3, Postgre
 
 ## Overview
 
+<img src="docs/images/mpesa-proof.jpg" width="250" align="right" alt="M-Pesa B2C Payment Proof">
+
 i-love-shopping is a full-featured B2C e-commerce platform designed for the Kenyan market. It provides a complete shopping experience from product discovery to checkout with M-Pesa integration, user authentication with 2FA support, and admin management capabilities.
 
 ### Key Highlights
@@ -335,8 +337,7 @@ erDiagram
 
 ### M-Pesa Payments
 
-![M-Pesa B2C Payment Proof](docs/images/mpesa-proof.jpg)
-
+- ✅ C2B Payments
 - ✅ STK Push initiation
 - ✅ Callback processing (success/failure/timeout)
 - ✅ Payment status polling
@@ -918,7 +919,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [MapStruct](https://mapstruct.org/)
 - [Testcontainers](https://testcontainers.com/)
 - [Flyway](https://flywaydb.org/)
-
----
-
-**Built with ❤️ for the Kenyan e-commerce ecosystem**
