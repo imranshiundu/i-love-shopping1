@@ -334,6 +334,9 @@ erDiagram
 - ✅ Order history with pagination
 
 ### M-Pesa Payments
+
+![M-Pesa B2C Payment Proof](docs/images/mpesa-proof.jpg)
+
 - ✅ STK Push initiation
 - ✅ Callback processing (success/failure/timeout)
 - ✅ Payment status polling
