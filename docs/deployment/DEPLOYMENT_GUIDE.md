@@ -30,15 +30,27 @@ Required variables:
 
 ## Development Deployment
 
-```bash
-# Start all services
-docker-compose -f docker/docker-compose.yml up -d
+For a full development walkthrough (two options, prerequisites check, foreground run) use the setup script:
 
-# View logs
-docker-compose -f docker/docker-compose.yml logs -f api
+```bash
+# Linux / macOS / Git Bash
+bash scripts/dev.sh
+
+# Windows
+scripts\dev.cmd
+```
+
+Or manually:
+
+```bash
+# Start all services (option 1: everything in Docker)
+docker compose -f docker/docker-compose.yml up
+
+# Or start only the dependencies, then run the API locally (option 2)
+docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
 
 # Run migrations (auto-run on startup)
-docker-compose -f docker/docker-compose.yml exec api ./mvnw flyway:migrate
+docker compose -f docker/docker-compose.yml exec api ./mvnw flyway:migrate
 ```
 
 Access:
