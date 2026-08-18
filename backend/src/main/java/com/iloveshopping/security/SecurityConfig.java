@@ -51,7 +51,7 @@ public class SecurityConfig {
                         .requestMatchers("/categories", "/categories/**").permitAll()
                         .requestMatchers("/brands", "/brands/**").permitAll()
                         .requestMatchers("/health", "/live", "/ready").permitAll()
-                        .requestMatchers("/docs/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/docs/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/orders/**").authenticated()
                         .requestMatchers("/cart/**").authenticated()

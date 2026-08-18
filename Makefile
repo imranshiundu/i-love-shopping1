@@ -47,41 +47,41 @@ test-integration:
 
 # Development
 run-dev:
-	docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
+	docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
 	@echo "Waiting for services to be ready..."
 	@sleep 10
 	@echo "Development services ready. Run 'make run-api' to start the API."
 
 run-api:
-	cd backend && ./mvnw spring-boot:run
+	cd backend && DATABASE_URL='jdbc:postgresql://localhost:5433/iloveshopping?stringtype=unspecified' DATABASE_USER=iloveshopping DATABASE_PASSWORD=iloveshopping REDIS_HOST=localhost REDIS_PORT=6380 RECAPTCHA_SECRET_KEY=dev-test-secret JWT_ACCESS_SECRET='dev-access-secret-min-32-chars-long-for-test' JWT_REFRESH_SECRET='dev-refresh-secret-min-32-chars-long-for-test' MAIL_HOST=localhost MAIL_PORT=1025 ./mvnw spring-boot:run
 
 stop-dev:
-	docker-compose -f docker/docker-compose.yml down
+	docker compose -f docker/docker-compose.yml down
 
 # Docker
 docker-build:
-	docker-compose -f docker/docker-compose.yml build
+	docker compose -f docker/docker-compose.yml build
 
 docker-up:
-	docker-compose -f docker/docker-compose.yml up -d
+	docker compose -f docker/docker-compose.yml up -d
 
 docker-down:
-	docker-compose -f docker/docker-compose.yml down
+	docker compose -f docker/docker-compose.yml down
 
 docker-logs:
-	docker-compose -f docker/docker-compose.yml logs -f
+	docker compose -f docker/docker-compose.yml logs -f
 
 # Production
 run-prod:
-	docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
 
 docker-build-prod:
-	docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+	docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
 
 # Maintenance
 clean:
 	cd backend && ./mvnw clean
-	docker-compose -f docker/docker-compose.yml down -v
+	docker compose -f docker/docker-compose.yml down -v
 
 db-migrate:
 	cd backend && ./mvnw flyway:migrate

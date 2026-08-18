@@ -83,19 +83,45 @@ Then create a Pull Request on Gitea/GitHub with:
 ### Prerequisites
 
 - Java 21
-- Maven 3.9+
-- PostgreSQL 16
-- Redis 7
-- Docker & Docker Compose (optional)
+- Maven 3.9+ (or use the included `./mvnw` wrapper)
+- Docker & Docker Compose (for PostgreSQL, Redis, Mailhog)
 
-### Local Development
+### Quick Start (Recommended)
 
 ```bash
-# Start dependencies
-docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
+# Linux / macOS / Git Bash
+bash scripts/dev.sh
 
-# Run application
+# Windows (Command Prompt / PowerShell)
+scripts\dev.cmd
+```
+
+### Running Manually
+
+**Option 1 — Everything in Docker:**
+
+```bash
+docker compose -f docker/docker-compose.yml up
+```
+
+**Option 2 — Dependencies in Docker + local API:**
+
+```bash
+# Start dependencies (from project root)
+docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
+
+# Run the API locally (from backend/ directory)
 cd backend
+export DATABASE_URL='jdbc:postgresql://localhost:5433/iloveshopping?stringtype=unspecified'
+export DATABASE_USER=iloveshopping
+export DATABASE_PASSWORD=iloveshopping
+export REDIS_HOST=localhost
+export REDIS_PORT=6380
+export RECAPTCHA_SECRET_KEY=dev-test-secret
+export JWT_ACCESS_SECRET=dev-access-secret-min-32-chars-long-for-test
+export JWT_REFRESH_SECRET=dev-refresh-secret-min-32-chars-long-for-test
+export MAIL_HOST=localhost
+export MAIL_PORT=1025
 ./mvnw spring-boot:run
 ```
 

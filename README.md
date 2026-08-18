@@ -10,7 +10,11 @@ B2C E-commerce Platform for the Kenyan market, built with Spring Boot 3, Postgre
 - [Technology Stack](#technology-stack)
 - [Features](#features)
 - [Prerequisites](#prerequisites)
-- [Getting Started](#getting-started)
+- [Getting Started (Development)](#getting-started-development)
+- [Quick Start with the Setup Script](#quick-start-with-the-setup-script)
+- [Running Manually](#running-manually)
+- [What Runs Where](#what-runs-where)
+- [Verify Everything Works](#verify-everything-works)
 - [Configuration](#configuration)
 - [API Documentation](#api-documentation)
 - [Testing](#testing)
@@ -361,11 +365,15 @@ erDiagram
 
 ## Prerequisites
 
-- **Java 21** (JDK)
-- **Maven 3.9+**
-- **PostgreSQL 16** (or Docker)
-- **Redis 7** (or Docker)
-- **Docker & Docker Compose** (optional, for containerized deployment)
+The project needs **Docker** for the database, cache and mail services, and optionally **Java 21** and **Maven** if you want to run the Spring Boot API directly on your machine.
+
+| Tool | Required for | Notes |
+|------|--------------|-------|
+| **Docker** + **Docker Compose** | Everything (option 1 & 2) | Runs PostgreSQL 16, Redis 7 and Mailhog |
+| **Java 21** (JDK) | Running the API locally (option 2) | Required for `spring-boot:run` |
+| **Maven 3.9+** | Running the API locally (option 2) | The included `./mvnw` wrapper works if Maven is not installed |
+
+> **No setup script?** If you follow the manual commands below instead of using `scripts/dev.sh`, you are responsible for installing the prerequisites yourself.
 
 ### External Services (Required for Full Functionality)
 - **M-Pesa Daraja API** credentials (Consumer Key, Secret, Shortcode, Passkey)
@@ -374,122 +382,155 @@ erDiagram
 - **GitHub OAuth2** (Client ID, Secret)
 - **SMTP Server** for emails (Mailhog for development)
 
-## Getting Started
+> These external services are **not required** to start the project. The development setup runs fully with the built-in defaults and a sandbox M-Pesa configuration, so you can start learning right away.
+
+## Getting Started (Development)
+
+This is a **development** setup, not a production server. Everything runs in the **foreground** so you can watch the logs and press `Ctrl+C` to stop. No background services are started.
+
+There are two ways to run the project. Both use Docker for PostgreSQL, Redis and Mailhog; they differ in where the Spring Boot API runs:
+
+| Option | What it does | Requires |
+|--------|--------------|----------|
+| **1) Everything in Docker** | API runs inside a Docker container alongside the dependencies | Only Docker |
+| **2) Docker dependencies + local API** | API runs directly on your machine, dependencies run in Docker | Docker, Java 21, Maven |
 
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/i-love-shopping.git
+git clone https://gitea.kood.tech/imranshiundu/i-love-shopping1.git
 cd i-love-shopping
 ```
 
-### 2. Configure Environment
+> All Docker commands must be run from the **project root** (`i-love-shopping/`). The Spring Boot API runs from the `backend/` directory.
 
-Copy the example environment file and configure:
+## Quick Start with the Setup Script
 
-```bash
-cp backend/.env.example backend/.env
-```
-
-Edit `backend/.env` with your credentials:
-
-```env
-# Database
-DATABASE_URL=jdbc:postgresql://localhost:5432/iloveshopping
-DATABASE_USER=iloveshopping
-DATABASE_PASSWORD=secure_password
-
-# Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-
-# JWT (generate with: openssl rand -base64 32)
-JWT_ACCESS_SECRET=your-access-secret-32-chars-minimum
-JWT_REFRESH_SECRET=your-refresh-secret-32-chars-minimum
-
-# reCAPTCHA
-RECAPTCHA_SECRET_KEY=your-recaptcha-secret
-RECAPTCHA_SITE_KEY=your-recaptcha-site-key
-
-# OAuth2
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GITHUB_CLIENT_ID=your-github-client-id
-GITHUB_CLIENT_SECRET=your-github-client-secret
-
-# Email
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME=your-email@gmail.com
-MAIL_PASSWORD=your-app-password
-MAIL_FROM=noreply@yourdomain.com
-
-# M-Pesa Daraja (Sandbox)
-MPESA_CONSUMER_KEY=your-consumer-key
-MPESA_CONSUMER_SECRET=your-consumer-secret
-MPESA_SHORTCODE=174379
-MPESA_PASSKEY=your-passkey
-MPESA_CALLBACK_URL=https://yourdomain.com/api/v1/orders/payments/mpesa/callback
-```
-
-### 3. Run with Docker Compose (Recommended)
+The setup script works on **Linux, macOS and Windows** (Git Bash / WSL for `dev.sh`, Command Prompt or PowerShell for `dev.cmd`). It checks that you have everything needed, tries to install anything that is missing, then asks which of the two options you want to run.
 
 ```bash
-docker-compose -f docker/docker-compose.yml up -d
+# Linux / macOS / Git Bash
+bash scripts/dev.sh
+
+# Windows (Command Prompt / PowerShell)
+scripts\dev.cmd
 ```
 
-This starts:
-- PostgreSQL on port 5432
-- Redis on port 6379
-- Mailhog on ports 1025 (SMTP) / 8025 (Web UI)
-- Spring Boot API on port 8080
+You will be asked to pick an option:
 
-### 4. Run Locally (Without Docker)
+```
+How do you want to run the project?
+  1) Everything in Docker (PostgreSQL + Redis + Mailhog + API) - only Docker is required
+  2) Dependencies in Docker + run the Spring Boot API locally - requires Docker, Java 21 and Maven
+Choose an option [1/2]:
+```
 
-#### Linux/macOS
+- **Option 1** starts all four services with Docker Compose in the foreground. Press `Ctrl+C` to stop everything.
+- **Option 2** starts PostgreSQL, Redis and Mailhog, waits until they are healthy, then starts the Spring Boot API in the foreground. Press `Ctrl+C` to stop the API — the script also stops the Docker containers when you exit, so nothing is left running in the background.
+
+The first run downloads dependencies (Docker images / Maven packages), so it can take a few minutes.
+
+## Running Manually
+
+If you prefer to run the commands yourself, use the steps below. **Run Docker commands from the project root, and the API from the `backend/` directory.**
+
+### Option 1 — Everything in Docker
 
 ```bash
-# Start dependencies
-docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
+# Run from the project root (i-love-shopping/)
+docker compose -f docker/docker-compose.yml up
+```
 
-# Run the application
+Press `Ctrl+C` to stop all services.
+
+### Option 2 — Docker dependencies + local API
+
+**Step 1: Start the dependencies** (from the project root):
+
+```bash
+docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
+```
+
+Wait until PostgreSQL and Redis report `healthy` (`docker compose -f docker/docker-compose.yml ps`).
+
+**Step 2: Run the Spring Boot API** (from the `backend/` directory):
+
+The development containers expose PostgreSQL on port **5433** and Redis on port **6380**, so the API must be pointed at those ports.
+
+```bash
+# Run from the backend/ directory
 cd backend
+
+export DATABASE_URL='jdbc:postgresql://localhost:5433/iloveshopping?stringtype=unspecified'
+export DATABASE_USER=iloveshopping
+export DATABASE_PASSWORD=iloveshopping
+export REDIS_HOST=localhost
+export REDIS_PORT=6380
+export RECAPTCHA_SECRET_KEY=dev-test-secret
+export JWT_ACCESS_SECRET=dev-access-secret-min-32-chars-long-for-test
+export JWT_REFRESH_SECRET=dev-refresh-secret-min-32-chars-long-for-test
+export MAIL_HOST=localhost
+export MAIL_PORT=1025
+
 ./mvnw spring-boot:run
 ```
 
-#### Windows (PowerShell)
+Windows (PowerShell):
 
 ```powershell
-# Start dependencies
-docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
-
-# Run the application
 cd backend
+
+$env:DATABASE_URL="jdbc:postgresql://localhost:5433/iloveshopping?stringtype=unspecified"
+$env:DATABASE_USER="iloveshopping"
+$env:DATABASE_PASSWORD="iloveshopping"
+$env:REDIS_HOST="localhost"
+$env:REDIS_PORT="6380"
+$env:RECAPTCHA_SECRET_KEY="dev-test-secret"
+$env:JWT_ACCESS_SECRET="dev-access-secret-min-32-chars-long-for-test"
+$env:JWT_REFRESH_SECRET="dev-refresh-secret-min-32-chars-long-for-test"
+$env:MAIL_HOST="localhost"
+$env:MAIL_PORT="1025"
+
 .\mvnw.cmd spring-boot:run
 ```
 
-#### Windows (Command Prompt)
+Press `Ctrl+C` to stop the API, then stop the containers:
 
-```cmd
-REM Start dependencies
-docker-compose -f docker/docker-compose.yml up -d postgres redis mailhog
-
-REM Run the application
-cd backend
-mvnw.cmd spring-boot:run
+```bash
+# Run from the project root
+docker compose -f docker/docker-compose.yml down
 ```
 
-The API will be available at: `http://localhost:8080/api/v1`
+## What Runs Where
 
-### 5. Verify Installation
+| Service | Address | Notes |
+|---------|---------|-------|
+| Spring Boot API | `http://localhost:8080/api/v1` | REST API |
+| Swagger UI | `http://localhost:8080/api/v1/docs` | Interactive API docs |
+| PostgreSQL | `localhost:5433` | Database (container maps 5433 → 5432) |
+| Redis | `localhost:6380` | Cache (container maps 6380 → 6379) |
+| Mailhog SMTP | `localhost:1025` | Catches all outgoing emails |
+| Mailhog Web UI | `http://localhost:8025` | Read emails sent by the app |
+
+## Verify Everything Works
 
 ```bash
 # Health check
 curl http://localhost:8080/api/v1/health
 
-# API Documentation (Swagger UI)
-open http://localhost:8080/api/v1/docs
+# Interactive API documentation
+# Open http://localhost:8080/api/v1/docs in your browser
 ```
+
+Try logging in with a seeded account:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@iloveshopping.com","password":"User123!"}'
+```
+
+Admin account: `admin@iloveshopping.com` / `Admin123!`
 
 ## Configuration
 
@@ -497,9 +538,11 @@ open http://localhost:8080/api/v1/docs
 
 | Profile | Description |
 |---------|-------------|
-| `development` | Local development with H2/PostgreSQL |
+| `development` | Default local profile. Connects to PostgreSQL on `localhost:5432` and Redis on `localhost:6379` |
 | `test` | Testcontainers-based integration tests |
-| `docker` | Docker deployment with container networking |
+| `docker` | Used inside Docker Compose. Connects to the `postgres` and `redis` services over the compose network |
+
+> When the API runs locally against the development containers, use `DATABASE_URL` pointing at port **5433** and `REDIS_PORT=6380` (see [Running Manually](#running-manually)).
 
 ### Key Configuration Properties
 
@@ -755,6 +798,15 @@ start target\site\jacoco\index.html
 
 ## Docker Deployment
 
+> For local development, use the [Getting Started (Development)](#getting-started-development) instructions instead. This section covers building the images and the production deployment.
+
+The repository ships two compose files:
+
+| File | Purpose |
+|------|---------|
+| `docker/docker-compose.yml` | **Development** - PostgreSQL, Redis, Mailhog and the API with sensible dev defaults |
+| `docker/docker-compose.prod.yml` | **Production** - adds Nginx reverse proxy, env-based secrets, no Mailhog |
+
 ### Build Images
 
 ```bash
@@ -770,15 +822,8 @@ docker build -t iloveshopping/backend:latest -f Dockerfile .
 
 ```bash
 # Production deployment
-docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
 ```
-
-### Environment-Specific Compose Files
-
-| File | Purpose |
-|------|---------|
-| `docker-compose.yml` | Development (with Mailhog) |
-| `docker-compose.prod.yml` | Production (no Mailhog, production configs) |
 
 ### Docker Commands on Different Operating Systems
 
@@ -786,51 +831,49 @@ docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up
 
 ```bash
 # Build and start all services
-docker-compose -f docker/docker-compose.yml up -d
+docker compose -f docker/docker-compose.yml up -d
 
 # View logs
-docker-compose -f docker/docker-compose.yml logs -f api
+docker compose -f docker/docker-compose.yml logs -f api
 
 # Stop services
-docker-compose -f docker/docker-compose.yml down
+docker compose -f docker/docker-compose.yml down
 
 # Build production images
-docker-compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
+docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml build
 ```
 
 #### Windows (PowerShell)
 
 ```powershell
 # Build and start all services
-docker-compose -f docker\docker-compose.yml up -d
+docker compose -f docker\docker-compose.yml up -d
 
 # View logs
-docker-compose -f docker\docker-compose.yml logs -f api
+docker compose -f docker\docker-compose.yml logs -f api
 
 # Stop services
-docker-compose -f docker\docker-compose.yml down
+docker compose -f docker\docker-compose.yml down
 
 # Build production images
-docker-compose -f docker\docker-compose.yml -f docker\docker-compose.prod.yml build
+docker compose -f docker\docker-compose.yml -f docker\docker-compose.prod.yml build
 ```
 
 #### Windows (Command Prompt)
 
 ```cmd
 REM Build and start all services
-docker-compose -f docker\docker-compose.yml up -d
+docker compose -f docker\docker-compose.yml up -d
 
 REM View logs
-docker-compose -f docker\docker-compose.yml logs -f api
+docker compose -f docker\docker-compose.yml logs -f api
 
 REM Stop services
-docker-compose -f docker\docker-compose.yml down
+docker compose -f docker\docker-compose.yml down
 
 REM Build production images
-docker-compose -f docker\docker-compose.yml -f docker\docker-compose.prod.yml build
+docker compose -f docker\docker-compose.yml -f docker\docker-compose.prod.yml build
 ```
-
-### Health Checks
 
 ### Health Checks
 
@@ -871,10 +914,18 @@ i-love-shopping/
 │   │       └── java/...             # Unit & integration tests
 │   ├── Dockerfile
 │   ├── pom.xml
+│   ├── mvnw / mvnw.cmd              # Maven wrapper (no global Maven needed)
 │   └── .env.example
 ├── docker/
-│   ├── docker-compose.yml
-│   └── docker-compose.prod.yml
+│   ├── docker-compose.yml           # Development compose (PostgreSQL, Redis, Mailhog, API)
+│   ├── docker-compose.prod.yml      # Production compose (Nginx, no Mailhog)
+│   └── nginx/                       # Nginx reverse proxy config
+├── scripts/
+│   ├── dev.sh                       # Dev setup script (Linux/macOS/Git Bash)
+│   ├── dev.cmd                      # Dev setup script (Windows)
+│   ├── check-secrets.sh             # Secret scanning helper
+│   └── ...
+├── docs/                            # Architecture, deployment, security & API docs
 ├── .gitignore
 └── README.md
 ```

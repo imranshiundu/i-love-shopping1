@@ -2,9 +2,6 @@
 target/
 build/
 .gradle/
-.mvn/
-mvnw
-mvnw.cmd
 
 # IDE
 .idea/
