@@ -414,8 +414,11 @@ We have provided a foolproof start script located right at the root of the proje
 # For Linux / macOS / Git Bash:
 bash start.sh
 
-# For Windows (Command Prompt / PowerShell):
+# For Windows (Command Prompt):
 start.cmd
+
+# For Windows (PowerShell):
+.\start.cmd
 ```
 
 You will be presented with a simple menu asking how you want to run the project:
