@@ -404,19 +404,21 @@ cd i-love-shopping
 
 > All Docker commands must be run from the **project root** (`i-love-shopping/`). The Spring Boot API runs from the `backend/` directory.
 
-## Quick Start with the Setup Script
+## Quick Start (Easiest Way)
 
-The setup script works on **Linux, macOS and Windows** (Git Bash / WSL for `dev.sh`, Command Prompt or PowerShell for `dev.cmd`). It checks that you have everything needed, tries to install anything that is missing, then asks which of the two options you want to run.
+We have provided a foolproof start script located right at the root of the project. It works on **Linux, macOS and Windows**. Even if you aren't familiar with the terminal, this script will check your environment, install missing tools, and get the code running smoothly.
+
+**Just open your terminal, ensure you are in the project folder, and run:**
 
 ```bash
-# Linux / macOS / Git Bash
-bash scripts/dev.sh
+# For Linux / macOS / Git Bash:
+bash start.sh
 
-# Windows (Command Prompt / PowerShell)
-scripts\dev.cmd
+# For Windows (Command Prompt / PowerShell):
+start.cmd
 ```
 
-You will be asked to pick an option:
+You will be presented with a simple menu asking how you want to run the project:
 
 ```
 How do you want to run the project?
