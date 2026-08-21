@@ -145,7 +145,7 @@ public class CatalogService {
                 .filter(p -> maxPrice == null || p.getPrice().compareTo(maxPrice) <= 0)
                 .filter(p -> !inStockOnly || p.getStock() > 0)
                 .filter(p -> !onSaleOnly || p.isOnSale())
-                .sorted(getProductComparator(sortBy))
+                .sorted(getProductComparator(sortBy, query))
                 .collect(Collectors.toList());
 
         int totalElements = filtered.size();
@@ -221,26 +221,7 @@ public class CatalogService {
     }
 
     private ProductResponse toProductResponseWithDetails(Product product) {
-        ProductResponse response = ProductResponse.from(product);
-
-        // Set rating from cache or database
-        String productKey = PRODUCT_CACHE_PREFIX + product.getId();
-        Object cachedAvg = redisTemplate.opsForHash().get(productKey, "avgRating");
-        Object cachedCount = redisTemplate.opsForHash().get(productKey, "reviewCount");
-        Double avgRating = cachedAvg instanceof Number n ? n.doubleValue() : null;
-        Long reviewCount = cachedCount instanceof Number n ? n.longValue() : null;
-
-        if (avgRating == null) {
-            avgRating = reviewRepository.getAverageRating(product.getId());
-            reviewCount = reviewRepository.getReviewCount(product.getId());
-            redisTemplate.opsForHash().put(productKey, "avgRating", avgRating);
-            redisTemplate.opsForHash().put(productKey, "reviewCount", reviewCount);
-            redisTemplate.expire(productKey, CACHE_TTL);
-        }
-
-        response.setAverageRating(avgRating != null ? avgRating : 0);
-        response.setReviewCount(reviewCount != null ? reviewCount : 0);
-        return response;
+        return ProductResponse.from(product);
     }
 
     private ProductSearchResponse.FacetCounts getFacets(String query, List<String> categorySlugs,
@@ -261,12 +242,23 @@ public class CatalogService {
             case "price_asc" -> Sort.by(Sort.Direction.ASC, "price");
             case "price_desc" -> Sort.by(Sort.Direction.DESC, "price");
             case "newest" -> Sort.by(Sort.Direction.DESC, "createdAt");
-            case "rating" -> Sort.by(Sort.Direction.DESC, "reviews");
+            case "rating" -> Sort.by(Sort.Direction.DESC, "averageRating");
             default -> Sort.by(Sort.Direction.DESC, "createdAt");
         };
     }
 
-    private java.util.Comparator<Product> getProductComparator(String sortBy) {
+    private java.util.Comparator<Product> getProductComparator(String sortBy, String query) {
+        if ("rating".equalsIgnoreCase(sortBy)) {
+            return java.util.Comparator.comparing((Product p) -> p.getAverageRating() != null ? p.getAverageRating() : 0.0).reversed();
+        }
+        if ("relevance".equalsIgnoreCase(sortBy) && query != null && !query.isBlank()) {
+            return (p1, p2) -> {
+                String q = query.toLowerCase();
+                int score1 = (p1.getName().toLowerCase().contains(q) ? 2 : 0) + (p1.getDescription().toLowerCase().contains(q) ? 1 : 0);
+                int score2 = (p2.getName().toLowerCase().contains(q) ? 2 : 0) + (p2.getDescription().toLowerCase().contains(q) ? 1 : 0);
+                return Integer.compare(score2, score1);
+            };
+        }
         return switch (sortBy != null ? sortBy.toLowerCase() : "relevance") {
             case "price_asc" -> java.util.Comparator.comparing(Product::getPrice);
             case "price_desc" -> java.util.Comparator.comparing(Product::getPrice).reversed();
