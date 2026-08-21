@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.hibernate.annotations.Formula;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -57,6 +58,9 @@ public class Product {
     @Column(name = "weight", precision = 8, scale = 3)
     private BigDecimal weight;
 
+    @Column(name = "weight_unit", length = 10)
+    private String weightUnit;
+
     @Column(name = "dimensions", columnDefinition = "jsonb")
     private String dimensions; // JSON: {"length": 10, "width": 5, "height": 3, "unit": "cm"}
 
@@ -87,6 +91,14 @@ public class Product {
     @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<Review> reviews = new ArrayList<>();
+
+    @Formula("(SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.product_id = id)")
+    @Basic(fetch = FetchType.EAGER)
+    private Double averageRating;
+
+    @Formula("(SELECT COUNT(r.id) FROM reviews r WHERE r.product_id = id)")
+    @Basic(fetch = FetchType.EAGER)
+    private Long reviewCount;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

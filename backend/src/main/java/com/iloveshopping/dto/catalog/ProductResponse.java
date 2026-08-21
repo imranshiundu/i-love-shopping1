@@ -24,6 +24,7 @@ public class ProductResponse {
     private String sku;
     private int stock;
     private BigDecimal weight;
+    private String weightUnit;
     private String dimensions;
     private boolean isActive;
     private CategorySummary category;
@@ -47,6 +48,7 @@ public class ProductResponse {
                 .sku(product.getSku())
                 .stock(product.getStock())
                 .weight(product.getWeight())
+                .weightUnit(product.getWeightUnit())
                 .dimensions(product.getDimensions())
                 .isActive(product.getIsActive())
                 .category(product.getCategory() != null ? CategorySummary.from(product.getCategory()) : null)
@@ -55,8 +57,8 @@ public class ProductResponse {
                 .inStock(product.isInStock())
                 .onSale(product.isOnSale())
                 .discountPercentage(product.getDiscountPercentage())
-                .averageRating(0) // Will be set by service
-                .reviewCount(0) // Will be set by service
+                .averageRating(product.getAverageRating() != null ? product.getAverageRating() : 0.0)
+                .reviewCount(product.getReviewCount() != null ? product.getReviewCount() : 0L)
                 .build();
     }
 
