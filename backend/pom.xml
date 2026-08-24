@@ -167,6 +167,12 @@
             <artifactId>spring-boot-starter-thymeleaf</artifactId>
         </dependency>
 
+        <!-- Message Queue -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-amqp</artifactId>
+        </dependency>
+
         <!-- TOTP for 2FA -->
         <dependency>
             <groupId>de.taimos</groupId>

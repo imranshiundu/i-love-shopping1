@@ -2,6 +2,9 @@ package com.iloveshopping.service;
 
 import com.iloveshopping.dto.catalog.BrandResponse;
 import com.iloveshopping.dto.catalog.CategoryResponse;
+import com.iloveshopping.dto.catalog.CreateBrandRequest;
+import com.iloveshopping.dto.catalog.CreateCategoryRequest;
+import com.iloveshopping.dto.catalog.CreateProductRequest;
 import com.iloveshopping.dto.catalog.ProductResponse;
 import com.iloveshopping.dto.catalog.ProductSearchResponse;
 import com.iloveshopping.entity.Brand;
@@ -22,10 +25,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -202,6 +207,153 @@ public class CatalogService {
                 .collect(Collectors.toList());
     }
 
+    // ===== Admin CRUD =====
+
+    @Transactional
+    public CategoryResponse createCategory(CreateCategoryRequest request) {
+        Category category = Category.builder()
+                .name(request.getName())
+                .slug(generateSlug(request.getName()))
+                .description(request.getDescription())
+                .image(request.getImage())
+                .sortOrder(request.getSortOrder() != null ? request.getSortOrder() : 0)
+                .build();
+
+        if (request.getParentId() != null && !request.getParentId().isBlank()) {
+            Category parent = categoryRepository.findById(request.getParentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Category", "parentId", request.getParentId()));
+            category.setParent(parent);
+        }
+
+        category = categoryRepository.save(category);
+        return CategoryResponse.from(category);
+    }
+
+    @Transactional
+    public CategoryResponse updateCategory(String id, CreateCategoryRequest request) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
+
+        category.setName(request.getName());
+        if (request.getDescription() != null) {
+            category.setDescription(request.getDescription());
+        }
+        if (request.getImage() != null) {
+            category.setImage(request.getImage());
+        }
+        if (request.getSortOrder() != null) {
+            category.setSortOrder(request.getSortOrder());
+        }
+
+        category = categoryRepository.save(category);
+        return CategoryResponse.from(category);
+    }
+
+    @Transactional
+    public void deleteCategory(String id) {
+        Category category = categoryRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
+        categoryRepository.delete(category);
+    }
+
+    @Transactional
+    public BrandResponse createBrand(CreateBrandRequest request) {
+        Brand brand = Brand.builder()
+                .name(request.getName())
+                .slug(generateSlug(request.getName()))
+                .description(request.getDescription())
+                .logo(request.getLogo())
+                .build();
+
+        brand = brandRepository.save(brand);
+        return BrandResponse.from(brand);
+    }
+
+    @Transactional
+    public BrandResponse updateBrand(String id, CreateBrandRequest request) {
+        Brand brand = brandRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Brand", "id", id));
+
+        brand.setName(request.getName());
+        if (request.getDescription() != null) {
+            brand.setDescription(request.getDescription());
+        }
+        if (request.getLogo() != null) {
+            brand.setLogo(request.getLogo());
+        }
+
+        brand = brandRepository.save(brand);
+        return BrandResponse.from(brand);
+    }
+
+    @Transactional
+    public void deleteBrand(String id) {
+        Brand brand = brandRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Brand", "id", id));
+        brandRepository.delete(brand);
+    }
+
+    @Transactional
+    public ProductResponse createProduct(CreateProductRequest request) {
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", request.getCategoryId()));
+        Brand brand = brandRepository.findById(request.getBrandId())
+                .orElseThrow(() -> new ResourceNotFoundException("Brand", "id", request.getBrandId()));
+
+        Product product = Product.builder()
+                .name(request.getName())
+                .slug(generateSlug(request.getName()))
+                .description(request.getDescription())
+                .price(request.getPrice())
+                .compareAtPrice(request.getCompareAtPrice())
+                .sku(request.getSku())
+                .stock(request.getStock())
+                .weight(request.getWeight())
+                .weightUnit(request.getWeightUnit())
+                .dimensions(request.getDimensions())
+                .isActive(request.getIsActive() != null ? request.getIsActive() : true)
+                .category(category)
+                .brand(brand)
+                .build();
+
+        product = productRepository.save(product);
+        return ProductResponse.from(product);
+    }
+
+    @Transactional
+    public ProductResponse updateProduct(String id, CreateProductRequest request) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+
+        Category category = categoryRepository.findById(request.getCategoryId())
+                .orElseThrow(() -> new ResourceNotFoundException("Category", "id", request.getCategoryId()));
+        Brand brand = brandRepository.findById(request.getBrandId())
+                .orElseThrow(() -> new ResourceNotFoundException("Brand", "id", request.getBrandId()));
+
+        product.setName(request.getName());
+        product.setDescription(request.getDescription());
+        product.setPrice(request.getPrice());
+        product.setCompareAtPrice(request.getCompareAtPrice());
+        product.setSku(request.getSku());
+        product.setStock(request.getStock());
+        product.setWeight(request.getWeight());
+        product.setWeightUnit(request.getWeightUnit());
+        product.setDimensions(request.getDimensions());
+        product.setIsActive(request.getIsActive() != null ? request.getIsActive() : true);
+        product.setCategory(category);
+        product.setBrand(brand);
+
+        product = productRepository.save(product);
+        return ProductResponse.from(product);
+    }
+
+    @Transactional
+    public void deleteProduct(String id) {
+        Product product = productRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+        productRepository.delete(product);
+    }
+
     // ===== Helpers =====
 
     private CategoryResponse toCategoryResponse(Category category, boolean includeChildren) {
@@ -265,5 +417,24 @@ public class CatalogService {
             case "newest" -> java.util.Comparator.comparing(Product::getCreatedAt).reversed();
             default -> java.util.Comparator.comparing(Product::getCreatedAt).reversed();
         };
+    }
+
+    private String generateSlug(String name) {
+        String normalized = Normalizer.normalize(name, Normalizer.Form.NFD);
+        Pattern pattern = Pattern.compile("[^\\p{ASCII}]");
+        String slug = pattern.matcher(normalized).replaceAll("")
+                .toLowerCase()
+                .replaceAll("[^a-z0-9\\s-]", "")
+                .replaceAll("\\s+", "-")
+                .replaceAll("-+", "-")
+                .replaceAll("^-|-$", "");
+
+        String baseSlug = slug;
+        int counter = 1;
+        while (productRepository.existsBySlug(slug) || categoryRepository.existsBySlug(slug) || brandRepository.existsBySlug(slug)) {
+            slug = baseSlug + "-" + counter;
+            counter++;
+        }
+        return slug;
     }
 }

@@ -1,0 +1,85 @@
+'use client';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { admin, brands as brandsApi } from '@/services/api';
+import { Brand } from '@/types';
+import toast from 'react-hot-toast';
+import { FiPlus, FiTrash2, FiEdit2 } from 'react-icons/fi';
+
+export default function AdminBrandsPage() {
+  const [brands, setBrands] = useState<Brand[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: '', description: '' });
+
+  const load = async () => {
+    setLoading(true);
+    try { const res = await brandsApi.list(); setBrands(res.data || []); }
+    catch { toast.error('Failed'); }
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      if (editingId) { await admin.updateBrand(editingId, form); toast.success('Updated'); }
+      else { await admin.createBrand(form); toast.success('Created'); }
+      setShowForm(false); setEditingId(null); setForm({ name: '', description: '' }); load();
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete?')) return;
+    try { await admin.deleteBrand(id); toast.success('Deleted'); load(); }
+    catch (e: any) { toast.error(e.message); }
+  };
+
+  const startEdit = (b: Brand) => { setEditingId(b.id); setForm({ name: b.name, description: b.description || '' }); setShowForm(true); };
+
+  return (
+    <div className="max-w-4xl mx-auto px-4 py-8">
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-3xl font-bold">Manage Brands</h1>
+        <div className="flex gap-3">
+          <Link href="/admin" className="text-primary-600 hover:underline text-sm">&larr; Dashboard</Link>
+          <button onClick={() => { setShowForm(!showForm); setEditingId(null); setForm({ name: '', description: '' }); }}
+            className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-700 flex items-center gap-1">
+            <FiPlus /> Add Brand
+          </button>
+        </div>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleSubmit} className="bg-white rounded-lg p-6 border mb-6 space-y-4">
+          <div><label className="block text-sm font-medium mb-1">Name *</label><input type="text" value={form.name} onChange={e => setForm({...form, name: e.target.value})} required className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+          <div><label className="block text-sm font-medium mb-1">Description</label><textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={2} className="w-full border rounded-lg px-3 py-2 text-sm" /></div>
+          <div className="flex gap-2">
+            <button type="submit" className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-700">{editingId ? 'Update' : 'Create'}</button>
+            <button type="button" onClick={() => { setShowForm(false); setEditingId(null); }} className="border px-4 py-2 rounded-lg text-sm">Cancel</button>
+          </div>
+        </form>
+      )}
+
+      {loading ? (
+        <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="bg-white rounded-lg h-12 animate-pulse" />)}</div>
+      ) : (
+        <div className="bg-white rounded-lg border divide-y">
+          {brands.map(b => (
+            <div key={b.id} className="px-4 py-3 flex items-center justify-between">
+              <div>
+                <p className="font-medium">{b.name}</p>
+                {b.description && <p className="text-xs text-gray-500 line-clamp-1">{b.description}</p>}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => startEdit(b)} className="text-gray-400 hover:text-primary-600"><FiEdit2 /></button>
+                <button onClick={() => handleDelete(b.id)} className="text-gray-400 hover:text-red-600"><FiTrash2 /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}

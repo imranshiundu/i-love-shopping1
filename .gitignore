@@ -26,6 +26,10 @@ logs/
 *.log
 logback-spring.xml
 
+# Frontend
+node_modules/
+.next/
+
 # IDE specific files
 .idea/
 .vscode/
@@ -53,3 +57,4 @@ temp/
 git.txt
 test.txt
 description.txt
+description2.txt
