@@ -84,17 +84,23 @@ Then create a Pull Request on Gitea/GitHub with:
 
 - Java 21
 - Maven 3.9+ (or use the included `./mvnw` wrapper)
-- Docker & Docker Compose (for PostgreSQL, Redis, Mailhog)
+- Node.js 20+ (for the Next.js frontend)
+- Docker & Docker Compose (for PostgreSQL, Redis, RabbitMQ, Mailhog)
 
 ### Quick Start (Recommended)
 
 ```bash
 # Linux / macOS / Git Bash
-bash scripts/dev.sh
+bash start.sh
 
 # Windows (Command Prompt / PowerShell)
-scripts\dev.cmd
+start.cmd
 ```
+
+The script offers two modes:
+
+1. Everything in Docker (PostgreSQL, Redis, Mailhog, RabbitMQ, API and frontend) - only Docker needed
+2. Dependencies in Docker + run API and frontend locally - needs Java 21, Maven and Node.js
 
 ### Running Manually
 
@@ -104,11 +110,11 @@ scripts\dev.cmd
 docker compose -f docker/docker-compose.yml up
 ```
 
-**Option 2 — Dependencies in Docker + local API:**
+**Option 2 — Dependencies in Docker + local API & frontend:**
 
 ```bash
 # Start dependencies (from project root)
-docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
+docker compose -f docker/docker-compose.yml up -d postgres redis mailhog rabbitmq
 
 # Run the API locally (from backend/ directory)
 cd backend
@@ -118,12 +124,32 @@ export DATABASE_PASSWORD=iloveshopping
 export REDIS_HOST=localhost
 export REDIS_PORT=6380
 export RECAPTCHA_SECRET_KEY=dev-test-secret
+export RECAPTCHA_SITE_KEY=dev-test-site
 export JWT_ACCESS_SECRET=dev-access-secret-min-32-chars-long-for-test
 export JWT_REFRESH_SECRET=dev-refresh-secret-min-32-chars-long-for-test
 export MAIL_HOST=localhost
 export MAIL_PORT=1025
+export MAIL_SMTP_AUTH=false
+export MAIL_SMTP_STARTTLS=false
+export FRONTEND_URL=http://localhost:3000
+export CORS_ALLOWED_ORIGINS=http://localhost:3000
+export RABBITMQ_HOST=localhost
+export RABBITMQ_PORT=5672
+export RABBITMQ_USERNAME=iloveshopping
+export RABBITMQ_PASSWORD=iloveshopping
 ./mvnw spring-boot:run
+
+# In a new terminal, run the frontend (from frontend/ directory)
+cd frontend
+npm install   # first run only
+npm run dev
 ```
+
+### Frontend Conventions
+
+- All runtime configuration goes through `NEXT_PUBLIC_*` env vars declared in `frontend/.env.local` and consumed via `frontend/src/lib/config.ts` - never hardcode URLs, prices, currency or identity strings in components
+- Use `react-icons` for icons; no emojis anywhere
+- Tailwind utility classes with the shared palette (`primary`, `stone` neutrals); keep shadows tinted
 
 ### Running Tests
 

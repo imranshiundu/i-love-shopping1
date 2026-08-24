@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - M-Pesa Daraja STK Push payment integration
 - TOTP-based Two-Factor Authentication
 - Google reCAPTCHA v3 integration
-- Google/GitHub OAuth2 login
+- Google/GitHub OAuth2 login (enabled only when client IDs are configured)
 - Product catalog with faceted search
 - Shopping cart with stock validation
 - Order management with checkout flow
@@ -22,12 +22,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker development and production configurations
 - Nginx reverse proxy with rate limiting
 - Comprehensive test suite (48 unit tests)
+- Next.js 14 storefront: home, product listing/detail, cart, single-page checkout,
+  auth pages, account area (profile/orders/addresses) and role-gated admin area
+  (dashboard, orders, products, categories, brands)
+- Frontend configuration fully driven by `NEXT_PUBLIC_*` environment variables via `src/lib/config.ts`
+- Admin REST endpoints for orders/users plus catalog CRUD guarded by `@PreAuthorize`
+- Simulated Stripe and PayPal payment endpoints (create/confirm/capture/webhook)
+- RabbitMQ order event flow: checkout publishes `order.created`, successful payments publish
+  `order.paid`, cancellations publish `order.cancelled`; a consumer moves orders PENDING to
+  CONFIRMED and confirmation emails are sent on payment success
+- Per-IP rate limiting filter registered in the security chain
+- Thymeleaf email templates: verification, password reset, order confirmation, 2FA codes
+- Multi-stage frontend Dockerfile and frontend service in docker-compose
 
 ### Changed
-- N/A
+- RabbitMQ connection settings moved from `mpesa.rabbitmq` to `spring.rabbitmq`
+- SMTP auth/starttls are now env-configurable (`MAIL_SMTP_AUTH`, `MAIL_SMTP_STARTTLS`) so Mailhog works without credentials
+- Dev setup script now includes RabbitMQ and the frontend; prerequisites check covers Node.js
 
 ### Fixed
-- N/A
+- Circular dependency at startup between SecurityConfig, OAuth2 success handler and PasswordEncoder
+  (PasswordEncoder extracted to its own configuration class)
+- API failing to start when OAuth2 client IDs are absent (oauth2Login now conditional)
+- Order status never leaving PENDING after a successful simulated payment
+- Missing order confirmation emails after checkout/payment
+- Search suggestions parameter mismatch between frontend (`q`) and backend (`query`)
 
 ### Removed
 - N/A

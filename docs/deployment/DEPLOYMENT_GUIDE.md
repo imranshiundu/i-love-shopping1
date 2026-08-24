@@ -22,11 +22,13 @@ cp .env.example .env
 Required variables:
 - `DATABASE_PASSWORD` - Strong PostgreSQL password
 - `REDIS_PASSWORD` - Redis password
+- `RABBITMQ_USERNAME` / `RABBITMQ_PASSWORD` - RabbitMQ credentials
 - `JWT_ACCESS_SECRET` - 32+ char random string
 - `JWT_REFRESH_SECRET` - 32+ char random string
 - `MPESA_*` - Production Daraja credentials
 - `GOOGLE_CLIENT_SECRET` - OAuth2 secret
 - `MAIL_PASSWORD` - SMTP app password
+- Frontend build args: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_NAME`, and the rest of the `NEXT_PUBLIC_*` set (see README Configuration)
 
 ## Development Deployment
 
@@ -34,29 +36,33 @@ For a full development walkthrough (two options, prerequisites check, foreground
 
 ```bash
 # Linux / macOS / Git Bash
-bash scripts/dev.sh
+bash start.sh
 
 # Windows
-scripts\dev.cmd
+start.cmd
 ```
 
 Or manually:
 
 ```bash
-# Start all services (option 1: everything in Docker)
+# Start all services (option 1: API + frontend in Docker)
 docker compose -f docker/docker-compose.yml up
 
-# Or start only the dependencies, then run the API locally (option 2)
-docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
+# Or start only the dependencies, then run the API & frontend locally (option 2)
+docker compose -f docker/docker-compose.yml up -d postgres redis mailhog rabbitmq
+cd backend && ./mvnw spring-boot:run          # terminal 1
+cd frontend && npm install && npm run dev     # terminal 2
 
 # Run migrations (auto-run on startup)
 docker compose -f docker/docker-compose.yml exec api ./mvnw flyway:migrate
 ```
 
 Access:
+- Frontend: http://localhost:3000
 - API: http://localhost:8080/api/v1
 - Swagger: http://localhost:8080/api/v1/docs
 - Mailhog: http://localhost:8025
+- RabbitMQ Management: http://localhost:15672 (`iloveshopping` / `iloveshopping`)
 
 ## Production Deployment
 
