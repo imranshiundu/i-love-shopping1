@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { products as productsApi, categories as categoriesApi, brands as brandsApi } from '@/services/api';
+import { config } from '@/lib/config';
 import { Product, Category, Brand } from '@/types';
 import { formatKES, cn } from '@/lib/utils';
 import { FiStar, FiFilter, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
@@ -29,7 +30,7 @@ function ProductsContent() {
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { page: String(currentPage), size: '12', sortBy };
+      const params: Record<string, string> = { page: String(currentPage), size: String(config.pages.productsPageSize), sortBy };
       if (query) params.query = query;
       if (selectedCategory) params.categories = selectedCategory;
       if (selectedBrand) params.brands = selectedBrand;

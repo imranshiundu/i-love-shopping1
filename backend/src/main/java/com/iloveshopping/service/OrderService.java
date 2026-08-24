@@ -6,6 +6,7 @@ import com.iloveshopping.dto.order.OrderResponse;
 import com.iloveshopping.entity.*;
 import com.iloveshopping.exception.InsufficientStockException;
 import com.iloveshopping.exception.ResourceNotFoundException;
+import com.iloveshopping.messaging.OrderMessagePublisher;
 import com.iloveshopping.repository.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
+@lombok.extern.slf4j.Slf4j
 public class OrderService {
 
     private final OrderRepository orderRepository;
@@ -34,6 +36,7 @@ public class OrderService {
     private final PaymentRepository paymentRepository;
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
+    private final OrderMessagePublisher orderMessagePublisher;
 
     @Transactional
     public OrderResponse checkout(CheckoutRequest request) {
@@ -115,6 +118,12 @@ public class OrderService {
 
         // Clear cart
         cartItemRepository.deleteByCartId(cart.getId());
+
+        try {
+            orderMessagePublisher.publishOrderCreated(order);
+        } catch (Exception e) {
+            log.error("Failed to publish ORDER_CREATED event for order {}: {}", order.getNumber(), e.getMessage());
+        }
 
         return OrderResponse.from(order);
     }

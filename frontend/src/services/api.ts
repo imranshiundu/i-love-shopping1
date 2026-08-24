@@ -40,7 +40,7 @@ export const products = {
     return request<ProductSearchResponse>(`/products?${qs}`);
   },
   getBySlug: (slug: string) => request<Product>(`/products/${slug}`),
-  getSuggestions: (q: string) => request<string[]>(`/products/search/suggestions?q=${encodeURIComponent(q)}`),
+  getSuggestions: (q: string) => request<string[]>(`/products/search/suggestions?query=${encodeURIComponent(q)}`),
   getSimilar: (slug: string) => request<Product[]>(`/products/similar/${slug}`),
   getReviews: (slug: string, page = 0) => request<{ reviews: Review[]; pagination: any }>(`/products/${slug}/reviews?page=${page}`),
   addReview: (slug: string, rating: number, title: string, content: string) =>
