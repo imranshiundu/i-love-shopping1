@@ -2,6 +2,9 @@ package com.iloveshopping.controller;
 
 import com.iloveshopping.dto.catalog.BrandResponse;
 import com.iloveshopping.dto.catalog.CategoryResponse;
+import com.iloveshopping.dto.catalog.CreateBrandRequest;
+import com.iloveshopping.dto.catalog.CreateCategoryRequest;
+import com.iloveshopping.dto.catalog.CreateProductRequest;
 import com.iloveshopping.dto.catalog.ProductResponse;
 import com.iloveshopping.dto.catalog.ProductSearchResponse;
 import com.iloveshopping.dto.common.ApiResponse;
@@ -9,9 +12,12 @@ import com.iloveshopping.service.CatalogService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -155,20 +161,92 @@ public class CatalogController {
     // ===== Admin endpoints =====
 
     @PostMapping("/categories")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create a new category (Admin)")
-    public ResponseEntity<ApiResponse<CategoryResponse>> createCategory() {
-        return ResponseEntity.ok(null);
+    public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(
+            @Valid @RequestBody CreateCategoryRequest request) {
+
+        CategoryResponse category = catalogService.createCategory(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(category));
+    }
+
+    @PutMapping("/categories/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update a category (Admin)")
+    public ResponseEntity<ApiResponse<CategoryResponse>> updateCategory(
+            @PathVariable String id,
+            @Valid @RequestBody CreateCategoryRequest request) {
+
+        CategoryResponse category = catalogService.updateCategory(id, request);
+        return ResponseEntity.ok(ApiResponse.success(category));
+    }
+
+    @DeleteMapping("/categories/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete a category (Admin)")
+    public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable String id) {
+
+        catalogService.deleteCategory(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @PostMapping("/brands")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create a new brand (Admin)")
-    public ResponseEntity<ApiResponse<BrandResponse>> createBrand() {
-        return ResponseEntity.ok(null);
+    public ResponseEntity<ApiResponse<BrandResponse>> createBrand(
+            @Valid @RequestBody CreateBrandRequest request) {
+
+        BrandResponse brand = catalogService.createBrand(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(brand));
+    }
+
+    @PutMapping("/brands/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update a brand (Admin)")
+    public ResponseEntity<ApiResponse<BrandResponse>> updateBrand(
+            @PathVariable String id,
+            @Valid @RequestBody CreateBrandRequest request) {
+
+        BrandResponse brand = catalogService.updateBrand(id, request);
+        return ResponseEntity.ok(ApiResponse.success(brand));
+    }
+
+    @DeleteMapping("/brands/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete a brand (Admin)")
+    public ResponseEntity<ApiResponse<Void>> deleteBrand(@PathVariable String id) {
+
+        catalogService.deleteBrand(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 
     @PostMapping("/products")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Create a new product (Admin)")
-    public ResponseEntity<ApiResponse<ProductResponse>> createProduct() {
-        return ResponseEntity.ok(null);
+    public ResponseEntity<ApiResponse<ProductResponse>> createProduct(
+            @Valid @RequestBody CreateProductRequest request) {
+
+        ProductResponse product = catalogService.createProduct(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(product));
+    }
+
+    @PutMapping("/products/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update a product (Admin)")
+    public ResponseEntity<ApiResponse<ProductResponse>> updateProduct(
+            @PathVariable String id,
+            @Valid @RequestBody CreateProductRequest request) {
+
+        ProductResponse product = catalogService.updateProduct(id, request);
+        return ResponseEntity.ok(ApiResponse.success(product));
+    }
+
+    @DeleteMapping("/products/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete a product (Admin)")
+    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable String id) {
+
+        catalogService.deleteProduct(id);
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

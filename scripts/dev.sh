@@ -103,8 +103,30 @@ check_maven() {
   fi
 }
 
+check_node() {
+  if have node && node -v 2>/dev/null | grep -qE 'v2[0-9]+'; then
+    ok "Node.js found: $(node -v)"
+  else
+    warn "Node.js is required for the frontend. Attempting to install it..."
+    if [ "$OS" = "mac" ]; then
+      have brew && brew install node
+    elif [ "$OS" = "win" ]; then
+      have choco && choco install nodejs-lts -y
+    else
+      install_system_pkg nodejs || install_system_pkg npm
+    fi
+    have node || die "Node.js is required. Install it manually and run this script again."
+  fi
+}
+
 run_backend() {
   if have mvn; then mvn spring-boot:run; else ./mvnw spring-boot:run; fi
+}
+
+run_frontend() {
+  cd "$REPO_DIR/frontend"
+  npm install 2>/dev/null
+  npm run dev
 }
 
 wait_healthy() {
@@ -120,8 +142,9 @@ wait_healthy() {
 }
 
 run_all_docker() {
-  ok "Starting PostgreSQL, Redis, Mailhog and the API with Docker Compose in the foreground."
-  ok "API: http://localhost:8080/api/v1   Swagger UI: http://localhost:8080/api/v1/docs"
+  ok "Starting PostgreSQL, Redis, Mailhog, RabbitMQ, API and Frontend with Docker Compose in the foreground."
+  ok "Frontend: http://localhost:3000   API: http://localhost:8080/api/v1   Swagger UI: http://localhost:8080/api/v1/docs"
+  ok "RabbitMQ Management: http://localhost:15672 (guest/guest)   Mailhog UI: http://localhost:8025"
   log "Press Ctrl+C to stop all services."
   echo
   "${COMPOSE[@]}" -f "$COMPOSE_FILE" up
@@ -130,11 +153,13 @@ run_all_docker() {
 run_local_backend() {
   check_java
   check_maven
-  log "Starting PostgreSQL, Redis and Mailhog with Docker Compose..."
-  "${COMPOSE[@]}" -f "$COMPOSE_FILE" up -d postgres redis mailhog
+  check_node
+  log "Starting PostgreSQL, Redis, Mailhog and RabbitMQ with Docker Compose..."
+  "${COMPOSE[@]}" -f "$COMPOSE_FILE" up -d postgres redis mailhog rabbitmq
   log "Waiting for dependencies to become healthy..."
   wait_healthy postgres
   wait_healthy redis
+  wait_healthy rabbitmq
   ok "Dependencies are up."
   export DATABASE_URL="jdbc:postgresql://localhost:5433/iloveshopping?stringtype=unspecified"
   export DATABASE_USER=iloveshopping
@@ -149,13 +174,19 @@ run_local_backend() {
   export MAIL_PORT=1025
   export FRONTEND_URL=http://localhost:3000
   export CORS_ALLOWED_ORIGINS=http://localhost:3000
-  log "Starting the Spring Boot API in the foreground..."
-  ok "API: http://localhost:8080/api/v1   Swagger UI: http://localhost:8080/api/v1/docs   Mailhog UI: http://localhost:8025"
+  export RABBITMQ_HOST=localhost
+  export RABBITMQ_PORT=5672
+  export RABBITMQ_USERNAME=iloveshopping
+  export RABBITMQ_PASSWORD=iloveshopping
+  ok "Frontend: http://localhost:3000   API: http://localhost:8080/api/v1   Swagger UI: http://localhost:8080/api/v1/docs"
+  ok "RabbitMQ Management: http://localhost:15672 (guest/guest)   Mailhog UI: http://localhost:8025"
   log "Press Ctrl+C to stop the API and the containers."
   echo
   cd "$REPO_DIR/backend"
   trap 'log "Stopping development containers..."; "${COMPOSE[@]}" -f "$COMPOSE_FILE" down' EXIT INT TERM
-  run_backend
+  run_backend &
+  run_frontend &
+  wait
 }
 
 main() {
@@ -166,8 +197,8 @@ main() {
   check_docker
   echo
   log "How do you want to run the project?"
-  log "  1) Everything in Docker (PostgreSQL + Redis + Mailhog + API) - only Docker is required"
-  log "  2) Dependencies in Docker + run the Spring Boot API locally - requires Docker, Java 21 and Maven"
+  log "  1) Everything in Docker (PostgreSQL + Redis + Mailhog + RabbitMQ + API + Frontend) - only Docker"
+  log "  2) Dependencies in Docker + run API & Frontend locally - requires Docker, Java 21, Maven and Node.js"
   echo
   read -rp "Choose an option [1/2]: " choice
   case "$choice" in

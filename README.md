@@ -510,10 +510,12 @@ docker compose -f docker/docker-compose.yml down
 
 | Service | Address | Notes |
 |---------|---------|-------|
+| Frontend (Next.js) | `http://localhost:3000` | React UI - product browsing, cart, checkout, admin |
 | Spring Boot API | `http://localhost:8080/api/v1` | REST API |
 | Swagger UI | `http://localhost:8080/api/v1/docs` | Interactive API docs |
 | PostgreSQL | `localhost:5433` | Database (container maps 5433 → 5432) |
 | Redis | `localhost:6380` | Cache (container maps 6380 → 6379) |
+| RabbitMQ | `localhost:5672` / `localhost:15672` | Message queue / Management UI (guest/guest) |
 | Mailhog SMTP | `localhost:1025` | Catches all outgoing emails |
 | Mailhog Web UI | `http://localhost:8025` | Read emails sent by the app |
 
