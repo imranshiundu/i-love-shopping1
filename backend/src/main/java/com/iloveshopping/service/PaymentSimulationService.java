@@ -8,6 +8,7 @@ import com.iloveshopping.dto.payment.stripe.*;
 import com.iloveshopping.entity.Order;
 import com.iloveshopping.entity.Payment;
 import com.iloveshopping.exception.ApiException;
+import com.iloveshopping.messaging.OrderMessagePublisher;
 import com.iloveshopping.repository.OrderRepository;
 import com.iloveshopping.repository.PaymentRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,6 +29,8 @@ public class PaymentSimulationService {
     private final PaymentRepository paymentRepository;
     private final OrderRepository orderRepository;
     private final ObjectMapper objectMapper;
+    private final OrderMessagePublisher orderMessagePublisher;
+    private final EmailService emailService;
 
     // ===== Stripe Simulation =====
 
@@ -85,12 +88,14 @@ public class PaymentSimulationService {
             payment.setCallbackData(buildStripeConfirmCallbackData("succeeded"));
             paymentRepository.save(payment);
 
+            onPaymentSucceeded(payment);
             log.info("Simulated Stripe payment succeeded: {}", request.getPaymentIntentId());
         } else {
             payment.setStatus(Payment.PaymentStatus.FAILED);
             payment.setCallbackData(buildStripeConfirmCallbackData("failed"));
             paymentRepository.save(payment);
 
+            onPaymentFailed(payment);
             log.info("Simulated Stripe payment failed: {}", request.getPaymentIntentId());
         }
 
@@ -114,12 +119,14 @@ public class PaymentSimulationService {
                 payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
                 payment.setCallbackData(buildStripeWebhookCallbackData(event));
                 paymentRepository.save(payment);
+                onPaymentSucceeded(payment);
                 log.info("Stripe webhook: payment succeeded for {}", event.getPaymentIntentId());
             }
             case "payment_intent.payment_failed" -> {
                 payment.setStatus(Payment.PaymentStatus.FAILED);
                 payment.setCallbackData(buildStripeWebhookCallbackData(event));
                 paymentRepository.save(payment);
+                onPaymentFailed(payment);
                 log.info("Stripe webhook: payment failed for {}", event.getPaymentIntentId());
             }
             case "payment_intent.processing" -> {
@@ -192,12 +199,14 @@ public class PaymentSimulationService {
             payment.setCallbackData(buildPayPalCaptureCallbackData("succeeded"));
             paymentRepository.save(payment);
 
+            onPaymentSucceeded(payment);
             log.info("Simulated PayPal payment captured: {}", request.getPaypalOrderId());
         } else {
             payment.setStatus(Payment.PaymentStatus.FAILED);
             payment.setCallbackData(buildPayPalCaptureCallbackData("failed"));
             paymentRepository.save(payment);
 
+            onPaymentFailed(payment);
             log.info("Simulated PayPal payment capture failed: {}", request.getPaypalOrderId());
         }
 
@@ -207,6 +216,30 @@ public class PaymentSimulationService {
                 .status(payment.getStatus().name().toLowerCase())
                 .orderId(payment.getOrder().getId())
                 .build();
+    }
+
+    // ===== Payment outcome handlers =====
+
+    private void onPaymentSucceeded(Payment payment) {
+        Order order = payment.getOrder();
+        try {
+            orderMessagePublisher.publishOrderPaid(order);
+        } catch (Exception e) {
+            log.error("Failed to publish ORDER_PAID event for order {}: {}", order.getNumber(), e.getMessage());
+        }
+        if (order.getUser() != null && order.getUser().getEmail() != null) {
+            try {
+                emailService.sendOrderConfirmation(order.getUser().getEmail(), order.getNumber(), order.getId().toString());
+            } catch (Exception e) {
+                log.error("Failed to send order confirmation email for {}: {}", order.getNumber(), e.getMessage());
+            }
+        }
+    }
+
+    private void onPaymentFailed(Payment payment) {
+        Order order = payment.getOrder();
+        log.warn("Payment failed for order {} - order remains {} pending retry or cancellation",
+                order.getNumber(), order.getStatus());
     }
 
     // ===== Metadata builders =====

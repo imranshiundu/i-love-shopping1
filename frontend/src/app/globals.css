@@ -1,5 +1,20 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body { @apply bg-gray-50 text-gray-900; }
+:root {
+  --font-body: 'Outfit', system-ui, sans-serif;
+}
+
+body {
+  @apply bg-stone-50 text-stone-900;
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  @apply bg-primary-100 text-primary-900;
+}
