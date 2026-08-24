@@ -7,7 +7,9 @@ const nextConfig = {
     ],
   },
   async rewrites() {
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '') || 'http://localhost:8080';
+    const backendUrl = process.env.BACKEND_INTERNAL_URL
+      || process.env.NEXT_PUBLIC_API_URL?.replace('/api/v1', '')
+      || 'http://localhost:8080';
     return [
       { source: '/api/:path*', destination: `${backendUrl}/api/:path*` },
     ];

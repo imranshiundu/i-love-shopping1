@@ -119,7 +119,67 @@ check_node() {
   fi
 }
 
+port_in_use() {
+  (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null && { exec 3>&- 3<&-; return 0; }
+  return 1
+}
+
+find_free_port() {
+  local p="$1" tries=0
+  while port_in_use "$p"; do
+    p=$((p + 1))
+    tries=$((tries + 1))
+    if [ "$tries" -ge 200 ]; then
+      die "Could not find a free port at or above $1."
+    fi
+  done
+  printf '%s' "$p"
+}
+
+reserve_port() {
+  local label="$1" preferred="$2" chosen
+  chosen=$(find_free_port "$preferred")
+  if [ "$chosen" != "$preferred" ]; then
+    warn "$label: port $preferred is already in use - using $chosen instead."
+  fi
+  printf '%s' "$chosen"
+}
+
+resolve_ports() {
+  PORTS_SHIFTED=0
+  resolve_one() {
+    local label="$1" var="$2" preferred="$3" chosen
+    chosen=$(find_free_port "$preferred")
+    if [ "$chosen" != "$preferred" ]; then
+      warn "$label: port $preferred is busy - using $chosen instead."
+      PORTS_SHIFTED=1
+    fi
+    export "$var=$chosen"
+  }
+  resolve_one "PostgreSQL"   POSTGRES_PORT     "${POSTGRES_PORT:-5433}"
+  resolve_one "Redis"        REDIS_PORT        "${REDIS_PORT:-6380}"
+  resolve_one "Mailhog SMTP" MAILHOG_SMTP_PORT "${MAILHOG_SMTP_PORT:-1025}"
+  resolve_one "Mailhog UI"   MAILHOG_UI_PORT   "${MAILHOG_UI_PORT:-8025}"
+  resolve_one "RabbitMQ"     RABBITMQ_AMQP_PORT "${RABBITMQ_AMQP_PORT:-5672}"
+  resolve_one "RabbitMQ UI"  RABBITMQ_UI_PORT  "${RABBITMQ_UI_PORT:-15672}"
+  resolve_one "API"          API_PORT          "${API_PORT:-8080}"
+  resolve_one "Frontend"     FRONTEND_PORT     "${FRONTEND_PORT:-3000}"
+}
+
+print_urls() {
+  echo
+  ok "Frontend:            http://localhost:$FRONTEND_PORT"
+  ok "API:                 http://localhost:$API_PORT/api/v1"
+  ok "Swagger UI:          http://localhost:$API_PORT/api/v1/docs"
+  ok "Mailhog Web UI:      http://localhost:$MAILHOG_UI_PORT"
+  ok "RabbitMQ Management: http://localhost:$RABBITMQ_UI_PORT  (iloveshopping / iloveshopping)"
+  echo
+  log "Seeded accounts: admin@iloveshopping.com / Admin123!   user@iloveshopping.com / User123!"
+  echo
+}
+
 run_backend() {
+  cd "$REPO_DIR/backend"
   if have mvn; then mvn spring-boot:run; else ./mvnw spring-boot:run; fi
 }
 
@@ -132,7 +192,7 @@ run_frontend() {
 wait_healthy() {
   local svc="$1"
   local i
-  for i in $(seq 1 30); do
+  for i in $(seq 1 40); do
     if "${COMPOSE[@]}" -f "$COMPOSE_FILE" ps "$svc" 2>/dev/null | grep -q healthy; then
       return 0
     fi
@@ -142,9 +202,9 @@ wait_healthy() {
 }
 
 run_all_docker() {
+  resolve_ports
   ok "Starting PostgreSQL, Redis, Mailhog, RabbitMQ, API and Frontend with Docker Compose in the foreground."
-  ok "Frontend: http://localhost:3000   API: http://localhost:8080/api/v1   Swagger UI: http://localhost:8080/api/v1/docs"
-  ok "RabbitMQ Management: http://localhost:15672 (guest/guest)   Mailhog UI: http://localhost:8025"
+  print_urls
   log "Press Ctrl+C to stop all services."
   echo
   "${COMPOSE[@]}" -f "$COMPOSE_FILE" up
@@ -154,6 +214,7 @@ run_local_backend() {
   check_java
   check_maven
   check_node
+  resolve_ports
   log "Starting PostgreSQL, Redis, Mailhog and RabbitMQ with Docker Compose..."
   "${COMPOSE[@]}" -f "$COMPOSE_FILE" up -d postgres redis mailhog rabbitmq
   log "Waiting for dependencies to become healthy..."
@@ -161,31 +222,36 @@ run_local_backend() {
   wait_healthy redis
   wait_healthy rabbitmq
   ok "Dependencies are up."
-  export DATABASE_URL="jdbc:postgresql://localhost:5433/iloveshopping?stringtype=unspecified"
+  export DATABASE_URL="jdbc:postgresql://localhost:$POSTGRES_PORT/iloveshopping?stringtype=unspecified"
   export DATABASE_USER=iloveshopping
   export DATABASE_PASSWORD=iloveshopping
   export REDIS_HOST=localhost
-  export REDIS_PORT=6380
   export RECAPTCHA_SECRET_KEY=dev-test-secret
   export RECAPTCHA_SITE_KEY=dev-test-site
   export JWT_ACCESS_SECRET=dev-access-secret-min-32-chars-long-for-test
   export JWT_REFRESH_SECRET=dev-refresh-secret-min-32-chars-long-for-test
   export MAIL_HOST=localhost
-  export MAIL_PORT=1025
-  export FRONTEND_URL=http://localhost:3000
-  export CORS_ALLOWED_ORIGINS=http://localhost:3000
+  export MAIL_PORT="$MAILHOG_SMTP_PORT"
+  export MAIL_SMTP_AUTH=false
+  export MAIL_SMTP_STARTTLS=false
+  export SERVER_PORT="$API_PORT"
+  export FRONTEND_URL="http://localhost:$FRONTEND_PORT"
+  export CORS_ALLOWED_ORIGINS="http://localhost:$FRONTEND_PORT"
   export RABBITMQ_HOST=localhost
-  export RABBITMQ_PORT=5672
+  export RABBITMQ_PORT="$RABBITMQ_AMQP_PORT"
   export RABBITMQ_USERNAME=iloveshopping
   export RABBITMQ_PASSWORD=iloveshopping
-  ok "Frontend: http://localhost:3000   API: http://localhost:8080/api/v1   Swagger UI: http://localhost:8080/api/v1/docs"
-  ok "RabbitMQ Management: http://localhost:15672 (guest/guest)   Mailhog UI: http://localhost:8025"
-  log "Press Ctrl+C to stop the API and the containers."
+  export NEXT_PUBLIC_API_URL="http://localhost:$API_PORT/api/v1"
+  export BACKEND_INTERNAL_URL="http://localhost:$API_PORT"
+  export PORT="$FRONTEND_PORT"
+  print_urls
+  log "Press Ctrl+C to stop the API, the frontend and the containers."
   echo
-  cd "$REPO_DIR/backend"
-  trap 'log "Stopping development containers..."; "${COMPOSE[@]}" -f "$COMPOSE_FILE" down' EXIT INT TERM
+  trap 'log "Stopping development containers..."; "${COMPOSE[@]}" -f "$COMPOSE_FILE" rm -sf postgres redis mailhog rabbitmq' EXIT INT TERM
   run_backend &
+  BACKEND_PID=$!
   run_frontend &
+  FRONTEND_PID=$!
   wait
 }
 
@@ -199,6 +265,8 @@ main() {
   log "How do you want to run the project?"
   log "  1) Everything in Docker (PostgreSQL + Redis + Mailhog + RabbitMQ + API + Frontend) - only Docker"
   log "  2) Dependencies in Docker + run API & Frontend locally - requires Docker, Java 21, Maven and Node.js"
+  echo
+  log "Busy ports are detected automatically: each service falls back to the next free port."
   echo
   read -rp "Choose an option [1/2]: " choice
   case "$choice" in
