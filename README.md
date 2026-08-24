@@ -1,6 +1,6 @@
 # i-love-shopping
 
-B2C E-commerce Platform for the Kenyan market, built with Spring Boot 3, PostgreSQL, and M-Pesa Daraja API integration.
+B2C E-commerce Platform for the Kenyan market, built with a **Next.js 14 storefront**, a **Spring Boot 3 API**, PostgreSQL, Redis, RabbitMQ, M-Pesa Daraja integration and simulated Stripe/PayPal payments.
 
 ## Table of Contents
 
@@ -44,16 +44,24 @@ i-love-shopping is a full-featured B2C e-commerce platform designed for the Keny
 The application follows a modular monolith architecture with clean separation of concerns:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      Spring Boot Application                 │
-├─────────────────────────────────────────────────────────────┤
-│  Controllers  │  Services  │  Repositories  │  Entities      │
-├─────────────────────────────────────────────────────────────┤
-│              Security Layer (JWT, OAuth2, 2FA)              │
-├─────────────────────────────────────────────────────────────┤
-│  PostgreSQL  │  Redis  │  M-Pesa Daraja API  │  Email (SMTP)│
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────┐      ┌────────────────────────────────────────────────┐
+│   Next.js Frontend    │ HTTP │            Spring Boot Application              │
+│   localhost:3000      │─────▶│                localhost:8080/api/v1            │
+│  customer + admin UI  │ CORS ├────────────────────────────────────────────────┤
+└──────────────────────┘      │  Controllers  │ Services  │ Repositories        │
+                              ├────────────────────────────────────────────────┤
+                              │     Security Layer (JWT, OAuth2, 2FA)           │
+                              ├────────────────────────────────────────────────┤
+                              │ PostgreSQL │ Redis │ RabbitMQ │ Email (SMTP)    │
+                              └───────────────┬───────────────────┬─────────────┘
+                                              │                   │
+                                     ┌────────▼────────┐  ┌───────▼──────────┐
+                                     │ M-Pesa Daraja   │  │ Simulated Stripe │
+                                     │ (sandbox)       │  │ & PayPal         │
+                                     └─────────────────┘  └──────────────────┘
 ```
+
+Order state flows through RabbitMQ: checkout publishes `order.created`, successful payments publish `order.paid`, and a consumer updates the order to CONFIRMED and triggers the confirmation email.
 
 ### Module Structure
 
@@ -266,28 +274,34 @@ erDiagram
 
 ### Backend
 - **Java 21** - Language
-- **Spring Boot 3.2.x** - Framework
+- **Spring Boot 3.3.x** - Framework
 - **Spring Security 6** - Authentication & Authorization
 - **Spring Data JPA** - Database ORM
+- **Spring AMQP** - RabbitMQ integration for order events
 - **Spring Web** - REST API
-- **Spring Mail** - Email sending
-- **Spring Actuator** - Health checks & metrics
+- **Spring Mail + Thymeleaf** - Transactional emails (verification, password reset, order confirmation, 2FA codes)
 - **Flyway** - Database migrations
 - **Hibernate** - JPA Provider
 - **PostgreSQL 16** - Primary Database
 - **Redis 7** - Caching & Sessions
+- **RabbitMQ 3** - Message queue for order/payment events
 - **JJWT (0.12.5)** - JWT Token handling
-- **M-Pesa Daraja API** - Mobile payments
+- **M-Pesa Daraja API** - Mobile payments (sandbox)
+- **Simulated Stripe & PayPal** - Payment gateway simulation endpoints
 - **Google reCAPTCHA** - Bot protection
-- **MapStruct** - Object mapping
 - **Lombok** - Boilerplate reduction
-- **Testcontainers** - Integration testing
+
+### Frontend
+- **Next.js 14 (App Router)** - React framework
+- **TypeScript** - Type safety
+- **Tailwind CSS** - Styling with Outfit typeface
+- **react-icons** - Icon set (no emojis)
+- **react-hot-toast** - Notifications
+- All runtime values are injected via `NEXT_PUBLIC_*` environment variables (see [Configuration](#configuration)) - nothing is hardcoded
 
 ### Build & Deployment
-- **Maven** - Build tool
-- **Docker** - Containerization
-- **Docker Compose** - Local development
-- **Jib** - Container image building
+- **Maven** (with wrapper) - Backend build tool
+- **Docker + Docker Compose** - Containerization for backend, frontend and all dependencies
 
 ## Features
 
@@ -348,6 +362,32 @@ erDiagram
 - ✅ Retry failed payments
 - ✅ Payment metadata storage
 
+### Simulated Card & Wallet Payments (Stripe / PayPal)
+- ✅ Stripe-style PaymentIntent create + confirm endpoints (sandbox simulation)
+- ✅ PayPal-style order create + capture endpoints
+- ✅ Webhook simulation (`payment_intent.succeeded`, `payment_intent.payment_failed`)
+- ✅ No card data ever touches the server - PCI-friendly tokenized flow
+- ✅ Failure scenarios: declined cards, gateway errors, invalid payment IDs
+
+### Messaging & Async Processing
+- ✅ RabbitMQ topic exchange `order.events` with durable queues
+- ✅ `order.created` published at checkout, `order.paid` on successful payment, `order.cancelled` on cancellation
+- ✅ Consumer updates order state (PENDING → CONFIRMED) and triggers confirmation emails
+- ✅ Retry with exponential backoff on the listener container
+
+### Frontend (Next.js)
+- ✅ Home page with featured products and category tiles
+- ✅ Product listing with faceted filters (category, brand, price, stock, sale), sorting and pagination
+- ✅ Product detail page with image gallery, similar products and reviews
+- ✅ Cart page with real-time totals, quantity updates and free-shipping threshold
+- ✅ Single-page checkout: address form + payment method selection (M-Pesa, card, PayPal)
+- ✅ Order success page and order history
+- ✅ Auth pages: login, register, forgot password
+- ✅ Account area: profile, addresses book, password change
+- ✅ Admin area (role-gated): dashboard, orders, products, categories, brands
+- ✅ Search autocomplete in the header, responsive layout, toast notifications
+- ✅ Loading skeletons, empty states and inline error states throughout
+
 ### User Management
 - ✅ Profile updates (name, avatar, email)
 - ✅ Email change with re-verification
@@ -365,35 +405,36 @@ erDiagram
 
 ## Prerequisites
 
-The project needs **Docker** for the database, cache and mail services, and optionally **Java 21** and **Maven** if you want to run the Spring Boot API directly on your machine.
+The project needs **Docker** for the database, cache, queue and mail services. Optionally **Java 21 + Maven** and **Node.js 20+** if you want to run the API or frontend directly on your machine.
 
 | Tool | Required for | Notes |
 |------|--------------|-------|
-| **Docker** + **Docker Compose** | Everything (option 1 & 2) | Runs PostgreSQL 16, Redis 7 and Mailhog |
+| **Docker** + **Docker Compose** | Everything (option 1 & 2) | Runs PostgreSQL 16, Redis 7, RabbitMQ 3 and Mailhog |
 | **Java 21** (JDK) | Running the API locally (option 2) | Required for `spring-boot:run` |
 | **Maven 3.9+** | Running the API locally (option 2) | The included `./mvnw` wrapper works if Maven is not installed |
+| **Node.js 20+** | Running the frontend locally (option 2) | Option 1 runs the frontend inside Docker instead |
 
 > **No setup script?** If you follow the manual commands below instead of using `scripts/dev.sh`, you are responsible for installing the prerequisites yourself.
 
 ### External Services (Required for Full Functionality)
 - **M-Pesa Daraja API** credentials (Consumer Key, Secret, Shortcode, Passkey)
 - **Google reCAPTCHA** (Site Key, Secret Key)
-- **Google OAuth2** (Client ID, Secret)
-- **GitHub OAuth2** (Client ID, Secret)
+- **Google OAuth2** (Client ID, Secret) - OAuth2 login stays disabled when unset
+- **GitHub OAuth2** (Client ID, Secret) - OAuth2 login stays disabled when unset
 - **SMTP Server** for emails (Mailhog for development)
 
-> These external services are **not required** to start the project. The development setup runs fully with the built-in defaults and a sandbox M-Pesa configuration, so you can start learning right away.
+> These external services are **not required** to start the project. The development setup runs fully with the built-in defaults and a sandbox M-Pesa configuration, so you can start learning right away. Card/PayPal payments work out of the box via the built-in simulation endpoints - no Stripe or PayPal keys needed in development.
 
 ## Getting Started (Development)
 
 This is a **development** setup, not a production server. Everything runs in the **foreground** so you can watch the logs and press `Ctrl+C` to stop. No background services are started.
 
-There are two ways to run the project. Both use Docker for PostgreSQL, Redis and Mailhog; they differ in where the Spring Boot API runs:
+There are two ways to run the project. Both use Docker for PostgreSQL, Redis, RabbitMQ and Mailhog; they differ in where the app runs:
 
 | Option | What it does | Requires |
 |--------|--------------|----------|
-| **1) Everything in Docker** | API runs inside a Docker container alongside the dependencies | Only Docker |
-| **2) Docker dependencies + local API** | API runs directly on your machine, dependencies run in Docker | Docker, Java 21, Maven |
+| **1) Everything in Docker** | API **and** frontend run inside Docker containers alongside the dependencies | Only Docker |
+| **2) Docker dependencies + local API & frontend** | API and frontend run directly on your machine, dependencies run in Docker | Docker, Java 21, Maven, Node.js 20+ |
 
 ### 1. Clone the Repository
 
@@ -425,19 +466,19 @@ You will be presented with a simple menu asking how you want to run the project:
 
 ```
 How do you want to run the project?
-  1) Everything in Docker (PostgreSQL + Redis + Mailhog + API) - only Docker is required
-  2) Dependencies in Docker + run the Spring Boot API locally - requires Docker, Java 21 and Maven
+  1) Everything in Docker (PostgreSQL + Redis + Mailhog + RabbitMQ + API + Frontend) - only Docker
+  2) Dependencies in Docker + run API & Frontend locally - requires Docker, Java 21, Maven and Node.js
 Choose an option [1/2]:
 ```
 
-- **Option 1** starts all four services with Docker Compose in the foreground. Press `Ctrl+C` to stop everything.
-- **Option 2** starts PostgreSQL, Redis and Mailhog, waits until they are healthy, then starts the Spring Boot API in the foreground. Press `Ctrl+C` to stop the API — the script also stops the Docker containers when you exit, so nothing is left running in the background.
+- **Option 1** starts all services with Docker Compose in the foreground: PostgreSQL, Redis, Mailhog, RabbitMQ, the Spring Boot API and the Next.js frontend. Press `Ctrl+C` to stop everything.
+- **Option 2** starts the dependencies in Docker, waits until they are healthy, then starts the API (`backend/`) and the frontend (`frontend/`, with `npm install` on first run). Press `Ctrl+C` to stop both - the script also stops the Docker containers when you exit, so nothing is left running in the background.
 
-The first run downloads dependencies (Docker images / Maven packages), so it can take a few minutes.
+The first run downloads dependencies (Docker images / Maven packages / npm packages), so it can take a few minutes.
 
 ## Running Manually
 
-If you prefer to run the commands yourself, use the steps below. **Run Docker commands from the project root, and the API from the `backend/` directory.**
+If you prefer to run the commands yourself, use the steps below. **Run Docker commands from the project root, the API from `backend/` and the frontend from `frontend/`.**
 
 ### Option 1 — Everything in Docker
 
@@ -446,21 +487,21 @@ If you prefer to run the commands yourself, use the steps below. **Run Docker co
 docker compose -f docker/docker-compose.yml up
 ```
 
-Press `Ctrl+C` to stop all services.
+This starts six services: `postgres`, `redis`, `mailhog`, `rabbitmq`, `api` and `frontend`. The first build can take several minutes. Press `Ctrl+C` to stop all services.
 
-### Option 2 — Docker dependencies + local API
+### Option 2 — Docker dependencies + local API & frontend
 
 **Step 1: Start the dependencies** (from the project root):
 
 ```bash
-docker compose -f docker/docker-compose.yml up -d postgres redis mailhog
+docker compose -f docker/docker-compose.yml up -d postgres redis mailhog rabbitmq
 ```
 
-Wait until PostgreSQL and Redis report `healthy` (`docker compose -f docker/docker-compose.yml ps`).
+Wait until PostgreSQL, Redis and RabbitMQ report `healthy` (`docker compose -f docker/docker-compose.yml ps`).
 
 **Step 2: Run the Spring Boot API** (from the `backend/` directory):
 
-The development containers expose PostgreSQL on port **5433** and Redis on port **6380**, so the API must be pointed at those ports.
+The development containers expose PostgreSQL on port **5433**, Redis on **6380** and RabbitMQ on **5672**, so the API must be pointed at those ports.
 
 ```bash
 # Run from the backend/ directory
@@ -472,10 +513,19 @@ export DATABASE_PASSWORD=iloveshopping
 export REDIS_HOST=localhost
 export REDIS_PORT=6380
 export RECAPTCHA_SECRET_KEY=dev-test-secret
+export RECAPTCHA_SITE_KEY=dev-test-site
 export JWT_ACCESS_SECRET=dev-access-secret-min-32-chars-long-for-test
 export JWT_REFRESH_SECRET=dev-refresh-secret-min-32-chars-long-for-test
 export MAIL_HOST=localhost
 export MAIL_PORT=1025
+export MAIL_SMTP_AUTH=false
+export MAIL_SMTP_STARTTLS=false
+export FRONTEND_URL=http://localhost:3000
+export CORS_ALLOWED_ORIGINS=http://localhost:3000
+export RABBITMQ_HOST=localhost
+export RABBITMQ_PORT=5672
+export RABBITMQ_USERNAME=iloveshopping
+export RABBITMQ_PASSWORD=iloveshopping
 
 ./mvnw spring-boot:run
 ```
@@ -491,15 +541,34 @@ $env:DATABASE_PASSWORD="iloveshopping"
 $env:REDIS_HOST="localhost"
 $env:REDIS_PORT="6380"
 $env:RECAPTCHA_SECRET_KEY="dev-test-secret"
+$env:RECAPTCHA_SITE_KEY="dev-test-site"
 $env:JWT_ACCESS_SECRET="dev-access-secret-min-32-chars-long-for-test"
 $env:JWT_REFRESH_SECRET="dev-refresh-secret-min-32-chars-long-for-test"
 $env:MAIL_HOST="localhost"
 $env:MAIL_PORT="1025"
+$env:MAIL_SMTP_AUTH="false"
+$env:MAIL_SMTP_STARTTLS="false"
+$env:FRONTEND_URL="http://localhost:3000"
+$env:CORS_ALLOWED_ORIGINS="http://localhost:3000"
+$env:RABBITMQ_HOST="localhost"
+$env:RABBITMQ_PORT="5672"
+$env:RABBITMQ_USERNAME="iloveshopping"
+$env:RABBITMQ_PASSWORD="iloveshopping"
 
 .\mvnw.cmd spring-boot:run
 ```
 
-Press `Ctrl+C` to stop the API, then stop the containers:
+**Step 3: Run the frontend** (in a new terminal, from the `frontend/` directory):
+
+```bash
+cd frontend
+npm install   # first run only
+npm run dev
+```
+
+The frontend reads its configuration from `frontend/.env.local` (already set up for local development with the API at `http://localhost:8080/api/v1`).
+
+Press `Ctrl+C` to stop the API/frontend, then stop the containers:
 
 ```bash
 # Run from the project root
@@ -515,29 +584,30 @@ docker compose -f docker/docker-compose.yml down
 | Swagger UI | `http://localhost:8080/api/v1/docs` | Interactive API docs |
 | PostgreSQL | `localhost:5433` | Database (container maps 5433 → 5432) |
 | Redis | `localhost:6380` | Cache (container maps 6380 → 6379) |
-| RabbitMQ | `localhost:5672` / `localhost:15672` | Message queue / Management UI (guest/guest) |
+| RabbitMQ | `localhost:5672` / `http://localhost:15672` | Message queue / Management UI (`iloveshopping` / `iloveshopping`) |
 | Mailhog SMTP | `localhost:1025` | Catches all outgoing emails |
 | Mailhog Web UI | `http://localhost:8025` | Read emails sent by the app |
 
 ## Verify Everything Works
 
 ```bash
-# Health check
+# API health check
 curl http://localhost:8080/api/v1/health
+
+# Frontend is up
+curl -o /dev/null -w "%{http_code}\n" http://localhost:3000/
 
 # Interactive API documentation
 # Open http://localhost:8080/api/v1/docs in your browser
 ```
 
-Try logging in with a seeded account:
+Then open **http://localhost:3000** in your browser and:
 
-```bash
-curl -X POST http://localhost:8080/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"user@iloveshopping.com","password":"User123!"}'
-```
-
-Admin account: `admin@iloveshopping.com` / `Admin123!`
+1. Browse products, filter by category/brand/price on `/products`
+2. Add items to the cart and watch totals update in real time
+3. Log in as `admin@iloveshopping.com` / `Admin123!` and place an order through checkout with the card option
+4. Watch the order flip from PENDING to CONFIRMED in `/account/orders`, then check the confirmation email at http://localhost:8025 (Mailhog)
+5. Visit `/admin` for the dashboard, orders, products, categories and brands management
 
 ## Configuration
 
@@ -551,7 +621,7 @@ Admin account: `admin@iloveshopping.com` / `Admin123!`
 
 > When the API runs locally against the development containers, use `DATABASE_URL` pointing at port **5433** and `REDIS_PORT=6380` (see [Running Manually](#running-manually)).
 
-### Key Configuration Properties
+### Key Backend Properties
 
 ```yaml
 # Database
@@ -565,6 +635,18 @@ security.jwt.refresh-secret: ${JWT_REFRESH_SECRET}
 security.jwt.access-expiry-minutes: 15
 security.jwt.refresh-expiry-days: 7
 
+# RabbitMQ (order events)
+spring.rabbitmq.host: ${RABBITMQ_HOST:localhost}
+spring.rabbitmq.port: ${RABBITMQ_PORT:5672}
+spring.rabbitmq.username: ${RABBITMQ_USERNAME}
+spring.rabbitmq.password: ${RABBITMQ_PASSWORD}
+
+# Mail (set MAIL_SMTP_AUTH=false for Mailhog)
+spring.mail.host: ${MAIL_HOST}
+spring.mail.port: ${MAIL_PORT}
+spring.mail.properties.mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
+spring.mail.properties.mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:true}
+
 # M-Pesa
 mpesa.environment: sandbox
 mpesa.consumer-key: ${MPESA_CONSUMER_KEY}
@@ -576,7 +658,40 @@ mpesa.callback-url: ${MPESA_CALLBACK_URL}
 # Rate Limiting
 security.rate-limit.auth-requests-per-minute: 10
 security.rate-limit.api-requests-per-minute: 100
+
+# Commerce rules
+app.default-currency: KES
+app.tax-rate: 0.16
+app.free-shipping-threshold: 5000
 ```
+
+### Frontend Environment Variables (`frontend/.env.local`)
+
+Every value in the frontend is configurable - no hardcoded URLs, prices or identity strings. All variables use the `NEXT_PUBLIC_` prefix:
+
+| Variable | Default (dev) | Purpose |
+|----------|---------------|---------|
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8080/api/v1` | Backend API base URL |
+| `NEXT_PUBLIC_APP_NAME` | `i-love-shopping` | Brand name shown in header/footer/metadata |
+| `NEXT_PUBLIC_APP_DESCRIPTION` | Kenyan market blurb | Metadata description |
+| `NEXT_PUBLIC_APP_URL` | `http://localhost:3000` | Public site URL |
+| `NEXT_PUBLIC_SUPPORT_EMAIL` | `support@iloveshopping.com` | Contact email in footer |
+| `NEXT_PUBLIC_COMPANY_LOCATION` | `Nairobi, Kenya` | Address line in footer |
+| `NEXT_PUBLIC_DEFAULT_COUNTRY` | `KE` | Pre-selected country on address forms |
+| `NEXT_PUBLIC_CURRENCY` / `NEXT_PUBLIC_LOCALE` | `KES` / `en-KE` | Currency formatting |
+| `NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD` | `5000` | Free shipping above this subtotal |
+| `NEXT_PUBLIC_SHIPPING_COST` | `200` | Flat shipping fee below threshold |
+| `NEXT_PUBLIC_TAX_RATE` | `0.16` | VAT rate applied at cart/checkout |
+| `NEXT_PUBLIC_MIN_PASSWORD_LENGTH` | `8` | Registration/password validation |
+| `NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS` | `picsum.photos,images.unsplash.com` | Next.js image allowlist (comma-separated) |
+| `NEXT_PUBLIC_FEATURED_PRODUCTS_COUNT` | `8` | Products on the home page |
+| `NEXT_PUBLIC_PRODUCTS_PAGE_SIZE` | `12` | Products per listing page |
+| `NEXT_PUBLIC_ORDERS_PAGE_SIZE` | `10` | Orders per account page |
+| `NEXT_PUBLIC_ADMIN_PAGE_SIZE` | `20` | Rows per admin table |
+| `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` / `_ENABLED` | dev bypass | reCAPTCHA integration |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_test_simulated` | Card payment simulation |
+
+> Keep these values in sync with backend `app.tax-rate`, `app.free-shipping-threshold` and `app.default-currency` so cart math matches server-side totals.
 
 ## API Documentation
 
@@ -612,6 +727,12 @@ Swagger UI is available at: `http://localhost:8080/api/v1/docs`
 | `GET` | `/orders/{number}` | Get order details | Yes |
 | `POST` | `/orders/{number}/cancel` | Cancel order | Yes |
 | `POST` | `/orders/payments/mpesa/stk-push` | Initiate M-Pesa payment | Yes |
+| `POST` | `/payments/stripe/create-intent` | Create simulated Stripe PaymentIntent | Yes |
+| `POST` | `/payments/stripe/confirm` | Confirm simulated Stripe payment | Yes |
+| `POST` | `/payments/stripe/webhook` | Simulate Stripe webhook events | No |
+| `POST` | `/payments/paypal/create-order` | Create simulated PayPal order | Yes |
+| `POST` | `/payments/paypal/capture` | Capture simulated PayPal payment | Yes |
+| `GET` | `/products/{slug}/reviews` | List product reviews | No |
 | `GET` | `/user/profile` | Get user profile | Yes |
 | `PUT` | `/user/profile` | Update profile | Yes |
 | `POST` | `/user/password` | Change password | Yes |
@@ -703,6 +824,26 @@ curl -X POST http://localhost:8080/api/v1/orders/payments/mpesa/stk-push \
     "transactionDesc": "Payment for order ORD-12345"
   }'
 ```
+
+#### Pay an Order with the Simulated Card Gateway (Stripe-style)
+
+```bash
+# 1. Create a payment intent
+curl -X POST http://localhost:8080/api/v1/payments/stripe/create-intent \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access-token>" \
+  -d '{"orderId": "uuid-of-order", "amount": 406.48, "currency": "kes"}'
+
+# 2. Confirm it with the returned paymentIntentId.
+#    On success the order moves PENDING -> CONFIRMED via RabbitMQ and a
+#    confirmation email is sent (visible in Mailhog at http://localhost:8025).
+curl -X POST http://localhost:8080/api/v1/payments/stripe/confirm \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <access-token>" \
+  -d '{"paymentIntentId": "pi_sim_xxxxxxxxxxxxxxxx"}'
+```
+
+> The simulation succeeds ~95% of the time so failure handling can be demonstrated. The webhook endpoint (`/payments/stripe/webhook`) can also be used to replay `payment_intent.succeeded` / `payment_intent.payment_failed` events.
 
 ## Testing
 
@@ -811,18 +952,21 @@ The repository ships two compose files:
 
 | File | Purpose |
 |------|---------|
-| `docker/docker-compose.yml` | **Development** - PostgreSQL, Redis, Mailhog and the API with sensible dev defaults |
+| `docker/docker-compose.yml` | **Development** - PostgreSQL, Redis, Mailhog, RabbitMQ, the API and the Next.js frontend with sensible dev defaults |
 | `docker/docker-compose.prod.yml` | **Production** - adds Nginx reverse proxy, env-based secrets, no Mailhog |
 
 ### Build Images
 
 ```bash
-# Build backend image
+# Backend image (Jib)
 cd backend
 ./mvnw compile jib:dockerBuild -Dimage=iloveshopping/backend:latest
 
 # Or build with Docker directly
 docker build -t iloveshopping/backend:latest -f Dockerfile .
+
+# Frontend image (multi-stage Node build)
+docker build -t iloveshopping/frontend:latest -f frontend/Dockerfile frontend/
 ```
 
 ### Deploy with Docker Compose
@@ -904,27 +1048,48 @@ i-love-shopping/
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── java/com/iloveshopping/
-│   │   │   │   ├── config/          # Configuration classes
+│   │   │   │   ├── config/          # Configuration (RabbitMQ, security beans, properties)
 │   │   │   │   ├── controller/      # REST controllers
 │   │   │   │   ├── dto/             # Data Transfer Objects
 │   │   │   │   ├── entity/          # JPA entities
 │   │   │   │   ├── exception/       # Custom exceptions
+│   │   │   │   ├── filter/          # Rate limiting filter
+│   │   │   │   ├── messaging/       # RabbitMQ publisher & consumers
 │   │   │   │   ├── repository/      # Spring Data repositories
 │   │   │   │   ├── security/        # JWT, OAuth2, security config
 │   │   │   │   ├── service/         # Business logic
 │   │   │   │   └── util/            # Utility classes
 │   │   │   └── resources/
-│   │   │       ├── db/migration/    # Flyway SQL migrations
+│   │   │       ├── db/migration/    # Flyway SQL migrations + seed data
 │   │   │       ├── application.yml  # Main configuration
-│   │   │       └── templates/       # Thymeleaf email templates
+│   │   │       └── templates/email/ # Thymeleaf email templates
 │   │   └── test/
 │   │       └── java/...             # Unit & integration tests
 │   ├── Dockerfile
 │   ├── pom.xml
 │   ├── mvnw / mvnw.cmd              # Maven wrapper (no global Maven needed)
 │   └── .env.example
+├── frontend/
+│   ├── src/
+│   │   ├── app/                     # Next.js App Router pages
+│   │   │   ├── page.tsx             # Home
+│   │   │   ├── products/            # Listing + detail pages
+│   │   │   ├── cart/                # Cart
+│   │   │   ├── checkout/            # Checkout + success page
+│   │   │   ├── auth/                # Login, register, forgot password
+│   │   │   ├── account/             # Profile, orders, addresses
+│   │   │   └── admin/               # Admin dashboard (role-gated layout)
+│   │   ├── components/              # Header, footer, UI primitives
+│   │   ├── contexts/                # Auth + cart context
+│   │   ├── services/                # API client, cart service
+│   │   ├── lib/                     # config.ts (all env vars), utils
+│   │   └── types/                   # Shared TypeScript types
+│   ├── Dockerfile                   # Multi-stage Node build
+│   ├── next.config.js               # API rewrites + image allowlist from env
+│   ├── tailwind.config.js           # Outfit font, primary palette, tinted shadows
+│   └── .env.local                   # All NEXT_PUBLIC_* configuration (dev defaults)
 ├── docker/
-│   ├── docker-compose.yml           # Development compose (PostgreSQL, Redis, Mailhog, API)
+│   ├── docker-compose.yml           # Dev compose (PostgreSQL, Redis, Mailhog, RabbitMQ, API, frontend)
 │   ├── docker-compose.prod.yml      # Production compose (Nginx, no Mailhog)
 │   └── nginx/                       # Nginx reverse proxy config
 ├── scripts/
@@ -932,6 +1097,7 @@ i-love-shopping/
 │   ├── dev.cmd                      # Dev setup script (Windows)
 │   ├── check-secrets.sh             # Secret scanning helper
 │   └── ...
+├── start.sh / start.cmd             # One-command entry points (forward to scripts/dev.*)
 ├── docs/                            # Architecture, deployment, security & API docs
 ├── .gitignore
 └── README.md
