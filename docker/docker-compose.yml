@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: iloveshopping
       POSTGRES_DB: iloveshopping
     ports:
-      - "5433:5432"
+      - "${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     container_name: iloveshopping-redis
     ports:
-      - "6380:6379"
+      - "${REDIS_PORT:-6380}:6379"
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -38,8 +38,8 @@ services:
     image: mailhog/mailhog:latest
     container_name: iloveshopping-mailhog
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
     networks:
       - iloveshopping-network
 
@@ -50,8 +50,8 @@ services:
       RABBITMQ_DEFAULT_USER: iloveshopping
       RABBITMQ_DEFAULT_PASS: iloveshopping
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_AMQP_PORT:-5672}:5672"
+      - "${RABBITMQ_UI_PORT:-15672}:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
     healthcheck:
@@ -68,13 +68,14 @@ services:
       dockerfile: Dockerfile
     container_name: iloveshopping-frontend
     environment:
-      - NEXT_PUBLIC_API_URL=http://api:8080/api/v1
+      - NEXT_PUBLIC_API_URL=http://localhost:${API_PORT:-8080}/api/v1
+      - BACKEND_INTERNAL_URL=http://api:8080
+      - NEXT_PUBLIC_APP_URL=http://localhost:${FRONTEND_PORT:-3000}
       - NEXT_PUBLIC_RECAPTCHA_SITE_KEY=dev-test-site
       - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_simulated
       - NEXT_PUBLIC_APP_NAME=i-love-shopping
-      - NEXT_PUBLIC_APP_URL=http://localhost:3000
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
       api:
         condition: service_healthy
@@ -100,8 +101,8 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - SERVER_PORT=8080
-      - FRONTEND_URL=http://localhost:3000
-      - CORS_ALLOWED_ORIGINS=http://localhost:3000
+      - FRONTEND_URL=http://localhost:${FRONTEND_PORT:-3000}
+      - CORS_ALLOWED_ORIGINS=http://localhost:${FRONTEND_PORT:-3000}
       - JWT_ACCESS_SECRET=dev-access-secret-min-32-chars-long-for-test
       - JWT_REFRESH_SECRET=dev-refresh-secret-min-32-chars-long-for-test
       - JWT_ACCESS_EXPIRY_MINUTES=15
@@ -121,14 +122,14 @@ services:
       - MPESA_CONSUMER_SECRET=LgJ5V6tShu5SCA9nhcyAA8qrkuq3nHUsbQdmCDRinBIPmjGEY2hVmxoqi28XSdPE
       - MPESA_SHORTCODE=174379
       - MPESA_PASSKEY=bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919
-      - MPESA_CALLBACK_URL=http://host.docker.internal:8080/api/v1/orders/payments/mpesa/callback
+      - MPESA_CALLBACK_URL=http://host.docker.internal:${API_PORT:-8080}/api/v1/orders/payments/mpesa/callback
       - MPESA_BASE_URL=https://sandbox.safaricom.co.ke
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=iloveshopping
       - RABBITMQ_PASSWORD=iloveshopping
     ports:
-      - "8080:8080"
+      - "${API_PORT:-8080}:8080"
     depends_on:
       postgres:
         condition: service_healthy
