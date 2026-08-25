@@ -15,6 +15,8 @@ public class RabbitMQConfig {
     public static final String QUEUE_CREATED = "order.created";
     public static final String QUEUE_PAID = "order.paid";
     public static final String QUEUE_CANCELLED = "order.cancelled";
+    public static final String DLX = "order.dlx";
+    public static final String DLQ = "order.dead-letter";
 
     @Bean
     public DirectExchange orderExchange() {
@@ -22,18 +24,40 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public DirectExchange deadLetterExchange() {
+        return new DirectExchange(DLX, true, false);
+    }
+
+    @Bean
+    public Queue deadLetterQueue() {
+        return QueueBuilder.durable(DLQ).build();
+    }
+
+    @Bean
+    public Binding deadLetterBinding(Queue deadLetterQueue, DirectExchange deadLetterExchange) {
+        return BindingBuilder.bind(deadLetterQueue).to(deadLetterExchange).with(DLQ);
+    }
+
+    private Queue withDlq(String name) {
+        return QueueBuilder.durable(name)
+                .deadLetterExchange(DLX)
+                .deadLetterRoutingKey(DLQ)
+                .build();
+    }
+
+    @Bean
     public Queue orderCreatedQueue() {
-        return QueueBuilder.durable(QUEUE_CREATED).build();
+        return withDlq(QUEUE_CREATED);
     }
 
     @Bean
     public Queue orderPaidQueue() {
-        return QueueBuilder.durable(QUEUE_PAID).build();
+        return withDlq(QUEUE_PAID);
     }
 
     @Bean
     public Queue orderCancelledQueue() {
-        return QueueBuilder.durable(QUEUE_CANCELLED).build();
+        return withDlq(QUEUE_CANCELLED);
     }
 
     @Bean

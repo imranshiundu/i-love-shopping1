@@ -1,17 +1,27 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { cart as cartApi } from '@/services/api';
+import { cart as cartApi, products as productsApi } from '@/services/api';
 import { config } from '@/lib/config';
 import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
+import ProductCard from '@/components/product/ProductCard';
 import { FiTrash2, FiMinus, FiPlus, FiShoppingBag, FiArrowRight, FiTruck } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 export default function CartPage() {
   const { cart, refreshCart, addToCart } = useAuth();
   const [updating, setUpdating] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+
+  useEffect(() => {
+    const firstSlug = cart?.items?.[0]?.productSlug;
+    if (!firstSlug) { setRecommendations([]); return; }
+    productsApi.getSimilar(firstSlug)
+      .then(res => setRecommendations((res.data || []).slice(0, 4)))
+      .catch(() => setRecommendations([]));
+  }, [cart?.items?.length]);
 
   const updateQuantity = async (itemId: string, quantity: number) => {
     if (quantity < 1) return;
@@ -155,6 +165,22 @@ export default function CartPage() {
           </Reveal>
         </aside>
       </div>
+
+      {recommendations.length > 0 && (
+        <section className="mt-16">
+          <Reveal>
+            <h2 className="text-2xl font-bold tracking-tight">Pairs well with your picks</h2>
+            <p className="mt-1 text-sm text-stone-500">Based on what is already in your cart.</p>
+          </Reveal>
+          <div className="mt-6 grid grid-cols-2 gap-5 lg:grid-cols-4">
+            {recommendations.map((p, i) => (
+              <Reveal key={p.id} delay={i * 80}>
+                <ProductCard product={p} />
+              </Reveal>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

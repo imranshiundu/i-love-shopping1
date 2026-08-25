@@ -8,7 +8,7 @@ import { config } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import {
   FiGrid, FiShoppingBag, FiPackage, FiTag, FiFolder, FiBookmark, FiUsers,
-  FiArrowLeft, FiBarChart2,
+  FiArrowLeft, FiBarChart2, FiAlertTriangle,
 } from 'react-icons/fi';
 
 const NAV = [
@@ -27,19 +27,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && (!user || !user.roles?.includes('ADMIN'))) {
-      router.push('/auth/login');
+    if (!loading && !user) {
+      router.push('/auth/login?redirect=' + encodeURIComponent(pathname));
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, pathname]);
 
   if (loading) {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-stone-100">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-stone-950">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-600 border-t-transparent" />
       </div>
     );
   }
-  if (!user || !user.roles?.includes('ADMIN')) return null;
+
+  if (!user) return null;
+
+  if (!user.roles?.includes('ADMIN')) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-stone-950 px-4">
+        <div className="max-w-md rounded-3xl border border-white/10 bg-white/5 p-10 text-center backdrop-blur">
+          <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-500/15 text-rose-400 ring-1 ring-rose-500/30">
+            <FiAlertTriangle className="h-7 w-7" />
+          </span>
+          <h1 className="mt-6 text-2xl font-bold text-white">Restricted area</h1>
+          <p className="mt-2 leading-relaxed text-stone-400">
+            This console is for store administrators only.
+            Your account does not have the required role.
+          </p>
+          <Link href="/"
+            className="mt-7 inline-flex items-center justify-center rounded-xl bg-white px-6 py-3 font-semibold text-stone-900 transition-colors hover:bg-primary-50">
+            Back to storefront
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-[100dvh] bg-stone-100">

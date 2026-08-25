@@ -20,9 +20,17 @@ const STATUS_ICON: Record<string, any> = {
 
 const FILTERS = ['ALL', ...ORDER_STATUSES];
 
+const PERIODS = [
+  { id: 'all', label: 'All time' },
+  { id: '30', label: 'Last 30 days' },
+  { id: '90', label: 'Last 90 days' },
+  { id: '365', label: 'This year' },
+];
+
 export default function AccountOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [filter, setFilter] = useState('ALL');
+  const [period, setPeriod] = useState('all');
   const [loading, setLoading] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
@@ -49,7 +57,15 @@ export default function AccountOrdersPage() {
     setCancellingId(null);
   };
 
-  const visible = filter === 'ALL' ? orders : orders.filter(o => o.status === filter);
+  const visible = orders.filter(o => {
+    if (filter !== 'ALL' && o.status !== filter) return false;
+    if (period === 'all') return true;
+    const days = parseInt(period, 10);
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - days);
+    cutoff.setHours(0, 0, 0, 0);
+    return new Date(o.createdAt) >= cutoff;
+  });
   const spent = orders.filter(o => !['CANCELLED', 'REFUNDED', 'PENDING'].includes(o.status))
     .reduce((sum, o) => sum + (o.total || 0), 0);
 
@@ -79,6 +95,16 @@ export default function AccountOrdersPage() {
               {f === 'ALL' ? `All (${orders.length})` : f}
             </button>
           ))}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {PERIODS.map(p => (
+              <button key={p.id} onClick={() => setPeriod(p.id)}
+                className={`rounded-full px-3.5 py-1 text-[11px] font-bold transition-colors ${
+                  period === p.id ? 'bg-primary-600 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+                }`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
       </Reveal>
 

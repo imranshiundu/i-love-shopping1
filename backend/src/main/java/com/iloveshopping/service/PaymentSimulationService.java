@@ -49,7 +49,7 @@ public class PaymentSimulationService {
                 .amount(request.getAmount())
                 .currency(request.getCurrency() != null ? request.getCurrency() : "KES")
                 .status(Payment.PaymentStatus.PENDING)
-                .metadata(buildStripeMetadata(request))
+                .metadata(enc(buildStripeMetadata(request)))
                 .build();
 
         payment = paymentRepository.save(payment);
@@ -86,14 +86,14 @@ public class PaymentSimulationService {
 
         if (success) {
             payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
-            payment.setCallbackData(buildStripeConfirmCallbackData("succeeded"));
+            payment.setCallbackData(enc(buildStripeConfirmCallbackData("succeeded")));
             paymentRepository.save(payment);
 
             onPaymentSucceeded(payment);
             log.info("Simulated Stripe payment succeeded: {}", request.getPaymentIntentId());
         } else {
             payment.setStatus(Payment.PaymentStatus.FAILED);
-            payment.setCallbackData(buildStripeConfirmCallbackData("failed"));
+            payment.setCallbackData(enc(buildStripeConfirmCallbackData("failed")));
             paymentRepository.save(payment);
 
             onPaymentFailed(payment);
@@ -118,21 +118,21 @@ public class PaymentSimulationService {
         switch (event.getType()) {
             case "payment_intent.succeeded" -> {
                 payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
-                payment.setCallbackData(buildStripeWebhookCallbackData(event));
+                payment.setCallbackData(enc(buildStripeWebhookCallbackData(event)));
                 paymentRepository.save(payment);
                 onPaymentSucceeded(payment);
                 log.info("Stripe webhook: payment succeeded for {}", event.getPaymentIntentId());
             }
             case "payment_intent.payment_failed" -> {
                 payment.setStatus(Payment.PaymentStatus.FAILED);
-                payment.setCallbackData(buildStripeWebhookCallbackData(event));
+                payment.setCallbackData(enc(buildStripeWebhookCallbackData(event)));
                 paymentRepository.save(payment);
                 onPaymentFailed(payment);
                 log.info("Stripe webhook: payment failed for {}", event.getPaymentIntentId());
             }
             case "payment_intent.processing" -> {
                 payment.setStatus(Payment.PaymentStatus.PROCESSING);
-                payment.setCallbackData(buildStripeWebhookCallbackData(event));
+                payment.setCallbackData(enc(buildStripeWebhookCallbackData(event)));
                 paymentRepository.save(payment);
                 log.info("Stripe webhook: payment processing for {}", event.getPaymentIntentId());
             }
@@ -156,7 +156,7 @@ public class PaymentSimulationService {
                 .amount(request.getAmount())
                 .currency(request.getCurrency() != null ? request.getCurrency() : "KES")
                 .status(Payment.PaymentStatus.PENDING)
-                .metadata(buildPayPalMetadata(request))
+                .metadata(enc(buildPayPalMetadata(request)))
                 .build();
 
         payment = paymentRepository.save(payment);
@@ -197,14 +197,14 @@ public class PaymentSimulationService {
 
         if (success) {
             payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
-            payment.setCallbackData(buildPayPalCaptureCallbackData("succeeded"));
+            payment.setCallbackData(enc(buildPayPalCaptureCallbackData("succeeded")));
             paymentRepository.save(payment);
 
             onPaymentSucceeded(payment);
             log.info("Simulated PayPal payment captured: {}", request.getPaypalOrderId());
         } else {
             payment.setStatus(Payment.PaymentStatus.FAILED);
-            payment.setCallbackData(buildPayPalCaptureCallbackData("failed"));
+            payment.setCallbackData(enc(buildPayPalCaptureCallbackData("failed")));
             paymentRepository.save(payment);
 
             onPaymentFailed(payment);
@@ -217,6 +217,10 @@ public class PaymentSimulationService {
                 .status(payment.getStatus().name().toLowerCase())
                 .orderId(payment.getOrder().getId())
                 .build();
+    }
+
+    private String enc(String value) {
+        return com.iloveshopping.service.DataEncryptionService.encryptForJson(value);
     }
 
     // ===== Payment outcome handlers =====
@@ -298,7 +302,7 @@ public class PaymentSimulationService {
                 .amount(amount)
                 .currency(currency != null ? currency : "KES")
                 .status(Payment.PaymentStatus.PENDING)
-                .metadata(buildSimpleMetadata("flutterwave", customerEmail))
+                .metadata(enc(buildSimpleMetadata("flutterwave", customerEmail)))
                 .build();
         payment = paymentRepository.save(payment);
 
@@ -356,7 +360,7 @@ public class PaymentSimulationService {
                 .amount(amount)
                 .currency("KES")
                 .status(Payment.PaymentStatus.PENDING)
-                .metadata(buildSimpleMetadata("airtel-money", phoneNumber))
+                .metadata(enc(buildSimpleMetadata("airtel-money", phoneNumber)))
                 .build();
         payment = paymentRepository.save(payment);
 
