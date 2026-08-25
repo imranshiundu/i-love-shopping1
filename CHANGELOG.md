@@ -12,6 +12,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   TZS, UGX and ZAR; rates configurable via NEXT_PUBLIC_CURRENCY_RATES;
   checkout states clearly that payments settle in KES
 - Documented seeded test accounts in the README
+- Flutterwave (create-payment/verify) and Airtel Money (initiate/confirm)
+  simulated payment rails alongside Stripe and M-Pesa
+- M-Pesa sandbox simulation mode so STK push completes locally
+  (MPESA_SIMULATION_ENABLED, on by default)
+- Encryption at rest: order addresses and payment metadata/callback data
+  are AES-256-GCM encrypted with DATA_ENCRYPTION_KEY and decrypted
+  transparently for authorised API readers
+- RabbitMQ dead-letter queue for exhausted message retries
+- Admin analytics dashboard (revenue, awaiting payment, losses, AOV,
+  7-day chart, best sellers, low stock) and bulk offers engine
+- User account dashboard with sidebar layout and a dedicated Settings page
+- Guest checkout end to end, including anonymous M-Pesa/card payment
+- Client-side card validation (Luhn, expiry, CVV) before card payments
+- Cart recommendations based on cart contents; checkout address prefill
+  for logged-in users; order history period filters
+- Redesigned login/register/forgot-password screens with redirect support;
+  restricted-area screen for non-admins opening /admin
+- Smooth page and section transitions across storefront and admin
+
+### Changed
+- Payment events publish after transaction commit so queue consumers never
+  race the database write
 
 ### Added
 - Initial project structure with Spring Boot 3.2.x

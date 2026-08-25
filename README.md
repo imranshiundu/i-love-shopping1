@@ -403,6 +403,28 @@ erDiagram
 - ✅ Order status updates
 - ✅ User management
 
+## Beyond the Brief (Additional Features)
+
+These go beyond the core requirements - added for real-world polish:
+
+### Payments
+- **Four payment rails at checkout** - M-Pesa, Airtel Money, Card via Stripe and Card via Flutterwave. The brief asked for one gateway; we ship four, all selectable in a single payment step.
+- **Working sandbox M-Pesa** - `MPESA_SIMULATION_ENABLED=true` simulates the customer PIN entry so the full STK-push journey completes locally without Daraja callbacks. Set it to `false` and the same code path calls the real Safaricom API.
+- **Client-side card validation** - Luhn check, expiry and CVV validation happen in the browser before any request; card data is never sent to or stored on our servers.
+
+### Security & reliability
+- **Encryption at rest** - order shipping/billing addresses and payment metadata/callback records are encrypted with AES-256-GCM (`DATA_ENCRYPTION_KEY`). Raw database rows are ciphertext; authorised API readers receive transparently decrypted values.
+- **Dead-letter queue** - RabbitMQ order queues dead-letter to `order.dead-letter` after exhausted retries, so failed messages are never silently dropped.
+- **Per-IP rate limiting** on authentication and API traffic.
+
+### Storefront & admin experience
+- **Multi-currency display** - KES base with USD, EUR, GBP, TZS, UGX and ZAR via a header switcher; rates are env-configurable (`NEXT_PUBLIC_CURRENCY_RATES`) and payments always settle in KES, stated clearly at checkout.
+- **Admin analytics dashboard** - collected revenue vs awaiting-payment vs cancellations/refunds ("losses"), average order value, 7-day revenue chart, orders-by-status distribution, best sellers, low-stock watchlist and latest orders.
+- **Offers engine** - launch bulk percentage promotions scoped to everything, a category or a brand, with live-offers tracking and one-click end-all.
+- **User account dashboard** - KPI cards, recent orders, quick actions; profile and security live under Settings.
+- **Guest checkout end-to-end** - visitors can buy without an account; orders attach to their session cart cookie.
+- **Port-conflict-aware dev script** - every service auto-shifts to the next free port when defaults are taken.
+
 ## Prerequisites
 
 The project needs **Docker** for the database, cache, queue and mail services. Optionally **Java 21 + Maven** and **Node.js 20+** if you want to run the API or frontend directly on your machine.
@@ -665,7 +687,11 @@ spring.mail.port: ${MAIL_PORT}
 spring.mail.properties.mail.smtp.auth: ${MAIL_SMTP_AUTH:true}
 spring.mail.properties.mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:true}
 
-# M-Pesa
+# Encryption at rest (order addresses, payment records)
+app.data-encryption-key: ${DATA_ENCRYPTION_KEY}
+
+# M-Pesa (simulation mode completes STK push locally; set false for real Daraja)
+mpesa.simulation-enabled: ${MPESA_SIMULATION_ENABLED:true}
 mpesa.environment: sandbox
 mpesa.consumer-key: ${MPESA_CONSUMER_KEY}
 mpesa.consumer-secret: ${MPESA_CONSUMER_SECRET}
