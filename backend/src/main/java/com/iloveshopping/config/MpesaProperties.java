@@ -16,4 +16,5 @@ public class MpesaProperties {
     private String callbackUrl;
     private String timeoutUrl;
     private String baseUrl = "https://sandbox.safaricom.co.ke";
+    private boolean simulationEnabled = true;
 }

@@ -28,6 +28,7 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -98,6 +99,10 @@ public class MpesaService {
             throw new PaymentException("Payment amount does not match order total");
         }
 
+        if (mpesaProperties.isSimulationEnabled()) {
+            return simulateStkPush(order, request);
+        }
+
         try {
             String accessToken = getAccessToken();
             String timestamp = getTimestamp();
@@ -164,6 +169,31 @@ public class MpesaService {
             log.error("STK Push failed: {}", e.getMessage(), e);
             throw new PaymentException("Failed to initiate M-Pesa payment: " + e.getMessage());
         }
+    }
+
+    private MpesaStkPushResponse simulateStkPush(Order order, MpesaStkPushRequest request) {
+        String checkoutRequestId = "SIM-ws_CO_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+
+        Payment payment = Payment.builder()
+                .order(order)
+                .provider(Payment.PaymentProvider.MPESA)
+                .providerId(checkoutRequestId)
+                .amount(request.getAmount())
+                .currency("KES")
+                .status(Payment.PaymentStatus.PENDING)
+                .metadata("{\"checkoutRequestId\": \"" + checkoutRequestId + "\", \"customerPhone\": \"" + request.getPhoneNumber() + "\", \"simulated\": true}")
+                .build();
+        paymentRepository.save(payment);
+
+        log.info("Simulated M-Pesa STK Push for order: {} checkoutId: {}", order.getNumber(), checkoutRequestId);
+
+        return MpesaStkPushResponse.builder()
+                .merchantRequestId("SIM-" + UUID.randomUUID().toString().substring(0, 8))
+                .checkoutRequestId(checkoutRequestId)
+                .responseCode("0")
+                .responseDescription("Success. Request accepted for processing")
+                .customerMessage("An M-Pesa PIN prompt has been sent to your phone.")
+                .build();
     }
 
     @Transactional

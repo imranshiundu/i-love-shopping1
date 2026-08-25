@@ -22,6 +22,7 @@ public class PaymentService {
     private final MpesaService mpesaService;
     private final PaymentRepository paymentRepository;
 
+    @Transactional
     public MpesaStkPushResponse initiateStkPush(MpesaStkPushRequest request) {
         return mpesaService.initiateStkPush(request);
     }

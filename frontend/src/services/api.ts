@@ -89,6 +89,8 @@ export const orders = {
 };
 
 export const payments = {
+  mpesaSimulateConfirm: (checkoutRequestId: string) =>
+    request<any>('/payments/mpesa/simulate-confirm', { method: 'POST', body: JSON.stringify({ checkoutRequestId }) }),
   stripeCreateIntent: (orderId: string, amount: number, currency = 'kes') =>
     request<any>('/payments/stripe/create-intent', { method: 'POST', body: JSON.stringify({ orderId, amount, currency }) }),
   stripeConfirm: (paymentIntentId: string) =>
