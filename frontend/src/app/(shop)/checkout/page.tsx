@@ -262,6 +262,7 @@ export default function CheckoutPage() {
         })}
       </ol>
 
+      <div key={step} className="page-enter">
       {step === 1 && (
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
           <div className="space-y-5">
@@ -497,6 +498,7 @@ export default function CheckoutPage() {
           </aside>
         </div>
       )}
+      </div>
     </div>
   );
 }
