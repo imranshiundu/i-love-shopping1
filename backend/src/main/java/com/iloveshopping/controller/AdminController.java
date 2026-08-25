@@ -1,5 +1,6 @@
 package com.iloveshopping.controller;
 
+import com.iloveshopping.dto.admin.AdminStatsResponse;
 import com.iloveshopping.dto.admin.UpdateOrderStatusRequest;
 import com.iloveshopping.dto.common.ApiResponse;
 import com.iloveshopping.dto.order.OrderResponse;
@@ -25,13 +26,20 @@ public class AdminController {
 
     private final AdminService adminService;
 
+    @GetMapping("/stats")
+    @Operation(summary = "Dashboard statistics (Admin)")
+    public ResponseEntity<ApiResponse<AdminStatsResponse>> getStats() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getStats()));
+    }
+
     @GetMapping("/orders")
     @Operation(summary = "List all orders (Admin)")
     public ResponseEntity<ApiResponse<Page<OrderResponse>>> getAllOrders(
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String status) {
 
-        Page<OrderResponse> orders = adminService.getAllOrders(page, size);
+        Page<OrderResponse> orders = adminService.getAllOrders(page, size, status);
         return ResponseEntity.ok(ApiResponse.success(orders));
     }
 
