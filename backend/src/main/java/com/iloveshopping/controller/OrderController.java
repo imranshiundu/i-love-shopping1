@@ -31,9 +31,10 @@ public class OrderController {
     @PostMapping("/checkout")
     @Operation(summary = "Create order from current cart (checkout)")
     public ResponseEntity<ApiResponse<OrderResponse>> checkout(
-            @Valid @RequestBody CheckoutRequest request) {
+            @Valid @RequestBody CheckoutRequest request,
+            @CookieValue(name = "cartSessionId", required = false) String cartSessionId) {
 
-        OrderResponse order = orderService.checkout(request);
+        OrderResponse order = orderService.checkout(request, cartSessionId);
         return ResponseEntity.ok(ApiResponse.success(order));
     }
 
