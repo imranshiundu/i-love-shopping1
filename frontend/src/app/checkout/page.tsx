@@ -1,12 +1,20 @@
 'use client';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { orders, payments } from '@/services/api';
-import { formatKES } from '@/lib/utils';
 import { config } from '@/lib/config';
+import { formatKES } from '@/lib/utils';
+import Reveal from '@/components/ui/Reveal';
 import { Address } from '@/types';
+import {
+  FiCheck, FiArrowLeft, FiArrowRight, FiShoppingBag,
+  FiSmartphone, FiCreditCard, FiLock,
+} from 'react-icons/fi';
 import toast from 'react-hot-toast';
+
+const STEPS = ['Delivery', 'Payment'];
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -15,6 +23,7 @@ export default function CheckoutPage() {
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'stripe' | 'paypal'>('mpesa');
   const [orderId, setOrderId] = useState<string | null>(null);
+  const [orderNumber, setOrderNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
 
   const [shipping, setShipping] = useState<Address>({
@@ -26,7 +35,7 @@ export default function CheckoutPage() {
   const [sameAsShipping, setSameAsShipping] = useState(true);
   const [notes, setNotes] = useState('');
 
-  const subtotal = cart?.items.reduce((sum, item) => sum + item.price * item.quantity, 0) || 0;
+  const subtotal = cart?.items.reduce((sum, item) => sum + item.priceSnapshot * item.quantity, 0) || 0;
   const shippingCost = subtotal >= config.commerce.freeShippingThreshold ? 0 : config.commerce.shippingCost;
   const tax = Math.round(subtotal * config.commerce.taxRate);
   const total = subtotal + shippingCost + tax;
@@ -41,8 +50,10 @@ export default function CheckoutPage() {
       });
       if (res.data) {
         setOrderId(res.data.id);
+        setOrderNumber(res.data.number || '');
         setStep(2);
         await refreshCart();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } catch (e: any) { toast.error(e.message || 'Checkout failed'); }
     setLoading(false);
@@ -53,23 +64,23 @@ export default function CheckoutPage() {
     setLoading(true);
     try {
       if (paymentMethod === 'mpesa') {
-        if (!phoneNumber) { toast.error('Enter phone number'); setLoading(false); return; }
+        if (!phoneNumber) { toast.error('Enter your M-Pesa phone number'); setLoading(false); return; }
         await orders.mpesaStkPush(orderId, String(total), phoneNumber);
-        toast.success('Check your phone for M-Pesa prompt');
-        setTimeout(() => router.push(`/checkout/success?order=${orderId}`), 3000);
+        toast.success('Check your phone for the M-Pesa prompt');
+        setTimeout(() => router.push(`/checkout/success?order=${orderNumber}`), 3000);
       } else if (paymentMethod === 'stripe') {
         const res = await payments.stripeCreateIntent(orderId, total);
         if (res.data?.clientSecret) {
           await payments.stripeConfirm(res.data.paymentIntentId);
-          toast.success('Payment processed!');
-          router.push(`/checkout/success?order=${orderId}`);
+          toast.success('Payment processed');
+          router.push(`/checkout/success?order=${orderNumber}`);
         }
       } else if (paymentMethod === 'paypal') {
         const res = await payments.paypalCreateOrder(orderId, total);
         if (res.data?.paypalOrderId) {
           await payments.paypalCapture(res.data.paypalOrderId);
-          toast.success('Payment processed!');
-          router.push(`/checkout/success?order=${orderId}`);
+          toast.success('Payment processed');
+          router.push(`/checkout/success?order=${orderNumber}`);
         }
       }
     } catch (e: any) { toast.error(e.message || 'Payment failed'); }
@@ -78,133 +89,219 @@ export default function CheckoutPage() {
 
   if (!cart || cart.items.length === 0) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-16 text-center">
-        <p className="text-gray-500 mb-4">Your cart is empty. Add items before checkout.</p>
-        <button onClick={() => router.push('/products')} className="bg-primary-600 text-white px-6 py-3 rounded-lg">Browse Products</button>
+      <div className="mx-auto max-w-7xl px-4 py-24 text-center">
+        <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-stone-100">
+          <FiShoppingBag className="h-9 w-9 text-stone-400" />
+        </span>
+        <h1 className="mt-6 text-2xl font-bold">Nothing to check out yet</h1>
+        <p className="mx-auto mt-2 max-w-[42ch] text-stone-500">Add items to your cart first, then come back to complete your order.</p>
+        <Link href="/products" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-7 py-3.5 font-semibold text-white hover:bg-primary-700">
+          Browse products <FiArrowRight />
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-4 mb-8">
-        <div className={`flex items-center gap-2 ${step >= 1 ? 'text-primary-600' : 'text-gray-400'}`}>
-          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step >= 1 ? 'bg-primary-600 text-white' : 'bg-gray-200'}`}>1</span>
-          <span className="hidden sm:inline">Shipping</span>
-        </div>
-        <div className="flex-1 h-px bg-gray-200" />
-        <div className={`flex items-center gap-2 ${step >= 2 ? 'text-primary-600' : 'text-gray-400'}`}>
-          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${step >= 2 ? 'bg-primary-600 text-white' : 'bg-gray-200'}`}>2</span>
-          <span className="hidden sm:inline">Payment</span>
-        </div>
-      </div>
+    <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+      <ol className="mb-10 flex items-center gap-3" aria-label="Checkout progress">
+        {STEPS.map((label, idx) => {
+          const n = idx + 1;
+          const active = step >= n;
+          return (
+            <li key={label} className="flex flex-1 items-center gap-3 last:flex-none">
+              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                active ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30' : 'bg-stone-200 text-stone-500'
+              }`}>
+                {step > n ? <FiCheck /> : n}
+              </span>
+              <span className={`text-sm font-semibold ${active ? 'text-stone-900' : 'text-stone-400'}`}>{label}</span>
+              {n < STEPS.length && <span className={`hidden h-px flex-1 sm:block ${step > n ? 'bg-primary-500' : 'bg-stone-200'}`} />}
+            </li>
+          );
+        })}
+      </ol>
 
       {step === 1 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-lg p-6 border">
-              <h2 className="text-xl font-bold mb-4">Shipping Address</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
-                  { label: 'Full Name', key: 'name', required: true },
-                  { label: 'Address Line 1', key: 'line1', required: true },
-                  { label: 'Address Line 2', key: 'line2' },
-                  { label: 'City', key: 'city', required: true },
-                  { label: 'State/County', key: 'state', required: true },
-                  { label: 'Postal Code', key: 'postalCode', required: true },
-                  { label: 'Phone', key: 'phone', required: true },
-                ].map(field => (
-                  <div key={field.key} className={field.key === 'line1' || field.key === 'name' ? 'sm:col-span-2' : ''}>
-                    <label className="block text-sm font-medium mb-1">{field.label} {field.required && '*'}</label>
-                    <input type="text" value={(shipping as any)[field.key]} onChange={e => setShipping({ ...shipping, [field.key]: e.target.value })}
-                      className="w-full border rounded-lg px-3 py-2 text-sm" required={field.required} />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg p-6 border">
-              <label className="flex items-center gap-2 mb-4">
-                <input type="checkbox" checked={sameAsShipping} onChange={e => setSameAsShipping(e.target.checked)} />
-                <span className="text-sm font-medium">Billing address same as shipping</span>
-              </label>
-              {!sameAsShipping && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {['name', 'line1', 'line2', 'city', 'state', 'postalCode'].map(key => (
-                    <div key={key} className={key === 'line1' || key === 'name' ? 'sm:col-span-2' : ''}>
-                      <label className="block text-sm font-medium mb-1 capitalize">{key}</label>
-                      <input type="text" value={(billing as any)[key]} onChange={e => setBilling({ ...billing, [key]: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
+          <div className="space-y-5">
+            <Reveal>
+              <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
+                <h2 className="text-lg font-bold">Delivery address</h2>
+                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {([
+                    { label: 'Full name', key: 'name', required: true, span: true },
+                    { label: 'Address line 1', key: 'line1', required: true, span: true },
+                    { label: 'Address line 2', key: 'line2', required: false, span: true },
+                    { label: 'City / Town', key: 'city', required: true, span: false },
+                    { label: 'County / State', key: 'state', required: true, span: false },
+                    { label: 'Postal code', key: 'postalCode', required: true, span: false },
+                    { label: 'Phone', key: 'phone', required: true, span: false },
+                  ]).map(field => (
+                    <div key={field.key} className={field.span ? 'sm:col-span-2' : ''}>
+                      <label className="mb-1 block text-sm font-medium text-stone-700">
+                        {field.label}{field.required && <span className="text-rose-500"> *</span>}
+                      </label>
+                      <input
+                        type="text"
+                        value={(shipping as any)[field.key] || ''}
+                        onChange={e => setShipping({ ...shipping, [field.key]: e.target.value })}
+                        required={field.required}
+                        placeholder={field.key === 'phone' ? '+254 7XX XXX XXX' : ''}
+                        className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                      />
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
 
-            <div className="bg-white rounded-lg p-6 border">
-              <label className="block text-sm font-medium mb-1">Order Notes (optional)</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Any special instructions..." />
-            </div>
+                <label className="mt-5 flex cursor-pointer items-center gap-2.5 text-sm font-medium">
+                  <input type="checkbox" checked={sameAsShipping} onChange={e => setSameAsShipping(e.target.checked)} className="h-4 w-4 accent-primary-600" />
+                  Billing address is the same as delivery
+                </label>
+
+                {!sameAsShipping && (
+                  <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl bg-stone-50 p-4 sm:grid-cols-2">
+                    {(['name', 'line1', 'line2', 'city', 'state', 'postalCode'] as const).map(key => (
+                      <div key={key} className={key === 'line1' || key === 'name' ? 'sm:col-span-2' : ''}>
+                        <label className="mb-1 block text-sm font-medium capitalize text-stone-700">{key.replace(/([A-Z])/g, ' $1')}</label>
+                        <input
+                          type="text" value={(billing as any)[key] || ''}
+                          onChange={e => setBilling({ ...billing, [key]: e.target.value })}
+                          className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </Reveal>
+
+            <Reveal delay={90}>
+              <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
+                <h2 className="text-lg font-bold">Order notes</h2>
+                <textarea
+                  value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+                  placeholder="Gate code, preferred delivery time, gift note..."
+                  className="mt-4 w-full resize-none rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                />
+              </section>
+            </Reveal>
           </div>
 
-          <div className="bg-white rounded-lg p-6 border h-fit">
-            <h2 className="text-xl font-bold mb-4">Order Summary</h2>
-            <div className="space-y-3 mb-4">
-              {cart.items.map(item => (
-                <div key={item.id} className="flex justify-between text-sm">
-                  <span className="truncate flex-1">{item.name} x{item.quantity}</span>
-                  <span className="ml-2 font-medium">{formatKES(item.price * item.quantity)}</span>
-                </div>
-              ))}
-            </div>
-            <div className="border-t pt-3 space-y-2 text-sm">
-              <div className="flex justify-between"><span>Subtotal</span><span>{formatKES(subtotal)}</span></div>
-              <div className="flex justify-between"><span>Shipping</span><span>{shippingCost === 0 ? 'Free' : formatKES(shippingCost)}</span></div>
-              <div className="flex justify-between"><span>Tax (16%)</span><span>{formatKES(tax)}</span></div>
-              <div className="border-t pt-2 flex justify-between font-bold text-lg"><span>Total</span><span>{formatKES(total)}</span></div>
-            </div>
-            <button onClick={handlePlaceOrder} disabled={loading}
-              className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50 mt-4">
-              {loading ? 'Placing Order...' : 'Place Order'}
-            </button>
-          </div>
+          <aside className="lg:sticky lg:top-28 lg:self-start">
+            <Reveal delay={140}>
+              <SummaryCard cart={cart.items} subtotal={subtotal} shippingCost={shippingCost} tax={tax} total={total}>
+                <button onClick={handlePlaceOrder} disabled={loading}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60 disabled:hover:translate-y-0">
+                  {loading ? 'Placing order...' : 'Continue to payment'} {!loading && <FiArrowRight />}
+                </button>
+              </SummaryCard>
+            </Reveal>
+          </aside>
         </div>
       )}
 
       {step === 2 && (
-        <div className="max-w-lg mx-auto">
-          <div className="bg-white rounded-lg p-8 border text-center">
-            <h2 className="text-2xl font-bold mb-2">Select Payment Method</h2>
-            <p className="text-gray-500 mb-6">Order total: <strong>{formatKES(total)}</strong></p>
-
-            <div className="space-y-3 mb-6">
-              {[
-                { id: 'mpesa', label: 'M-Pesa', desc: 'Pay via STK Push' },
-                { id: 'stripe', label: 'Credit/Debit Card', desc: 'Stripe (simulated)' },
-                { id: 'paypal', label: 'PayPal', desc: 'PayPal (simulated)' },
-              ].map(m => (
-                <label key={m.id} className={`block border-2 rounded-lg p-4 cursor-pointer text-left transition ${paymentMethod === m.id ? 'border-primary-600 bg-primary-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input type="radio" name="payment" value={m.id} checked={paymentMethod === m.id} onChange={() => setPaymentMethod(m.id as any)} className="hidden" />
-                  <span className="font-semibold">{m.label}</span>
-                  <span className="block text-sm text-gray-500">{m.desc}</span>
-                </label>
-              ))}
-            </div>
-
-            {paymentMethod === 'mpesa' && (
-              <div className="mb-6">
-                <label className="block text-sm font-medium mb-1">M-Pesa Phone Number</label>
-                <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} placeholder="254712345678"
-                  className="w-full border rounded-lg px-3 py-2" />
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
+          <Reveal>
+            <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-lg font-bold">How would you like to pay?</h2>
+                  <p className="mt-1 text-sm text-stone-500">Order <span className="font-mono font-semibold">{orderNumber}</span> is reserved.</p>
+                </div>
+                <button onClick={() => setStep(1)} className="flex items-center gap-1 text-sm font-medium text-stone-500 hover:text-primary-600">
+                  <FiArrowLeft /> Edit details
+                </button>
               </div>
-            )}
 
-            <button onClick={handlePayment} disabled={loading}
-              className="w-full bg-primary-600 text-white py-3 rounded-lg font-semibold hover:bg-primary-700 disabled:opacity-50">
-              {loading ? 'Processing...' : `Pay ${formatKES(total)}`}
-            </button>
-          </div>
+              <div className="mt-6 grid gap-3">
+                {[
+                  { id: 'mpesa', label: 'M-Pesa', desc: 'Push a prompt to your phone', icon: FiSmartphone },
+                  { id: 'stripe', label: 'Card', desc: 'Visa, Mastercard - simulated gateway', icon: FiCreditCard },
+                  { id: 'paypal', label: 'PayPal', desc: 'Redirect flow - simulated', icon: FiLock },
+                ].map(m => (
+                  <label key={m.id}>
+                    <input type="radio" name="payment" value={m.id} checked={paymentMethod === m.id}
+                      onChange={() => setPaymentMethod(m.id as any)} className="peer sr-only" />
+                    <div className="flex cursor-pointer items-center gap-4 rounded-xl border-2 border-stone-200 p-4 transition-all peer-checked:border-primary-600 peer-checked:bg-primary-50/50 peer-checked:shadow-sm hover:border-stone-300">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-stone-100 peer-checked:bg-primary-100">
+                        <m.icon className="h-5 w-5 text-stone-700" />
+                      </span>
+                      <span>
+                        <span className="block font-semibold">{m.label}</span>
+                        <span className="block text-sm text-stone-500">{m.desc}</span>
+                      </span>
+                      <span className={`ml-auto flex h-5 w-5 items-center justify-center rounded-full border-2 ${paymentMethod === m.id ? 'border-primary-600 bg-primary-600' : 'border-stone-300'}`}>
+                        {paymentMethod === m.id && <FiCheck className="h-3 w-3 text-white" />}
+                      </span>
+                    </div>
+                  </label>
+                ))}
+              </div>
+
+              {paymentMethod === 'mpesa' && (
+                <div className="mt-5 rounded-xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
+                  <label className="mb-1 block text-sm font-medium text-emerald-900">M-Pesa phone number</label>
+                  <input
+                    type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
+                    placeholder="254712345678"
+                    className="w-full rounded-xl border border-emerald-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                  />
+                  <p className="mt-2 text-xs text-emerald-700">You will receive an STK push prompt on this number.</p>
+                </div>
+              )}
+
+              <button onClick={handlePayment} disabled={loading}
+                className="mt-6 w-full rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60 disabled:hover:translate-y-0">
+                {loading ? 'Processing...' : `Pay ${formatKES(total)}`}
+              </button>
+              <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-stone-400">
+                <FiLock className="h-3 w-3" /> Card details are handled by the gateway - never stored on our servers.
+              </p>
+            </section>
+          </Reveal>
+
+          <aside className="lg:sticky lg:top-28 lg:self-start">
+            <Reveal delay={100}>
+              <SummaryCard cart={cart.items} subtotal={subtotal} shippingCost={shippingCost} tax={tax} total={total} />
+            </Reveal>
+          </aside>
         </div>
       )}
+    </div>
+  );
+}
+
+function SummaryCard({ cart, subtotal, shippingCost, tax, total, children }: {
+  cart: any[]; subtotal: number; shippingCost: number; tax: number; total: number; children?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-stone-200/80 bg-white p-6">
+      <h2 className="text-lg font-bold">Your order</h2>
+      <ul className="mt-4 space-y-3">
+        {cart.map(item => (
+          <li key={item.id} className="flex items-center gap-3">
+            <span className="relative shrink-0 overflow-hidden rounded-lg bg-stone-100">
+              {item.productImage && <img src={item.productImage} alt="" className="h-12 w-12 object-cover" />}
+              <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] font-bold text-white">
+                {item.quantity}
+              </span>
+            </span>
+            <span className="min-w-0 flex-1 truncate text-sm">{item.productName}</span>
+            <span className="text-sm font-semibold">{formatKES(item.lineTotal)}</span>
+          </li>
+        ))}
+      </ul>
+      <dl className="mt-5 space-y-2.5 border-t border-stone-200 pt-4 text-sm">
+        <div className="flex justify-between"><dt className="text-stone-500">Subtotal</dt><dd className="font-semibold">{formatKES(subtotal)}</dd></div>
+        <div className="flex justify-between"><dt className="text-stone-500">Delivery</dt><dd className="font-semibold">{shippingCost === 0 ? 'Free' : formatKES(shippingCost)}</dd></div>
+        <div className="flex justify-between"><dt className="text-stone-500">VAT ({Math.round(config.commerce.taxRate * 100)}%)</dt><dd className="font-semibold">{formatKES(tax)}</dd></div>
+        <div className="flex justify-between border-t border-stone-200 pt-3">
+          <dt className="text-base font-bold">Total</dt><dd className="text-xl font-extrabold">{formatKES(total)}</dd>
+        </div>
+      </dl>
+      {children}
     </div>
   );
 }

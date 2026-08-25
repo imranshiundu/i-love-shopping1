@@ -1,12 +1,13 @@
 'use client';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { products as productsApi, categories as categoriesApi, brands as brandsApi } from '@/services/api';
 import { config } from '@/lib/config';
 import { Product, Category, Brand } from '@/types';
-import { formatKES, cn } from '@/lib/utils';
-import { FiStar, FiFilter, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { cn } from '@/lib/utils';
+import Reveal from '@/components/ui/Reveal';
+import ProductCard from '@/components/product/ProductCard';
+import { FiFilter, FiX, FiChevronLeft, FiChevronRight, FiSearch } from 'react-icons/fi';
 
 function ProductsContent() {
   const searchParams = useSearchParams();
@@ -14,10 +15,10 @@ function ProductsContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(true);
-  const [pagination, setPagination] = useState({ page: 0, size: 20, totalElements: 0, totalPages: 0 });
+  const [pagination, setPagination] = useState({ page: 0, size: config.pages.productsPageSize, totalElements: 0, totalPages: 0 });
   const [showFilters, setShowFilters] = useState(false);
 
-  const [query, setQuery] = useState(searchParams.get('q') || '');
+  const [query, setQueryInput] = useState(searchParams.get('q') || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
   const [selectedBrand, setSelectedBrand] = useState(searchParams.get('brand') || '');
   const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
@@ -56,140 +57,117 @@ function ProductsContent() {
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
-  const handleSearch = (e: React.FormEvent) => { e.preventDefault(); setCurrentPage(0); fetchProducts(); };
-
-  const clearFilters = () => { setQuery(''); setSelectedCategory(''); setSelectedBrand(''); setMinPrice(''); setMaxPrice(''); setInStockOnly(false); setOnSaleOnly(false); setCurrentPage(0); };
+  const clearFilters = () => {
+    setQueryInput(''); setSelectedCategory(''); setSelectedBrand(''); setMinPrice(''); setMaxPrice('');
+    setInStockOnly(false); setOnSaleOnly(false); setCurrentPage(0);
+  };
 
   const hasFilters = query || selectedCategory || selectedBrand || minPrice || maxPrice || inStockOnly || onSaleOnly;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="flex flex-col md:flex-row gap-8">
-        <aside className={cn("md:w-64 flex-shrink-0", showFilters ? "block" : "hidden md:block")}>
-          <div className="bg-white rounded-lg p-4 border space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Filters</h3>
-              {hasFilters && <button onClick={clearFilters} className="text-sm text-primary-600 hover:underline">Clear all</button>}
-            </div>
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600">Catalogue</p>
+        <h1 className="mt-1.5 text-3xl font-bold tracking-tight sm:text-4xl">
+          {query ? <>Results for &ldquo;{query}&rdquo;</> : 'All products'}
+        </h1>
+        <p className="mt-1.5 text-sm text-stone-500">{pagination.totalElements} products found</p>
+      </div>
 
-            <div>
-              <h4 className="text-sm font-medium mb-2">Categories</h4>
-              {categories.map(cat => (
-                <label key={cat.id} className="flex items-center gap-2 text-sm cursor-pointer py-1">
-                  <input type="radio" name="category" checked={selectedCategory === cat.slug}
-                    onChange={() => { setSelectedCategory(selectedCategory === cat.slug ? '' : cat.slug); setCurrentPage(0); }} />
-                  {cat.name}
-                </label>
-              ))}
-            </div>
+      <div className="flex flex-col gap-8 lg:flex-row">
+        <FilterSidebar
+          categories={categories} brands={brands}
+          query={query} setQuery={setQueryInput}
+          selectedCategory={selectedCategory} setSelectedCategory={v => { setSelectedCategory(v); setCurrentPage(0); }}
+          selectedBrand={selectedBrand} setSelectedBrand={v => { setSelectedBrand(v); setCurrentPage(0); }}
+          minPrice={minPrice} setMinPrice={setMinPrice}
+          maxPrice={maxPrice} setMaxPrice={setMaxPrice}
+          inStockOnly={inStockOnly} setInStockOnly={v => { setInStockOnly(v); setCurrentPage(0); }}
+          onSaleOnly={onSaleOnly} setOnSaleOnly={v => { setOnSaleOnly(v); setCurrentPage(0); }}
+          clearFilters={clearFilters} hasFilters={!!hasFilters}
+          showFilters={showFilters} onClose={() => setShowFilters(false)}
+        />
 
-            <div>
-              <h4 className="text-sm font-medium mb-2">Brands</h4>
-              {brands.map(brand => (
-                <label key={brand.id} className="flex items-center gap-2 text-sm cursor-pointer py-1">
-                  <input type="radio" name="brand" checked={selectedBrand === brand.slug}
-                    onChange={() => { setSelectedBrand(selectedBrand === brand.slug ? '' : brand.slug); setCurrentPage(0); }} />
-                  {brand.name}
-                </label>
-              ))}
-            </div>
-
-            <div>
-              <h4 className="text-sm font-medium mb-2">Price Range (KES)</h4>
-              <div className="flex gap-2">
-                <input type="number" value={minPrice} onChange={e => setMinPrice(e.target.value)} placeholder="Min" className="w-full border rounded px-2 py-1 text-sm" />
-                <input type="number" value={maxPrice} onChange={e => setMaxPrice(e.target.value)} placeholder="Max" className="w-full border rounded px-2 py-1 text-sm" />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={inStockOnly} onChange={e => { setInStockOnly(e.target.checked); setCurrentPage(0); }} />
-                In Stock Only
-              </label>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={onSaleOnly} onChange={e => { setOnSaleOnly(e.target.checked); setCurrentPage(0); }} />
-                On Sale
-              </label>
-            </div>
-          </div>
-        </aside>
-
-        <div className="flex-1">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h1 className="text-2xl font-bold">{query ? `Results for "${query}"` : 'All Products'}</h1>
-              <p className="text-sm text-gray-500">{pagination.totalElements} products found</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button onClick={() => setShowFilters(!showFilters)} className="md:hidden flex items-center gap-1 text-sm border rounded px-3 py-2"><FiFilter /> Filters</button>
-              <select value={sortBy} onChange={e => { setSortBy(e.target.value); setCurrentPage(0); }}
-                className="border rounded px-3 py-2 text-sm">
+        <div className="min-w-0 flex-1">
+          <div className="mb-6 flex items-center justify-between gap-3">
+            <button onClick={() => setShowFilters(!showFilters)} className="flex items-center gap-2 rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-medium hover:border-stone-400 lg:hidden">
+              <FiFilter className="h-4 w-4" /> Filters{hasFilters ? ' - on' : ''}
+            </button>
+            <label className="ml-auto flex items-center gap-2 text-sm text-stone-500">
+              Sort
+              <select
+                value={sortBy}
+                onChange={e => { setSortBy(e.target.value); setCurrentPage(0); }}
+                className="rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-sm font-medium text-stone-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+              >
                 <option value="relevance">Relevance</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
+                <option value="price_asc">Price: low to high</option>
+                <option value="price_desc">Price: high to low</option>
                 <option value="newest">Newest</option>
-                <option value="rating">Highest Rated</option>
+                <option value="rating">Top rated</option>
               </select>
-            </div>
+            </label>
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[...Array(12)].map((_, i) => <div key={i} className="bg-white rounded-lg h-72 animate-pulse" />)}
+            <div className="grid grid-cols-2 gap-5 xl:grid-cols-3">
+              {[...Array(9)].map((_, i) => (
+                <div key={i} className="overflow-hidden rounded-2xl border border-stone-100">
+                  <div className="aspect-[4/5] animate-pulse bg-stone-200/70" />
+                  <div className="space-y-2 p-4">
+                    <div className="h-3 w-1/3 animate-pulse rounded bg-stone-200/70" />
+                    <div className="h-4 w-3/4 animate-pulse rounded bg-stone-200/70" />
+                    <div className="h-4 w-1/4 animate-pulse rounded bg-stone-200/70" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : products.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-gray-500 text-lg">No products found</p>
-              <button onClick={clearFilters} className="mt-4 text-primary-600 hover:underline">Clear filters</button>
+            <div className="rounded-3xl border border-dashed border-stone-300 px-6 py-20 text-center">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-stone-100">
+                <FiSearch className="h-6 w-6 text-stone-400" />
+              </span>
+              <p className="mt-5 text-lg font-semibold text-stone-800">Nothing matches those filters</p>
+              <p className="mt-1 text-sm text-stone-500">Try widening the price range or clearing a filter.</p>
+              {hasFilters && (
+                <button onClick={clearFilters} className="mt-6 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">
+                  Clear all filters
+                </button>
+              )}
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {products.map(product => (
-                  <Link key={product.id} href={`/products/${product.slug}`}
-                    className="bg-white rounded-lg overflow-hidden hover:shadow-lg transition group border">
-                    <div className="aspect-square bg-gray-100 relative overflow-hidden">
-                      {product.images?.[0] ? (
-                        <img src={product.images[0].url} alt={product.images[0].alt || product.name}
-                          className="w-full h-full object-cover group-hover:scale-105 transition" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-400">No Image</div>
-                      )}
-                      {product.onSale && <span className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-1 rounded">-{product.discountPercentage}%</span>}
-                      {!product.inStock && <span className="absolute top-2 right-2 bg-gray-800 text-white text-xs px-2 py-1 rounded">Out of Stock</span>}
-                    </div>
-                    <div className="p-4">
-                      <p className="text-xs text-gray-500">{product.brand?.name}</p>
-                      <h3 className="font-semibold text-sm mt-1 line-clamp-2">{product.name}</h3>
-                      <div className="flex items-center gap-1 mt-1">
-                        <FiStar className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                        <span className="text-xs text-gray-600">{product.averageRating?.toFixed(1) || 'New'}</span>
-                        {product.reviewCount > 0 && <span className="text-xs text-gray-400">({product.reviewCount})</span>}
-                      </div>
-                      <div className="mt-2 flex items-baseline gap-2">
-                        <span className="font-bold text-primary-600">{formatKES(product.price)}</span>
-                        {product.compareAtPrice && <span className="text-sm text-gray-400 line-through">{formatKES(product.compareAtPrice)}</span>}
-                      </div>
-                    </div>
-                  </Link>
+              <div className="grid grid-cols-2 gap-5 xl:grid-cols-3">
+                {products.map((product, i) => (
+                  <Reveal key={product.id} delay={(i % 3) * 80}>
+                    <ProductCard product={product} />
+                  </Reveal>
                 ))}
               </div>
 
               {pagination.totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-8">
+                <nav className="mt-12 flex items-center justify-center gap-2" aria-label="Pagination">
                   <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0}
-                    className="p-2 rounded border disabled:opacity-50"><FiChevronLeft /></button>
+                    className="rounded-lg border border-stone-300 p-2.5 hover:border-stone-400 disabled:opacity-40" aria-label="Previous page">
+                    <FiChevronLeft />
+                  </button>
                   {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
                     const start = Math.max(0, Math.min(currentPage - 2, pagination.totalPages - 5));
                     return start + i;
-                  }).filter(p => p < pagination.totalPages).map(p => (
-                    <button key={p} onClick={() => setCurrentPage(p)}
-                      className={cn("w-10 h-10 rounded border text-sm", p === currentPage ? "bg-primary-600 text-white" : "hover:bg-gray-50")}>{p + 1}</button>
+                  }).filter(p => p >= 0 && p < pagination.totalPages).map(p => (
+                    <button key={p} onClick={() => setCurrentPage(p)} aria-label={`Page ${p + 1}`}
+                      className={cn(
+                        'h-11 w-11 rounded-lg border text-sm font-semibold transition-colors',
+                        p === currentPage ? 'border-primary-600 bg-primary-600 text-white' : 'border-stone-300 hover:border-stone-400'
+                      )}>
+                      {p + 1}
+                    </button>
                   ))}
                   <button onClick={() => setCurrentPage(p => Math.min(pagination.totalPages - 1, p + 1))} disabled={currentPage >= pagination.totalPages - 1}
-                    className="p-2 rounded border disabled:opacity-50"><FiChevronRight /></button>
-                </div>
+                    className="rounded-lg border border-stone-300 p-2.5 hover:border-stone-400 disabled:opacity-40" aria-label="Next page">
+                    <FiChevronRight />
+                  </button>
+                </nav>
               )}
             </>
           )}
@@ -199,9 +177,108 @@ function ProductsContent() {
   );
 }
 
+interface FilterProps {
+  categories: Category[]; brands: Brand[];
+  query: string; setQuery: (v: string) => void;
+  selectedCategory: string; setSelectedCategory: (v: string) => void;
+  selectedBrand: string; setSelectedBrand: (v: string) => void;
+  minPrice: string; setMinPrice: (v: string) => void;
+  maxPrice: string; setMaxPrice: (v: string) => void;
+  inStockOnly: boolean; setInStockOnly: (v: boolean) => void;
+  onSaleOnly: boolean; setOnSaleOnly: (v: boolean) => void;
+  clearFilters: () => void; hasFilters: boolean;
+  showFilters: boolean; onClose: () => void;
+}
+
+function FilterSidebar(p: FilterProps) {
+  return (
+    <aside className={cn(
+      'shrink-0 lg:block lg:w-64',
+      p.showFilters ? 'fixed inset-0 z-[60] overflow-y-auto bg-stone-50 p-5' : 'hidden'
+    )}>
+      <div className="mb-5 flex items-center justify-between lg:hidden">
+        <span className="font-bold">Filters</span>
+        <button onClick={p.onClose} aria-label="Close filters" className="rounded-lg p-2 hover:bg-stone-200"><FiX /></button>
+      </div>
+
+      <div className="space-y-7 lg:sticky lg:top-28">
+        {p.hasFilters && (
+          <button onClick={p.clearFilters} className="text-sm font-semibold text-primary-600 hover:text-primary-700">
+            Clear all filters
+          </button>
+        )}
+
+        <fieldset>
+          <legend className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Category</legend>
+          <div className="space-y-1">
+            <RadioRow label="All categories" checked={!p.selectedCategory} onChange={() => p.setSelectedCategory('')} />
+            {p.categories.map(cat => (
+              <RadioRow key={cat.id} label={cat.name} checked={p.selectedCategory === cat.slug}
+                onChange={() => p.setSelectedCategory(p.selectedCategory === cat.slug ? '' : cat.slug)} />
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Brand</legend>
+          <div className="space-y-1">
+            <RadioRow label="All brands" checked={!p.selectedBrand} onChange={() => p.setSelectedBrand('')} />
+            {p.brands.map(brand => (
+              <RadioRow key={brand.id} label={brand.name} checked={p.selectedBrand === brand.slug}
+                onChange={() => p.setSelectedBrand(p.selectedBrand === brand.slug ? '' : brand.slug)} />
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Price range</legend>
+          <div className="flex items-center gap-2">
+            <input type="number" value={p.minPrice} onChange={e => p.setMinPrice(e.target.value)} placeholder="Min"
+              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100" />
+            <span className="text-stone-400">-</span>
+            <input type="number" value={p.maxPrice} onChange={e => p.setMaxPrice(e.target.value)} placeholder="Max"
+              className="w-full rounded-lg border border-stone-300 px-3 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100" />
+          </div>
+        </fieldset>
+
+        <fieldset className="space-y-2.5">
+          <legend className="mb-3 text-xs font-bold uppercase tracking-widest text-stone-500">Availability</legend>
+          <CheckRow label="In stock only" checked={p.inStockOnly} onChange={p.setInStockOnly} />
+          <CheckRow label="On sale" checked={p.onSaleOnly} onChange={p.setOnSaleOnly} />
+        </fieldset>
+      </div>
+
+      {p.showFilters && (
+        <button onClick={p.onClose}
+          className="mt-8 w-full rounded-xl bg-primary-600 py-3 font-semibold text-white hover:bg-primary-700">
+          Show {p.hasFilters ? 'filtered' : ''} results
+        </button>
+      )}
+    </aside>
+  );
+}
+
+function RadioRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: () => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm hover:bg-stone-100">
+      <input type="radio" checked={checked} onChange={onChange} className="h-4 w-4 accent-primary-600" />
+      {label}
+    </label>
+  );
+}
+
+function CheckRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2.5 text-sm">
+      <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked)} className="h-4 w-4 rounded accent-primary-600" />
+      {label}
+    </label>
+  );
+}
+
 export default function ProductsPage() {
   return (
-    <Suspense fallback={<div className="max-w-7xl mx-auto px-4 py-8 text-center">Loading products...</div>}>
+    <Suspense fallback={<div className="mx-auto max-w-7xl px-4 py-16 text-center text-stone-500">Loading products...</div>}>
       <ProductsContent />
     </Suspense>
   );

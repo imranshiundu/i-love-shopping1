@@ -18,7 +18,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -30,13 +33,31 @@ public class CartService {
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
 
-    public CartResponse getCurrentUserCart() {
+    public CartResponse getCurrentUserCart(String sessionId) {
         User currentUser = getCurrentUser();
         if (currentUser != null) {
             Optional<Cart> cartOpt = cartRepository.findByUserId(currentUser.getId());
-            return cartOpt.map(CartResponse::from).orElse(null);
+            return cartOpt.map(this::refreshed).orElse(null);
+        }
+        if (sessionId != null && !sessionId.isBlank()) {
+            Optional<Cart> cartOpt = cartRepository.findBySessionId(sessionId);
+            return cartOpt.map(this::refreshed).orElse(null);
         }
         return null;
+    }
+
+    private CartResponse refreshed(Cart cart) {
+        List<CartItem> items = cartItemRepository.findByCartId(cart.getId());
+        return CartResponse.builder()
+                .id(cart.getId())
+                .userId(cart.getUser() != null ? cart.getUser().getId() : null)
+                .sessionId(cart.getSessionId())
+                .items(items.stream().map(CartResponse.CartItemResponse::from).toList())
+                .totalItems(items.stream().mapToInt(CartItem::getQuantity).sum())
+                .subtotal(items.stream()
+                        .map(item -> item.getPriceSnapshot().multiply(BigDecimal.valueOf(item.getQuantity())))
+                        .reduce(BigDecimal.ZERO, BigDecimal::add))
+                .build();
     }
 
     @Transactional
@@ -103,7 +124,7 @@ public class CartService {
         }
 
         cart = cartRepository.findById(cart.getId()).orElse(cart);
-        return CartResponse.from(cart);
+        return refreshed(cart);
     }
 
     @Transactional
@@ -122,7 +143,7 @@ public class CartService {
         cartItemRepository.save(item);
 
         Cart cart = cartRepository.findById(item.getCart().getId()).orElseThrow();
-        return CartResponse.from(cart);
+        return refreshed(cart);
     }
 
     @Transactional
@@ -134,7 +155,7 @@ public class CartService {
         cartItemRepository.deleteCartItemById(itemId);
 
         Cart cart = cartRepository.findById(cartId).orElseThrow();
-        return CartResponse.from(cart);
+        return refreshed(cart);
     }
 
     @Transactional
@@ -163,7 +184,7 @@ public class CartService {
         }
 
         if (sessionId == null || sessionId.isBlank()) {
-            return cartRepository.save(Cart.builder().build());
+            return cartRepository.save(Cart.builder().sessionId(UUID.randomUUID().toString()).build());
         }
 
         return cartRepository.findBySessionId(sessionId)
