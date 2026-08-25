@@ -39,16 +39,16 @@ public class OrderService {
     private final OrderMessagePublisher orderMessagePublisher;
 
     @Transactional
-    public OrderResponse checkout(CheckoutRequest request) {
+    public OrderResponse checkout(CheckoutRequest request, String guestSessionId) {
         User currentUser = getCurrentUser();
-        if (currentUser == null) {
-            throw new ResourceNotFoundException("User", "authentication", "not found");
+
+        Cart cart = null;
+        if (currentUser != null) {
+            cart = cartRepository.findByUserId(currentUser.getId()).orElse(null);
+        } else if (guestSessionId != null && !guestSessionId.isBlank()) {
+            cart = cartRepository.findBySessionId(guestSessionId).orElse(null);
         }
-
-        Cart cart = cartRepository.findByUserId(currentUser.getId())
-                .orElseThrow(() -> new IllegalArgumentException("Cart is empty"));
-
-        if (cart.getItems().isEmpty()) {
+        if (cart == null || cart.getItems().isEmpty()) {
             throw new IllegalArgumentException("Cart is empty");
         }
 
