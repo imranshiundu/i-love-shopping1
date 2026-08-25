@@ -146,6 +146,7 @@ public class OrderResponse {
 
         public static AddressDto fromJson(String json) {
             try {
+                json = com.iloveshopping.service.DataEncryptionService.decryptStatic(json);
                 com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
                 return mapper.readValue(json, AddressDto.class);
             } catch (Exception e) {

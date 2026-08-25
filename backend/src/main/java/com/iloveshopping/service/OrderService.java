@@ -75,8 +75,10 @@ public class OrderService {
         String shippingAddrJson;
         String billingAddrJson;
         try {
-            shippingAddrJson = objectMapper.writeValueAsString(request.getShippingAddress());
-            billingAddrJson = objectMapper.writeValueAsString(request.getBillingAddress());
+            shippingAddrJson = com.iloveshopping.service.DataEncryptionService.encryptForJson(
+                    objectMapper.writeValueAsString(request.getShippingAddress()));
+            billingAddrJson = com.iloveshopping.service.DataEncryptionService.encryptForJson(
+                    objectMapper.writeValueAsString(request.getBillingAddress()));
         } catch (Exception e) {
             throw new RuntimeException("Failed to serialize addresses", e);
         }

@@ -181,7 +181,7 @@ public class MpesaService {
                 .amount(request.getAmount())
                 .currency("KES")
                 .status(Payment.PaymentStatus.PENDING)
-                .metadata("{\"checkoutRequestId\": \"" + checkoutRequestId + "\", \"customerPhone\": \"" + request.getPhoneNumber() + "\", \"simulated\": true}")
+                .metadata(com.iloveshopping.service.DataEncryptionService.encryptForJson("{\"checkoutRequestId\": \"" + checkoutRequestId + "\", \"customerPhone\": \"" + request.getPhoneNumber() + "\", \"simulated\": true}"))
                 .build();
         paymentRepository.save(payment);
 

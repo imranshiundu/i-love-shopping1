@@ -1,9 +1,9 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { orders, payments } from '@/services/api';
+import { orders, payments, auth } from '@/services/api';
 import { config } from '@/lib/config';
 import { useCurrency } from '@/lib/currency';
 import { formatKES } from '@/lib/utils';
@@ -29,6 +29,8 @@ export default function CheckoutPage() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [card, setCard] = useState({ number: '', expiry: '', cvv: '', name: '' });
+  const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
 
   const [shipping, setShipping] = useState<Address>({
     name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '',
@@ -43,6 +45,40 @@ export default function CheckoutPage() {
   const shippingCost = subtotal >= config.commerce.freeShippingThreshold ? 0 : config.commerce.shippingCost;
   const tax = Math.round(subtotal * config.commerce.taxRate);
   const total = subtotal + shippingCost + tax;
+
+  const [prefilled, setPrefilled] = useState(false);
+
+  useEffect(() => {
+    if (prefilled || !user) return;
+    auth.getAddresses().then(res => {
+      const list: Address[] = res.data || [];
+      const preferred = list.find(a => a.isDefault) || list[0];
+      if (preferred) {
+        setShipping(prev => ({
+          ...prev,
+          name: prev.name || preferred.name || user.name || '',
+          line1: prev.line1 || preferred.line1 || '',
+          line2: prev.line2 || preferred.line2 || '',
+          city: prev.city || preferred.city || '',
+          state: prev.state || preferred.state || '',
+          postalCode: prev.postalCode || preferred.postalCode || '',
+          country: preferred.country || config.commerce.defaultCountry,
+          phone: prev.phone || preferred.phone || '',
+        }));
+        setBilling(prev => ({
+          ...prev,
+          name: prev.name || preferred.name || '',
+          line1: prev.line1 || preferred.line1 || '',
+          line2: prev.line2 || preferred.line2 || '',
+          city: prev.city || preferred.city || '',
+          state: prev.state || preferred.state || '',
+          postalCode: prev.postalCode || preferred.postalCode || '',
+          country: preferred.country || config.commerce.defaultCountry,
+        }));
+      }
+      setPrefilled(true);
+    }).catch(() => setPrefilled(true));
+  }, [user, prefilled]);
 
   const REQUIRED_FIELDS: { key: keyof Address; label: string }[] = [
     { key: 'name', label: 'Full name' },
@@ -86,6 +122,41 @@ export default function CheckoutPage() {
     return true;
   };
 
+
+  const validateCard = (): boolean => {
+    if (paymentMethod !== 'stripe' && paymentMethod !== 'flutterwave') return true;
+    const errors: Record<string, string> = {};
+    const digits = card.number.replace(/\D/g, '');
+    if (digits.length < 13 || digits.length > 19) {
+      errors.number = 'Enter a valid card number';
+    } else {
+      let sum = 0;
+      let dbl = false;
+      for (let i = digits.length - 1; i >= 0; i--) {
+        let d = parseInt(digits[i], 10);
+        if (dbl) { d *= 2; if (d > 9) d -= 9; }
+        sum += d;
+        dbl = !dbl;
+      }
+      if (sum % 10 !== 0) errors.number = 'This card number is invalid';
+    }
+    const m = card.expiry.trim().match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2})$/);
+    if (!m) {
+      errors.expiry = 'Use MM/YY';
+    } else {
+      const exp = new Date(2000 + parseInt(m[2], 10), parseInt(m[1], 10), 1);
+      if (exp <= new Date()) errors.expiry = 'This card has expired';
+    }
+    if (!/^\d{3,4}$/.test(card.cvv.trim())) errors.cvv = '3 or 4 digits';
+    if (!card.name.trim()) errors.name = 'Name on card is required';
+    setCardErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      toast.error('Check your card details');
+      return false;
+    }
+    return true;
+  };
+
   const handlePlaceOrder = async () => {
     if (!validateAddress()) return;
     setLoading(true);
@@ -108,6 +179,7 @@ export default function CheckoutPage() {
 
   const handlePayment = async () => {
     if (!orderId) return;
+    if (!validateCard()) { setLoading(false); return; }
     setLoading(true);
     try {
       if (paymentMethod === 'mpesa') {
@@ -329,6 +401,65 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
+
+              {(paymentMethod === 'stripe' || paymentMethod === 'flutterwave') && (
+                <div className="mt-5 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-stone-400">
+                    Card details - validated in your browser, never stored
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <input
+                        inputMode="numeric" placeholder="4242 4242 4242 4242"
+                        value={card.number}
+                        onChange={e => {
+                          const digits = e.target.value.replace(/\D/g, '').slice(0, 19);
+                          setCard({ ...card, number: digits.replace(/(.{4})/g, '$1 ').trim() });
+                          if (cardErrors.number) setCardErrors(prev => ({ ...prev, number: '' }));
+                        }}
+                        className={`${cardInputCls} ${cardErrors.number ? 'border-rose-400' : ''}`}
+                      />
+                      {cardErrors.number && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.number}</p>}
+                    </div>
+                    <div>
+                      <input
+                        inputMode="numeric" placeholder="MM / YY"
+                        value={card.expiry}
+                        onChange={e => {
+                          let v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                          if (v.length > 2) v = v.slice(0, 2) + ' / ' + v.slice(2);
+                          setCard({ ...card, expiry: v });
+                          if (cardErrors.expiry) setCardErrors(prev => ({ ...prev, expiry: '' }));
+                        }}
+                        className={`${cardInputCls} ${cardErrors.expiry ? 'border-rose-400' : ''}`}
+                      />
+                      {cardErrors.expiry && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.expiry}</p>}
+                    </div>
+                    <div>
+                      <input
+                        inputMode="numeric" placeholder="CVV"
+                        value={card.cvv}
+                        onChange={e => setCard({ ...card, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                        className={`${cardInputCls} ${cardErrors.cvv ? 'border-rose-400' : ''}`}
+                      />
+                      {cardErrors.cvv && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.cvv}</p>}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <input
+                        placeholder="Name on card"
+                        value={card.name}
+                        onChange={e => setCard({ ...card, name: e.target.value })}
+                        className={`${cardInputCls} ${cardErrors.name ? 'border-rose-400' : ''}`}
+                      />
+                      {cardErrors.name && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.name}</p>}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-stone-400">
+                    Sandbox tip: 4242 4242 4242 4242 with any future expiry succeeds.
+                  </p>
+                </div>
+              )}
+
               {(paymentMethod === 'mpesa' || paymentMethod === 'airtel') && (
                 <div className={`mt-5 rounded-xl p-4 ring-1 ${paymentMethod === 'mpesa' ? 'bg-emerald-50 ring-emerald-200' : 'bg-rose-50 ring-rose-200'}`}>
                   <label className={`mb-1 block text-sm font-medium ${paymentMethod === 'mpesa' ? 'text-emerald-900' : 'text-rose-900'}`}>
@@ -369,6 +500,8 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
+const cardInputCls = 'w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100';
 
 function SummaryCard({ cart, subtotal, shippingCost, tax, total, children }: {
   cart: any[]; subtotal: number; shippingCost: number; tax: number; total: number; children?: React.ReactNode;

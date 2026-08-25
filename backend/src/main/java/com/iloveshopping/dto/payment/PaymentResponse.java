@@ -37,8 +37,8 @@ public class PaymentResponse {
                 .amount(payment.getAmount())
                 .currency(payment.getCurrency())
                 .status(payment.getStatus().name())
-                .metadata(payment.getMetadata())
-                .callbackData(payment.getCallbackData())
+                .metadata(com.iloveshopping.service.DataEncryptionService.decryptStatic(payment.getMetadata()))
+                .callbackData(com.iloveshopping.service.DataEncryptionService.decryptStatic(payment.getCallbackData()))
                 .createdAt(payment.getCreatedAt())
                 .updatedAt(payment.getUpdatedAt())
                 .build();
