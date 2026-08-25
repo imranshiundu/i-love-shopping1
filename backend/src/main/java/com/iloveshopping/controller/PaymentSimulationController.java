@@ -14,6 +14,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/payments")
 @RequiredArgsConstructor
@@ -62,6 +67,55 @@ public class PaymentSimulationController {
     public ResponseEntity<ApiResponse<PayPalCaptureResponse>> capturePayPalPayment(
             @Valid @RequestBody PayPalCaptureRequest request) {
         PayPalCaptureResponse response = paymentSimulationService.capturePayPalPayment(request);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    // ===== Flutterwave Endpoints =====
+
+    @PostMapping("/flutterwave/create-payment")
+    @Operation(summary = "Create a simulated Flutterwave payment")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> createFlutterwavePayment(
+            @RequestBody Map<String, Object> request) {
+
+        String orderId = (String) request.get("orderId");
+        BigDecimal amount = new BigDecimal(String.valueOf(request.get("amount")));
+        String currency = (String) request.getOrDefault("currency", "KES");
+        String email = (String) request.get("customerEmail");
+
+        Map<String, Object> response = paymentSimulationService.createFlutterwavePayment(orderId, amount, currency, email);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/flutterwave/verify")
+    @Operation(summary = "Verify a simulated Flutterwave payment")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyFlutterwavePayment(
+            @RequestBody Map<String, String> request) {
+
+        Map<String, Object> response = paymentSimulationService.verifyFlutterwavePayment(request.get("transactionRef"));
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    // ===== Airtel Money Endpoints =====
+
+    @PostMapping("/airtel/initiate")
+    @Operation(summary = "Initiate a simulated Airtel Money payment")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> initiateAirtelMoney(
+            @RequestBody Map<String, Object> request) {
+
+        String orderId = (String) request.get("orderId");
+        BigDecimal amount = new BigDecimal(String.valueOf(request.get("amount")));
+        String phoneNumber = (String) request.get("phoneNumber");
+
+        Map<String, Object> response = paymentSimulationService.initiateAirtelMoney(orderId, amount, phoneNumber);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/airtel/confirm")
+    @Operation(summary = "Confirm a simulated Airtel Money PIN entry")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> confirmAirtelMoney(
+            @RequestBody Map<String, String> request) {
+
+        Map<String, Object> response = paymentSimulationService.confirmAirtelMoney(request.get("referenceId"));
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 }

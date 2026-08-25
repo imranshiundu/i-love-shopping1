@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -222,17 +223,30 @@ public class PaymentSimulationService {
 
     private void onPaymentSucceeded(Payment payment) {
         Order order = payment.getOrder();
-        try {
-            orderMessagePublisher.publishOrderPaid(order);
-        } catch (Exception e) {
-            log.error("Failed to publish ORDER_PAID event for order {}: {}", order.getNumber(), e.getMessage());
-        }
-        if (order.getUser() != null && order.getUser().getEmail() != null) {
+        Runnable notify = () -> {
             try {
-                emailService.sendOrderConfirmation(order.getUser().getEmail(), order.getNumber(), order.getId().toString());
+                orderMessagePublisher.publishOrderPaid(order);
             } catch (Exception e) {
-                log.error("Failed to send order confirmation email for {}: {}", order.getNumber(), e.getMessage());
+                log.error("Failed to publish ORDER_PAID event for order {}: {}", order.getNumber(), e.getMessage());
             }
+            if (order.getUser() != null && order.getUser().getEmail() != null) {
+                try {
+                    emailService.sendOrderConfirmation(order.getUser().getEmail(), order.getNumber(), order.getId().toString());
+                } catch (Exception e) {
+                    log.error("Failed to send order confirmation email for {}: {}", order.getNumber(), e.getMessage());
+                }
+            }
+        };
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            notify.run();
+                        }
+                    });
+        } else {
+            notify.run();
         }
     }
 
@@ -240,6 +254,148 @@ public class PaymentSimulationService {
         Order order = payment.getOrder();
         log.warn("Payment failed for order {} - order remains {} pending retry or cancellation",
                 order.getNumber(), order.getStatus());
+    }
+
+    // ===== Flutterwave Simulation =====
+
+    public Map<String, Object> createFlutterwavePayment(String orderId, BigDecimal amount, String currency, String customerEmail) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> ApiException.notFound("Order not found: " + orderId));
+
+        String txRef = "flw_sim_" + UUID.randomUUID().toString().replace("-", "").substring(0, 20);
+
+        Payment payment = Payment.builder()
+                .order(order)
+                .provider(Payment.PaymentProvider.FLUTTERWAVE)
+                .providerId(txRef)
+                .amount(amount)
+                .currency(currency != null ? currency : "KES")
+                .status(Payment.PaymentStatus.PENDING)
+                .metadata(buildSimpleMetadata("flutterwave", customerEmail))
+                .build();
+        payment = paymentRepository.save(payment);
+
+        log.info("Created simulated Flutterwave payment: {} for order: {}", txRef, order.getNumber());
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("transactionRef", txRef);
+        response.put("paymentId", payment.getId());
+        response.put("orderId", orderId);
+        response.put("amount", amount);
+        response.put("currency", payment.getCurrency());
+        response.put("checkoutUrl", "https://sandbox.flutterwave.com/simulated/" + txRef);
+        return response;
+    }
+
+    public Map<String, Object> verifyFlutterwavePayment(String transactionRef) {
+        Payment payment = paymentRepository.findByProviderId(transactionRef)
+                .orElseThrow(() -> ApiException.notFound("Flutterwave payment not found: " + transactionRef));
+
+        if (payment.getProvider() != Payment.PaymentProvider.FLUTTERWAVE) {
+            throw ApiException.badRequest("Payment is not a Flutterwave payment");
+        }
+        if (payment.getStatus() != Payment.PaymentStatus.PENDING &&
+            payment.getStatus() != Payment.PaymentStatus.PROCESSING) {
+            throw ApiException.badRequest("Payment cannot be verified in current status: " + payment.getStatus());
+        }
+
+        boolean success = Math.random() < 0.95;
+        finishPayment(payment, success, buildSimpleMetadata("flutterwave-verify", null));
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("transactionRef", transactionRef);
+        response.put("status", success ? "successful" : "failed");
+        response.put("orderId", payment.getOrder().getId());
+        response.put("paymentId", payment.getId());
+        return response;
+    }
+
+    // ===== Airtel Money Simulation =====
+
+    public Map<String, Object> initiateAirtelMoney(String orderId, BigDecimal amount, String phoneNumber) {
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> ApiException.notFound("Order not found: " + orderId));
+
+        if (phoneNumber == null || !phoneNumber.matches("\\+?\\d{10,15}")) {
+            throw ApiException.badRequest("A valid Airtel Money phone number is required");
+        }
+
+        String referenceId = "airtel_sim_" + UUID.randomUUID().toString().replace("-", "").substring(0, 18);
+
+        Payment payment = Payment.builder()
+                .order(order)
+                .provider(Payment.PaymentProvider.AIRTEL_MONEY)
+                .providerId(referenceId)
+                .amount(amount)
+                .currency("KES")
+                .status(Payment.PaymentStatus.PENDING)
+                .metadata(buildSimpleMetadata("airtel-money", phoneNumber))
+                .build();
+        payment = paymentRepository.save(payment);
+
+        log.info("Initiated simulated Airtel Money payment: {} for order: {}", referenceId, order.getNumber());
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("referenceId", referenceId);
+        response.put("paymentId", payment.getId());
+        response.put("orderId", orderId);
+        response.put("phoneNumber", phoneNumber);
+        response.put("message", "PIN prompt sent to your phone. Approve within 60 seconds.");
+        return response;
+    }
+
+    public Map<String, Object> confirmAirtelMoney(String referenceId) {
+        Payment payment = paymentRepository.findByProviderId(referenceId)
+                .orElseThrow(() -> ApiException.notFound("Airtel Money payment not found: " + referenceId));
+
+        if (payment.getProvider() != Payment.PaymentProvider.AIRTEL_MONEY) {
+            throw ApiException.badRequest("Payment is not an Airtel Money payment");
+        }
+        if (payment.getStatus() != Payment.PaymentStatus.PENDING &&
+            payment.getStatus() != Payment.PaymentStatus.PROCESSING) {
+            throw ApiException.badRequest("Payment cannot be confirmed in current status: " + payment.getStatus());
+        }
+
+        boolean success = Math.random() < 0.93;
+        finishPayment(payment, success, buildSimpleMetadata("airtel-callback", null));
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("referenceId", referenceId);
+        response.put("status", success ? "successful" : "failed");
+        response.put("orderId", payment.getOrder().getId());
+        response.put("paymentId", payment.getId());
+        return response;
+    }
+
+    // ===== Shared outcome path =====
+
+    private void finishPayment(Payment payment, boolean success, String callbackData) {
+        if (success) {
+            payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
+            payment.setCallbackData(callbackData);
+            paymentRepository.save(payment);
+            onPaymentSucceeded(payment);
+            log.info("Simulated payment succeeded: {}", payment.getProviderId());
+        } else {
+            payment.setStatus(Payment.PaymentStatus.FAILED);
+            payment.setCallbackData(callbackData);
+            paymentRepository.save(payment);
+            onPaymentFailed(payment);
+            log.info("Simulated payment failed: {}", payment.getProviderId());
+        }
+    }
+
+    private String buildSimpleMetadata(String source, String detail) {
+        try {
+            return objectMapper.writeValueAsString(new java.util.HashMap<>() {{
+                put("source", source);
+                put("detail", detail);
+                put("simulated", true);
+                put("timestamp", System.currentTimeMillis());
+            }});
+        } catch (Exception e) {
+            return "{\"simulated\":true}";
+        }
     }
 
     // ===== Metadata builders =====

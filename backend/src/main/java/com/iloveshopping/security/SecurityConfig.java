@@ -78,6 +78,8 @@ public class SecurityConfig {
                         .requestMatchers("/reviews/**").authenticated()
                         .requestMatchers("/payments/stripe/**").permitAll()
                         .requestMatchers("/payments/paypal/**").permitAll()
+                        .requestMatchers("/payments/flutterwave/**").permitAll()
+                        .requestMatchers("/payments/airtel/**").permitAll()
                         .requestMatchers("/payments/**").authenticated()
                         .anyRequest().authenticated()
                 );

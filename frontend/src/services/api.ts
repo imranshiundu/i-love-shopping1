@@ -97,6 +97,14 @@ export const payments = {
     request<any>('/payments/paypal/create-order', { method: 'POST', body: JSON.stringify({ orderId, amount, currency }) }),
   paypalCapture: (paypalOrderId: string) =>
     request<any>('/payments/paypal/capture', { method: 'POST', body: JSON.stringify({ paypalOrderId }) }),
+  flutterwaveCreate: (orderId: string, amount: number, customerEmail?: string, currency = 'KES') =>
+    request<any>('/payments/flutterwave/create-payment', { method: 'POST', body: JSON.stringify({ orderId, amount, currency, customerEmail }) }),
+  flutterwaveVerify: (transactionRef: string) =>
+    request<any>('/payments/flutterwave/verify', { method: 'POST', body: JSON.stringify({ transactionRef }) }),
+  airtelInitiate: (orderId: string, amount: number, phoneNumber: string) =>
+    request<any>('/payments/airtel/initiate', { method: 'POST', body: JSON.stringify({ orderId, amount, phoneNumber }) }),
+  airtelConfirm: (referenceId: string) =>
+    request<any>('/payments/airtel/confirm', { method: 'POST', body: JSON.stringify({ referenceId }) }),
 };
 
 export const admin = {

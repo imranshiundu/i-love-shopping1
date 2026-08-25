@@ -119,10 +119,19 @@ public class OrderService {
         // Clear cart
         cartItemRepository.deleteByCartId(cart.getId());
 
-        try {
-            orderMessagePublisher.publishOrderCreated(order);
-        } catch (Exception e) {
-            log.error("Failed to publish ORDER_CREATED event for order {}: {}", order.getNumber(), e.getMessage());
+        Order savedOrder = order;
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() {
+                            try {
+                                orderMessagePublisher.publishOrderCreated(savedOrder);
+                            } catch (Exception e) {
+                                log.error("Failed to publish ORDER_CREATED event for order {}: {}", savedOrder.getNumber(), e.getMessage());
+                            }
+                        }
+                    });
         }
 
         return OrderResponse.from(order);

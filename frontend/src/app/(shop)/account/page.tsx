@@ -6,7 +6,10 @@ import { auth, orders as ordersApi } from '@/services/api';
 import { config } from '@/lib/config';
 import { formatKES, formatDate } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
-import { FiEdit2, FiX, FiCheck, FiLock, FiPackage, FiMapPin, FiShield, FiArrowUpRight, FiTrendingUp } from 'react-icons/fi';
+import {
+  FiEdit2, FiX, FiCheck, FiLock, FiPackage, FiMapPin,
+  FiShield, FiArrowUpRight, FiTrendingUp,
+} from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 export default function AccountPage() {
@@ -18,7 +21,6 @@ export default function AccountPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [changingPw, setChangingPw] = useState(false);
-
   const [orderStats, setOrderStats] = useState({ count: 0, spent: 0 });
 
   useEffect(() => {
@@ -111,12 +113,10 @@ export default function AccountPage() {
                 <LabeledInput label="Full name" value={name} onChange={setName} disabled={!editing} />
                 <LabeledInput label="Email" type="email" value={email} onChange={setEmail} disabled={!editing} />
                 {editing && (
-                  <div className="flex gap-3 pt-1">
-                    <button type="submit" disabled={savingProfile}
-                      className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
-                      <FiCheck /> Save changes
-                    </button>
-                  </div>
+                  <button type="submit" disabled={savingProfile}
+                    className="flex items-center gap-1.5 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 disabled:opacity-60">
+                    <FiCheck /> Save changes
+                  </button>
                 )}
               </form>
             </section>
@@ -151,13 +151,6 @@ export default function AccountPage() {
               <nav className="mt-4 space-y-2">
                 <ActionLink href="/account/orders" icon={FiPackage} label="My orders" note={`${orderStats.count} all-time`} />
                 <ActionLink href="/account/addresses" icon={FiMapPin} label="Address book" note="Delivery details" />
-                <Link href="/cart" className="group flex items-center justify-between rounded-xl border border-stone-100 p-4 transition-colors hover:border-primary-200 hover:bg-primary-50/40">
-                  <span>
-                    <span className="block text-sm font-semibold">Your cart</span>
-                    <span className="block text-xs text-stone-500">Pick up where you left off</span>
-                  </span>
-                  <FiArrowUpRight className="h-4 w-4 text-stone-400 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                </Link>
                 {user?.roles?.includes('ADMIN') && (
                   <ActionLink href="/admin" icon={FiTrendingUp} label="Admin dashboard" note="Manage the store" accent />
                 )}

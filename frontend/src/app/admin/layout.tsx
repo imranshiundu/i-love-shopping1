@@ -34,7 +34,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (loading) {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-stone-100">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary-600 border-t-transparent" />
       </div>
     );
@@ -42,48 +42,72 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!user || !user.roles?.includes('ADMIN')) return null;
 
   return (
-    <div className="mx-auto flex max-w-[1500px] gap-8 px-4 py-8 sm:px-6 lg:px-8">
-      <aside className="hidden w-60 shrink-0 lg:block">
-        <div className="sticky top-28 rounded-2xl border border-stone-200/80 bg-white p-4">
-          <p className="flex items-center gap-2 px-3 pb-3 text-xs font-bold uppercase tracking-widest text-stone-400">
-            <FiBarChart2 /> {config.app.name} admin
-          </p>
-          <nav className="space-y-1">
-            {NAV.map(item => {
-              const active = pathname === item.href;
-              return (
-                <Link key={item.href} href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
-                    active ? 'bg-stone-900 text-white' : 'text-stone-600 hover:bg-stone-100'
-                  )}>
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+    <div className="flex min-h-[100dvh] bg-stone-100">
+      <aside className="sticky top-0 hidden h-[100dvh] w-64 shrink-0 flex-col border-r border-stone-800 bg-stone-950 lg:flex">
+        <div className="flex items-center gap-2.5 px-6 py-6">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-600 text-white">
+            <FiBarChart2 className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="font-bold text-white">{config.app.name}</p>
+            <p className="text-xs text-stone-500">Management console</p>
+          </div>
+        </div>
+
+        <nav className="flex-1 space-y-1 px-3 py-2">
+          {NAV.map(item => {
+            const active = pathname === item.href;
+            return (
+              <Link key={item.href} href={item.href}
+                className={cn(
+                  'flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-colors',
+                  active
+                    ? 'bg-primary-600 text-white shadow-lg shadow-primary-600/25'
+                    : 'text-stone-400 hover:bg-white/5 hover:text-white'
+                )}>
+                <item.icon className="h-4 w-4" />
+                {item.label}
+                {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-white/70" />}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="border-t border-white/5 p-4">
           <Link href="/"
-            className="mt-4 flex items-center gap-2 border-t border-stone-100 px-3 pt-4 text-sm font-medium text-stone-500 hover:text-primary-600">
+            className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-medium text-stone-400 transition-colors hover:bg-white/5 hover:text-white">
             <FiArrowLeft className="h-4 w-4" /> Back to store
           </Link>
+          <div className="mt-2 flex items-center gap-2.5 rounded-xl bg-white/5 px-3 py-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary-500/20 text-sm font-bold text-primary-300">
+              {user.name?.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-xs font-semibold text-white">{user.name}</p>
+              <p className="truncate text-[11px] text-stone-500">{user.email}</p>
+            </div>
+          </div>
         </div>
       </aside>
 
       <div className="min-w-0 flex-1">
-        <nav className="no-scrollbar mb-6 flex gap-2 overflow-x-auto lg:hidden" aria-label="Admin sections">
-          {NAV.map(item => (
-            <Link key={item.href} href={item.href}
-              className={cn(
-                'flex shrink-0 items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-bold transition-colors',
-                pathname === item.href ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 ring-1 ring-stone-200'
-              )}>
-              <item.icon className="h-3.5 w-3.5" />
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-        {children}
+        <header className="sticky top-0 z-40 flex items-center gap-3 border-b border-stone-200 bg-white/90 px-4 py-3 backdrop-blur lg:hidden">
+          <Link href="/" className="rounded-lg p-2 hover:bg-stone-100" aria-label="Back to store"><FiArrowLeft /></Link>
+          <nav className="no-scrollbar flex flex-1 gap-2 overflow-x-auto" aria-label="Admin sections">
+            {NAV.map(item => (
+              <Link key={item.href} href={item.href}
+                className={cn(
+                  'flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors',
+                  pathname === item.href ? 'bg-primary-600 text-white' : 'bg-stone-100 text-stone-600'
+                )}>
+                <item.icon className="h-3 w-3" />
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </header>
+
+        <main className="min-w-0 p-4 sm:p-6 lg:p-8">{children}</main>
       </div>
     </div>
   );
