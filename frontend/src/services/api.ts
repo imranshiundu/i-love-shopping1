@@ -12,8 +12,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<ApiR
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...((options.headers as Record<string, string>) || {}) };
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
   const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
-  const data = await res.json();
-  if (data.error) throw new Error(data.error.message || 'Request failed');
+
+  let data: any = null;
+  try { data = await res.json(); } catch { /* empty body */ }
+
+  if (!res.ok) {
+    const message =
+      data?.error?.message ||
+      data?.detail ||
+      data?.message ||
+      `Request failed (${res.status})`;
+    throw new Error(message);
+  }
+  if (data?.error) throw new Error(data.error.message || 'Request failed');
   return data;
 }
 
