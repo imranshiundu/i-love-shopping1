@@ -42,7 +42,50 @@ export default function CheckoutPage() {
   const tax = Math.round(subtotal * config.commerce.taxRate);
   const total = subtotal + shippingCost + tax;
 
+  const REQUIRED_FIELDS: { key: keyof Address; label: string }[] = [
+    { key: 'name', label: 'Full name' },
+    { key: 'line1', label: 'Address line 1' },
+    { key: 'city', label: 'City / Town' },
+    { key: 'state', label: 'County / State' },
+    { key: 'postalCode', label: 'Postal code' },
+    { key: 'phone', label: 'Phone number' },
+  ];
+
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+
+  const validateAddress = (): boolean => {
+    const errors: Record<string, boolean> = {};
+    for (const { key, label } of REQUIRED_FIELDS) {
+      if (!String(shipping[key as keyof Address] || '').trim()) {
+        errors[key as string] = true;
+      }
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      const first = Object.keys(errors)[0];
+      toast.error(`Please fill in ${REQUIRED_FIELDS.find(f => f.key === first)?.label}`);
+      return false;
+    }
+    const digits = (shipping.phone || '').replace(/\D/g, '');
+    if (digits.length < 9) {
+      setFieldErrors({ phone: true });
+      toast.error('Enter a valid phone number');
+      return false;
+    }
+    if (!sameAsShipping) {
+      for (const { key, label } of REQUIRED_FIELDS.filter(f => f.key !== 'phone')) {
+        if (!String(billing[key as keyof Address] || '').trim()) {
+          toast.error(`Billing address is missing ${label}`);
+          return false;
+        }
+      }
+    }
+    setFieldErrors({});
+    return true;
+  };
+
   const handlePlaceOrder = async () => {
+    if (!validateAddress()) return;
     setLoading(true);
     try {
       const res = await orders.checkout({
@@ -168,11 +211,21 @@ export default function CheckoutPage() {
                       <input
                         type="text"
                         value={(shipping as any)[field.key] || ''}
-                        onChange={e => setShipping({ ...shipping, [field.key]: e.target.value })}
+                        onChange={e => {
+                          setShipping({ ...shipping, [field.key]: e.target.value });
+                          if (fieldErrors[field.key]) setFieldErrors(prev => ({ ...prev, [field.key]: false }));
+                        }}
                         required={field.required}
                         placeholder={field.key === 'phone' ? '+254 7XX XXX XXX' : ''}
-                        className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                        className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${
+                          fieldErrors[field.key]
+                            ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100'
+                            : 'border-stone-300 focus:border-primary-500 focus:ring-primary-100'
+                        }`}
                       />
+                      {fieldErrors[field.key] && (
+                        <p className="mt-1 text-xs font-medium text-rose-600">This field is required</p>
+                      )}
                     </div>
                   ))}
                 </div>
