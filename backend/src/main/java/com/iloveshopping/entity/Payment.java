@@ -65,7 +65,7 @@ public class Payment {
     private LocalDateTime updatedAt;
 
     public enum PaymentProvider {
-        MPESA, STRIPE, PAYPAL, BANK_TRANSFER
+        MPESA, STRIPE, PAYPAL, FLUTTERWAVE, AIRTEL_MONEY, BANK_TRANSFER
     }
 
     public enum PaymentStatus {

@@ -71,10 +71,22 @@ public class OrderResponse {
         private String id;
         private String productId;
         private String productName;
+        private String productImage;
         private String variantId;
         private int quantity;
         private BigDecimal price;
         private BigDecimal total;
+
+        private static String extractFirstImage(OrderItem item) {
+            try {
+                if (item.getProduct() != null && item.getProduct().getImages() != null
+                        && !item.getProduct().getImages().isEmpty()) {
+                    return item.getProduct().getImages().get(0).getUrl();
+                }
+            } catch (Exception ignored) {
+            }
+            return null;
+        }
 
         public static OrderItemResponse from(OrderItem item) {
             if (item == null) return null;
@@ -82,6 +94,7 @@ public class OrderResponse {
                     .id(item.getId())
                     .productId(item.getProduct() != null ? item.getProduct().getId() : null)
                     .productName(item.getName())
+                    .productImage(extractFirstImage(item))
                     .variantId(item.getVariantId())
                     .quantity(item.getQuantity())
                     .price(item.getPrice())

@@ -10,18 +10,20 @@ import Reveal from '@/components/ui/Reveal';
 import { Address } from '@/types';
 import {
   FiCheck, FiArrowLeft, FiArrowRight, FiShoppingBag,
-  FiSmartphone, FiCreditCard, FiLock,
+  FiSmartphone, FiCreditCard, FiLock, FiZap,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 const STEPS = ['Delivery', 'Payment'];
 
+type PayMethod = 'mpesa' | 'airtel' | 'stripe' | 'flutterwave';
+
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, refreshCart } = useAuth();
+  const { cart, refreshCart, user } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<'mpesa' | 'stripe' | 'paypal'>('mpesa');
+  const [paymentMethod, setPaymentMethod] = useState<PayMethod>('mpesa');
   const [orderId, setOrderId] = useState<string | null>(null);
   const [orderNumber, setOrderNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -68,18 +70,28 @@ export default function CheckoutPage() {
         await orders.mpesaStkPush(orderId, String(total), phoneNumber);
         toast.success('Check your phone for the M-Pesa prompt');
         setTimeout(() => router.push(`/checkout/success?order=${orderNumber}`), 3000);
+      } else if (paymentMethod === 'airtel') {
+        if (!phoneNumber) { toast.error('Enter your Airtel Money phone number'); setLoading(false); return; }
+        const res = await payments.airtelInitiate(orderId, total, phoneNumber);
+        if (res.data?.referenceId) {
+          toast.success('Approve the PIN prompt on your Airtel line');
+          await payments.airtelConfirm(res.data.referenceId);
+          toast.success('Airtel Money payment complete');
+          router.push(`/checkout/success?order=${orderNumber}`);
+        }
       } else if (paymentMethod === 'stripe') {
         const res = await payments.stripeCreateIntent(orderId, total);
         if (res.data?.clientSecret) {
           await payments.stripeConfirm(res.data.paymentIntentId);
-          toast.success('Payment processed');
+          toast.success('Card payment processed');
           router.push(`/checkout/success?order=${orderNumber}`);
         }
-      } else if (paymentMethod === 'paypal') {
-        const res = await payments.paypalCreateOrder(orderId, total);
-        if (res.data?.paypalOrderId) {
-          await payments.paypalCapture(res.data.paypalOrderId);
-          toast.success('Payment processed');
+      } else if (paymentMethod === 'flutterwave') {
+        const res = await payments.flutterwaveCreate(orderId, total, user?.email);
+        if (res.data?.transactionRef) {
+          toast.success('Confirming with Flutterwave...');
+          await payments.flutterwaveVerify(res.data.transactionRef);
+          toast.success('Flutterwave payment complete');
           router.push(`/checkout/success?order=${orderNumber}`);
         }
       }
@@ -217,16 +229,17 @@ export default function CheckoutPage() {
 
               <div className="mt-6 grid gap-3">
                 {[
-                  { id: 'mpesa', label: 'M-Pesa', desc: 'Push a prompt to your phone', icon: FiSmartphone },
-                  { id: 'stripe', label: 'Card', desc: 'Visa, Mastercard - simulated gateway', icon: FiCreditCard },
-                  { id: 'paypal', label: 'PayPal', desc: 'Redirect flow - simulated', icon: FiLock },
+                  { id: 'mpesa', label: 'M-Pesa', desc: 'STK push to your Safaricom line', icon: FiSmartphone, accent: 'text-emerald-600 bg-emerald-100' },
+                  { id: 'airtel', label: 'Airtel Money', desc: 'PIN prompt on your Airtel line', icon: FiZap, accent: 'text-rose-600 bg-rose-100' },
+                  { id: 'stripe', label: 'Card - Stripe', desc: 'Visa, Mastercard, Amex', icon: FiCreditCard, accent: 'text-indigo-600 bg-indigo-100' },
+                  { id: 'flutterwave', label: 'Card - Flutterwave', desc: 'Cards and mobile wallets across Africa', icon: FiLock, accent: 'text-orange-600 bg-orange-100' },
                 ].map(m => (
                   <label key={m.id}>
                     <input type="radio" name="payment" value={m.id} checked={paymentMethod === m.id}
-                      onChange={() => setPaymentMethod(m.id as any)} className="peer sr-only" />
+                      onChange={() => setPaymentMethod(m.id as PayMethod)} className="peer sr-only" />
                     <div className="flex cursor-pointer items-center gap-4 rounded-xl border-2 border-stone-200 p-4 transition-all peer-checked:border-primary-600 peer-checked:bg-primary-50/50 peer-checked:shadow-sm hover:border-stone-300">
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-stone-100 peer-checked:bg-primary-100">
-                        <m.icon className="h-5 w-5 text-stone-700" />
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${m.accent}`}>
+                        <m.icon className="h-5 w-5" />
                       </span>
                       <span>
                         <span className="block font-semibold">{m.label}</span>
@@ -240,15 +253,23 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              {paymentMethod === 'mpesa' && (
-                <div className="mt-5 rounded-xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
-                  <label className="mb-1 block text-sm font-medium text-emerald-900">M-Pesa phone number</label>
+              {(paymentMethod === 'mpesa' || paymentMethod === 'airtel') && (
+                <div className={`mt-5 rounded-xl p-4 ring-1 ${paymentMethod === 'mpesa' ? 'bg-emerald-50 ring-emerald-200' : 'bg-rose-50 ring-rose-200'}`}>
+                  <label className={`mb-1 block text-sm font-medium ${paymentMethod === 'mpesa' ? 'text-emerald-900' : 'text-rose-900'}`}>
+                    {paymentMethod === 'mpesa' ? 'M-Pesa phone number' : 'Airtel Money phone number'}
+                  </label>
                   <input
                     type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
-                    placeholder="254712345678"
-                    className="w-full rounded-xl border border-emerald-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100"
+                    placeholder={paymentMethod === 'mpesa' ? '254712345678' : '254701234567'}
+                    className={`w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${
+                      paymentMethod === 'mpesa'
+                        ? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-100'
+                        : 'border-rose-300 focus:border-rose-500 focus:ring-rose-100'
+                    }`}
                   />
-                  <p className="mt-2 text-xs text-emerald-700">You will receive an STK push prompt on this number.</p>
+                  <p className={`mt-2 text-xs ${paymentMethod === 'mpesa' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    You will receive a prompt on this number to approve the payment.
+                  </p>
                 </div>
               )}
 
