@@ -126,6 +126,10 @@ export default function ProductDetailPage() {
               </>
             )}
           </div>
+          <p className="mt-2 flex items-center gap-2 text-sm text-stone-500">
+            <FiTruck className="h-4 w-4 text-emerald-600" />
+            Free nationwide delivery on orders over {formatKES(config.commerce.freeShippingThreshold)}
+          </p>
 
           <p className="mt-6 max-w-[60ch] leading-relaxed text-stone-600">{product.description}</p>
 

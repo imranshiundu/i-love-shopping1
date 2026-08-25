@@ -220,16 +220,25 @@ function CategoriesSection({ categories, loading }: { categories: Category[]; lo
             <Reveal key={cat.id} delay={i * 90} className={i === 0 ? 'col-span-2 row-span-2' : ''}>
               <Link
                 href={`/products?category=${cat.slug}`}
-                className={`group relative flex h-full flex-col justify-between overflow-hidden rounded-2xl border border-stone-200/80 p-6 transition-colors duration-300 ${
-                  i === 0 ? 'min-h-[13rem] bg-stone-900 text-white hover:bg-stone-800 md:min-h-[19rem]' : 'min-h-[9.5rem] bg-white hover:border-primary-200 hover:bg-primary-50/40'
+                className={`group relative flex h-full flex-col justify-end overflow-hidden rounded-2xl border border-stone-200/80 ${
+                  i === 0 ? 'min-h-[13rem] md:min-h-[19rem]' : 'min-h-[9.5rem]'
                 }`}
               >
-                <span className={`text-xs font-semibold tracking-widest ${i === 0 ? 'text-stone-400' : 'text-stone-400'}`}>
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <div>
-                  <h3 className={`font-bold leading-snug ${i === 0 ? 'text-2xl md:text-3xl' : 'text-base'}`}>{cat.name}</h3>
-                  <p className={`mt-1 flex items-center gap-1.5 text-sm ${i === 0 ? 'text-stone-300' : 'text-stone-500'}`}>
+                <img
+                  src={`https://picsum.photos/seed/${cat.slug}-${i}/800/${i === 0 ? '900' : '480'}`}
+                  alt=""
+                  loading="lazy"
+                  className="img-zoom absolute inset-0 h-full w-full object-cover"
+                />
+                <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/25 to-transparent transition-opacity duration-500 group-hover:from-stone-950/95" />
+                <div className="relative p-5">
+                  <p className={`mb-1 font-semibold uppercase tracking-[0.18em] text-white/60 ${i === 0 ? 'text-xs' : 'text-[10px]'}`}>
+                    {String(i + 1).padStart(2, '0')}
+                  </p>
+                  <h3 className={`font-bold leading-snug text-white ${i === 0 ? 'text-2xl md:text-3xl' : 'text-base'}`}>
+                    {cat.name}
+                  </h3>
+                  <p className="mt-1 flex items-center gap-1.5 text-sm text-white/75">
                     {cat.productCount ?? 0} products
                     <FiArrowUpRight className="transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
                   </p>

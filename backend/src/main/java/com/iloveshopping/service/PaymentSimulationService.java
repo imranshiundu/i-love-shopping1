@@ -256,6 +256,33 @@ public class PaymentSimulationService {
                 order.getNumber(), order.getStatus());
     }
 
+    // ===== M-Pesa simulated PIN entry =====
+
+    @Transactional
+    public Map<String, Object> completeSimulatedMpesaPayment(String checkoutRequestId) {
+        Payment payment = paymentRepository.findByProviderId(checkoutRequestId)
+                .orElseThrow(() -> ApiException.notFound("M-Pesa payment not found: " + checkoutRequestId));
+
+        if (payment.getProvider() != Payment.PaymentProvider.MPESA) {
+            throw ApiException.badRequest("Payment is not an M-Pesa payment");
+        }
+        if (payment.getStatus() != Payment.PaymentStatus.PENDING &&
+            payment.getStatus() != Payment.PaymentStatus.PROCESSING) {
+            throw ApiException.badRequest("Payment cannot be completed in current status: " + payment.getStatus());
+        }
+
+        boolean success = Math.random() < 0.95;
+        finishPayment(payment, success, buildSimpleMetadata("mpesa-sandbox-simulation", null));
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("checkoutRequestId", checkoutRequestId);
+        response.put("resultDesc", success ? "The service request is processed successfully." : "Request cancelled by user");
+        response.put("status", success ? "successful" : "failed");
+        response.put("orderId", payment.getOrder().getId());
+        response.put("paymentId", payment.getId());
+        return response;
+    }
+
     // ===== Flutterwave Simulation =====
 
     public Map<String, Object> createFlutterwavePayment(String orderId, BigDecimal amount, String currency, String customerEmail) {

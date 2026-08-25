@@ -70,6 +70,17 @@ public class PaymentSimulationController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    // ===== M-Pesa Sandbox Simulation =====
+
+    @PostMapping("/mpesa/simulate-confirm")
+    @Operation(summary = "Simulate customer approving the M-Pesa PIN prompt (sandbox)")
+    public ResponseEntity<ApiResponse<Map<String, Object>>> simulateMpesaConfirm(
+            @RequestBody Map<String, String> request) {
+
+        Map<String, Object> response = paymentSimulationService.completeSimulatedMpesaPayment(request.get("checkoutRequestId"));
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     // ===== Flutterwave Endpoints =====
 
     @PostMapping("/flutterwave/create-payment")

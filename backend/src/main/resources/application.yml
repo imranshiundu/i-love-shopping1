@@ -119,6 +119,7 @@ security:
 
 mpesa:
   environment: ${MPESA_ENVIRONMENT:sandbox}
+  simulation-enabled: ${MPESA_SIMULATION_ENABLED:true}
   consumer-key: ${MPESA_CONSUMER_KEY:}
   consumer-secret: ${MPESA_CONSUMER_SECRET:}
   shortcode: ${MPESA_SHORTCODE:174379}

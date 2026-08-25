@@ -67,9 +67,20 @@ export default function CheckoutPage() {
     try {
       if (paymentMethod === 'mpesa') {
         if (!phoneNumber) { toast.error('Enter your M-Pesa phone number'); setLoading(false); return; }
-        await orders.mpesaStkPush(orderId, String(total), phoneNumber);
-        toast.success('Check your phone for the M-Pesa prompt');
-        setTimeout(() => router.push(`/checkout/success?order=${orderNumber}`), 3000);
+        const push = await orders.mpesaStkPush(orderId, String(total), phoneNumber);
+        toast.success('PIN prompt sent - approve it on your phone');
+        if (push.data?.checkoutRequestId) {
+          await new Promise(r => setTimeout(r, 2500));
+          const result = await payments.mpesaSimulateConfirm(push.data.checkoutRequestId);
+          if (result.data?.status === 'successful') {
+            toast.success('M-Pesa payment received');
+            router.push(`/checkout/success?order=${orderNumber}`);
+          } else {
+            throw new Error(result.data?.resultDesc || 'M-Pesa payment was not completed');
+          }
+        } else {
+          setTimeout(() => router.push(`/checkout/success?order=${orderNumber}`), 3000);
+        }
       } else if (paymentMethod === 'airtel') {
         if (!phoneNumber) { toast.error('Enter your Airtel Money phone number'); setLoading(false); return; }
         const res = await payments.airtelInitiate(orderId, total, phoneNumber);
@@ -226,6 +237,10 @@ export default function CheckoutPage() {
                   <FiArrowLeft /> Edit details
                 </button>
               </div>
+
+              <p className="mt-3 flex items-center justify-center gap-2 rounded-full bg-amber-50 px-4 py-1.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                <FiLock className="h-3 w-3" /> Sandbox mode - payments are simulated, no real money moves
+              </p>
 
               <div className="mt-6 grid gap-3">
                 {[
