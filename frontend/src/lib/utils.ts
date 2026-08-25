@@ -1,9 +1,22 @@
 import { config } from './config';
+import { getActiveCurrency } from '@/lib/currency';
 import { cart as cartApi, orders as ordersApi } from '@/services/api';
 export { cartApi, ordersApi };
 
+export function formatPrice(amountInKes: number): string {
+  const currency = getActiveCurrency();
+  const converted = amountInKes * currency.rate;
+  const decimals = converted < 100 && currency.code !== 'KES' ? 2 : 0;
+  return new Intl.NumberFormat(currency.locale, {
+    style: 'currency',
+    currency: currency.code,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(converted);
+}
+
 export function formatKES(amount: number): string {
-  return new Intl.NumberFormat(config.commerce.locale, { style: 'currency', currency: config.commerce.defaultCurrency, minimumFractionDigits: 0 }).format(amount);
+  return formatPrice(amount);
 }
 
 export function formatDate(date: string): string {

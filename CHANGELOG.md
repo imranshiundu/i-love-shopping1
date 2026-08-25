@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Multi-currency display: header selector with KES (base), USD, EUR, GBP,
+  TZS, UGX and ZAR; rates configurable via NEXT_PUBLIC_CURRENCY_RATES;
+  checkout states clearly that payments settle in KES
+- Documented seeded test accounts in the README
+
+### Added
 - Initial project structure with Spring Boot 3.2.x
 - JWT authentication with access/refresh tokens
 - M-Pesa Daraja STK Push payment integration

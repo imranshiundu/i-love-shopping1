@@ -4,8 +4,9 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { products as productsApi } from '@/services/api';
 import { config } from '@/lib/config';
+import { CURRENCIES, useCurrency } from '@/lib/currency';
 import { formatKES } from '@/lib/utils';
-import { FiShoppingCart, FiUser, FiSearch, FiMenu, FiX, FiTruck } from 'react-icons/fi';
+import { FiShoppingCart, FiUser, FiSearch, FiMenu, FiX, FiTruck, FiGlobe, FiCheck } from 'react-icons/fi';
 
 export default function Header() {
   const { user, logout, cartCount } = useAuth();
@@ -13,7 +14,10 @@ export default function Header() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [currencyOpen, setCurrencyOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+  const currencyRef = useRef<HTMLDivElement>(null);
+  const { currency: activeCurrency, setCurrencyCode } = useCurrency();
 
   useEffect(() => {
     if (searchQuery.length >= 2) {
@@ -27,7 +31,10 @@ export default function Header() {
   }, [searchQuery]);
 
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => { if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSuggestions([]); };
+    const handleClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSuggestions([]);
+      if (currencyRef.current && !currencyRef.current.contains(e.target as Node)) setCurrencyOpen(false);
+    };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
@@ -83,6 +90,35 @@ export default function Header() {
             </div>
 
             <div className="flex items-center gap-1">
+              <div className="relative" ref={currencyRef}>
+                <button
+                  onClick={() => setCurrencyOpen(!currencyOpen)}
+                  className="flex items-center gap-1.5 rounded-full px-2.5 py-2 text-sm font-semibold text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950"
+                  aria-label="Currency"
+                >
+                  <FiGlobe className="h-4 w-4" />
+                  <span className="hidden sm:inline">{activeCurrency.code}</span>
+                </button>
+                {currencyOpen && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setCurrencyOpen(false)} />
+                    <div className="absolute right-0 z-50 mt-2 w-44 overflow-hidden rounded-2xl border border-stone-200 bg-white py-1.5 shadow-xl shadow-stone-900/10">
+                      <p className="px-3.5 pb-1.5 pt-1 text-[11px] font-bold uppercase tracking-widest text-stone-400">Currency</p>
+                      {CURRENCIES.map(c => (
+                        <button
+                          key={c.code}
+                          onClick={() => { setCurrencyCode(c.code); setCurrencyOpen(false); }}
+                          className="flex w-full items-center justify-between px-3.5 py-2 text-sm transition-colors hover:bg-stone-50"
+                        >
+                          <span className="font-medium">{c.symbol} {c.code}</span>
+                          {c.code === activeCurrency.code && <FiCheck className="h-4 w-4 text-primary-600" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+
               <Link href="/cart" className="group relative rounded-full p-2.5 text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950" aria-label="Cart">
                 <FiShoppingCart className="h-5 w-5" />
                 {cartCount > 0 && (

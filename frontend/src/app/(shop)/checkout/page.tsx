@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { orders, payments } from '@/services/api';
 import { config } from '@/lib/config';
+import { useCurrency } from '@/lib/currency';
 import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
 import { Address } from '@/types';
@@ -21,6 +22,7 @@ type PayMethod = 'mpesa' | 'airtel' | 'stripe' | 'flutterwave';
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, refreshCart, user } = useAuth();
+  const { currency } = useCurrency();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PayMethod>('mpesa');
@@ -294,6 +296,12 @@ export default function CheckoutPage() {
               <p className="mt-3 flex items-center justify-center gap-2 rounded-full bg-amber-50 px-4 py-1.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
                 <FiLock className="h-3 w-3" /> Sandbox mode - payments are simulated, no real money moves
               </p>
+
+              {currency.code !== 'KES' && (
+                <p className="mt-2 text-center text-xs text-stone-500">
+                  Prices shown in {currency.code} are estimates - your payment is processed in Kenyan shillings (KES).
+                </p>
+              )}
 
               <div className="mt-6 grid gap-3">
                 {[

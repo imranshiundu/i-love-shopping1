@@ -601,13 +601,31 @@ curl -o /dev/null -w "%{http_code}\n" http://localhost:3000/
 # Open http://localhost:8080/api/v1/docs in your browser
 ```
 
+### Test Accounts
+
+These accounts are seeded by Flyway migrations and are ready to use:
+
+| Role | Email | Password | What you can do |
+|------|-------|----------|-----------------|
+| **Administrator** | `admin@iloveshopping.com` | `Admin123!` | Everything, plus `/admin`: dashboard analytics, orders lifecycle, product CRUD, offers engine, customers |
+| **Customer** | `user@iloveshopping.com` | `User123!` | Browse, buy, review, manage profile and addresses |
+
+You can also register a brand-new account at `/auth/register` (verification
+emails land in Mailhog during development), or go through the entire shopping,
+checkout and payment journey as a **guest** - no account needed until after
+you have paid.
+
+> These credentials are for local development and reviewer environments only.
+> Never ship seeded passwords to production.
+
 Then open **http://localhost:3000** in your browser and:
 
 1. Browse products, filter by category/brand/price on `/products`
-2. Add items to the cart and watch totals update in real time
-3. Log in as `admin@iloveshopping.com` / `Admin123!` and place an order through checkout with the card option
-4. Watch the order flip from PENDING to CONFIRMED in `/account/orders`, then check the confirmation email at http://localhost:8025 (Mailhog)
-5. Visit `/admin` for the dashboard, orders, products, categories and brands management
+2. Switch the display currency from the globe icon in the header
+3. Add items to the cart and watch totals update in real time
+4. Log in as `admin@iloveshopping.com` / `Admin123!` and place an order through checkout with the card option
+5. Watch the order flip from PENDING to CONFIRMED in `/account/orders`, then check the confirmation email at http://localhost:8025 (Mailhog)
+6. Visit `/admin` for the dashboard, orders, products, categories and brands management
 
 ## Configuration
 
@@ -690,6 +708,29 @@ Every value in the frontend is configurable - no hardcoded URLs, prices or ident
 | `NEXT_PUBLIC_ADMIN_PAGE_SIZE` | `20` | Rows per admin table |
 | `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` / `_ENABLED` | dev bypass | reCAPTCHA integration |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_test_simulated` | Card payment simulation |
+| `NEXT_PUBLIC_CURRENCY_RATES` | `USD=0.0077,EUR=0.0071,...` | Display-currency conversion rates from KES |
+
+### Multi-Currency Display
+
+The storefront shows prices in **KES by default**. Visitors can switch
+currency anytime from the globe icon in the header; the choice persists in
+their browser and every price on the site converts instantly.
+
+| Currency | Code | Default rate (from KES) |
+|----------|------|-------------------------|
+| Kenyan Shilling | `KES` | 1 (base) |
+| US Dollar | `USD` | 0.0077 |
+| Euro | `EUR` | 0.0071 |
+| Pound Sterling | `GBP` | 0.0061 |
+| Tanzanian Shilling | `TZS` | 19.8 |
+| Ugandan Shilling | `UGX` | 28.3 |
+| South African Rand | `ZAR` | 0.14 |
+
+- Rates are display-only estimates set through
+  `NEXT_PUBLIC_CURRENCY_RATES=CODE=RATE,CODE=RATE` - plug in live FX rates here.
+- **Payments always settle in KES** (M-Pesa, Airtel Money and the card gateways
+  are Kenyan-shilling rails). Checkout states this clearly whenever a
+  non-KES currency is selected, so there is no surprise at the PIN prompt.
 
 > Keep these values in sync with backend `app.tax-rate`, `app.free-shipping-threshold` and `app.default-currency` so cart math matches server-side totals.
 
