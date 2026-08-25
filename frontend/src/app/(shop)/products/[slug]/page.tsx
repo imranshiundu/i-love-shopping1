@@ -96,8 +96,11 @@ export default function ProductDetailPage() {
       </nav>
 
       <div className="mt-8 grid grid-cols-1 gap-12 lg:grid-cols-[1.05fr_0.95fr]">
+        <Reveal>
         <Gallery product={product} selected={selectedImage} onSelect={setSelectedImage} />
+        </Reveal>
 
+        <Reveal delay={120}>
         <div className="lg:sticky lg:top-28 lg:self-start">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary-600">
             {product.brand?.name || 'Marketplace'}
@@ -172,6 +175,7 @@ export default function ProductDetailPage() {
 
           <SpecsAccordion product={product} />
         </div>
+        </Reveal>
       </div>
 
       {reviews.length > 0 && (
