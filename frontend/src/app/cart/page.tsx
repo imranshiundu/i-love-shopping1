@@ -3,16 +3,18 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { cart as cartApi } from '@/services/api';
-import { formatKES } from '@/lib/utils';
 import { config } from '@/lib/config';
-import { FiTrash2, FiMinus, FiPlus, FiShoppingBag, FiArrowRight } from 'react-icons/fi';
+import { formatKES } from '@/lib/utils';
+import Reveal from '@/components/ui/Reveal';
+import { FiTrash2, FiMinus, FiPlus, FiShoppingBag, FiArrowRight, FiTruck } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 export default function CartPage() {
-  const { cart, refreshCart, user } = useAuth();
+  const { cart, refreshCart, addToCart } = useAuth();
   const [updating, setUpdating] = useState<string | null>(null);
 
   const updateQuantity = async (itemId: string, quantity: number) => {
+    if (quantity < 1) return;
     setUpdating(itemId);
     try { await cartApi.updateItem(itemId, quantity); await refreshCart(); }
     catch (e: any) { toast.error(e.message); }
@@ -28,65 +30,130 @@ export default function CartPage() {
 
   if (!cart || cart.items.length === 0) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-16 text-center">
-        <FiShoppingBag className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-        <h1 className="text-2xl font-bold mb-2">Your cart is empty</h1>
-        <p className="text-gray-500 mb-6">Start shopping to add items to your cart.</p>
-        <Link href="/products" className="bg-primary-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-primary-700 inline-block">Browse Products</Link>
+      <div className="mx-auto max-w-7xl px-4 py-24 text-center">
+        <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-stone-100">
+          <FiShoppingBag className="h-9 w-9 text-stone-400" />
+        </span>
+        <h1 className="mt-6 text-2xl font-bold">Your cart is empty</h1>
+        <p className="mx-auto mt-2 max-w-[42ch] text-stone-500">
+          Browse the catalogue and add a few things you like - they will wait for you here.
+        </p>
+        <Link href="/products" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700">
+          Start shopping <FiArrowRight />
+        </Link>
       </div>
     );
   }
 
-  const subtotal = cart.items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const subtotal = cart.items.reduce((sum, item) => sum + item.priceSnapshot * item.quantity, 0);
   const shipping = subtotal >= config.commerce.freeShippingThreshold ? 0 : config.commerce.shippingCost;
   const tax = Math.round(subtotal * config.commerce.taxRate);
   const total = subtotal + shipping + tax;
+  const progress = Math.min(100, Math.round((subtotal / config.commerce.freeShippingThreshold) * 100));
+  const missingForFree = config.commerce.freeShippingThreshold - subtotal;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-3xl font-bold mb-8">Shopping Cart ({cart.totalItems} items)</h1>
+    <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600">Your basket</p>
+        <h1 className="mt-1.5 text-3xl font-bold tracking-tight sm:text-4xl">Shopping cart</h1>
+      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-4">
-          {cart.items.map(item => (
-            <div key={item.id} className="bg-white rounded-lg p-4 border flex gap-4">
-              <div className="w-24 h-24 bg-gray-100 rounded overflow-hidden flex-shrink-0">
-                {item.image ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">No img</div>}
-              </div>
-              <div className="flex-1 min-w-0">
-                <Link href={`/products/${item.slug}`} className="font-semibold hover:text-primary-600 line-clamp-1">{item.name}</Link>
-                <p className="text-primary-600 font-bold mt-1">{formatKES(item.price)}</p>
-                <div className="flex items-center justify-between mt-3">
-                  <div className="flex items-center border rounded">
-                    <button onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={updating === item.id || item.quantity <= 1} className="px-2 py-1 hover:bg-gray-50 disabled:opacity-50"><FiMinus className="h-4 w-4" /></button>
-                    <span className="px-3 text-sm font-medium">{item.quantity}</span>
-                    <button onClick={() => updateQuantity(item.id, item.quantity + 1)} disabled={updating === item.id || item.quantity >= item.stock} className="px-2 py-1 hover:bg-gray-50 disabled:opacity-50"><FiPlus className="h-4 w-4" /></button>
+      {!shipping && (
+        <Reveal className="mb-6">
+          <p className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800 ring-1 ring-emerald-200">
+            <FiTruck className="h-4 w-4 shrink-0" /> You have unlocked free delivery.
+          </p>
+        </Reveal>
+      )}
+
+      <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1.6fr_1fr]">
+        <div className="space-y-4">
+          {cart.items.map((item, i) => (
+            <Reveal key={item.id} delay={i * 60}>
+              <article className={`flex gap-4 rounded-2xl border border-stone-200/80 bg-white p-4 transition-opacity ${updating === item.id ? 'opacity-50' : ''}`}>
+                <Link href={`/products/${item.productSlug}`} className="shrink-0 overflow-hidden rounded-xl bg-stone-100">
+                  {item.productImage ? (
+                    <img src={item.productImage} alt={item.productName} className="h-24 w-24 object-cover sm:h-28 sm:w-28" />
+                  ) : (
+                    <div className="flex h-24 w-24 items-center justify-center text-stone-400"><FiShoppingBag /></div>
+                  )}
+                </Link>
+
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <Link href={`/products/${item.productSlug}`} className="line-clamp-2 font-semibold hover:text-primary-700">
+                        {item.productName}
+                      </Link>
+                      <p className="mt-0.5 text-sm text-stone-500">{formatKES(item.priceSnapshot)} each</p>
+                    </div>
+                    <button onClick={() => removeItem(item.id)} disabled={updating === item.id}
+                      className="rounded-lg p-2 text-stone-400 transition-colors hover:bg-rose-50 hover:text-rose-600" aria-label={`Remove ${item.productName}`}>
+                      <FiTrash2 />
+                    </button>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <span className="font-semibold">{formatKES(item.price * item.quantity)}</span>
-                    <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-700"><FiTrash2 /></button>
+
+                  <div className="mt-auto flex items-center justify-between pt-3">
+                    <div className="inline-flex items-center rounded-lg border border-stone-300">
+                      <button onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={updating === item.id}
+                        className="px-2.5 py-1.5 text-stone-600 hover:text-stone-900 disabled:opacity-40" aria-label="Decrease quantity"><FiMinus /></button>
+                      <span className="w-9 text-center text-sm font-semibold">{item.quantity}</span>
+                      <button
+                        onClick={async () => { setUpdating(item.id); try { await addToCart(item.productId, 1); } catch (e: any) { toast.error(e.message); } setUpdating(null); }}
+                        disabled={updating === item.id}
+                        className="px-2.5 py-1.5 text-stone-600 hover:text-stone-900 disabled:opacity-40" aria-label="Increase quantity"><FiPlus /></button>
+                    </div>
+                    <p className="font-bold">{formatKES(item.lineTotal)}</p>
                   </div>
                 </div>
-                {item.quantity >= item.stock && <p className="text-xs text-orange-600 mt-1">Max stock reached</p>}
-              </div>
-            </div>
+              </article>
+            </Reveal>
           ))}
         </div>
 
-        <div className="bg-white rounded-lg p-6 border h-fit sticky top-24">
-          <h2 className="text-xl font-bold mb-4">Order Summary</h2>
-          <div className="space-y-2 text-sm">
-            <div className="flex justify-between"><span>Subtotal</span><span>{formatKES(subtotal)}</span></div>
-            <div className="flex justify-between"><span>Shipping</span><span>{shipping === 0 ? <span className="text-green-600">Free</span> : formatKES(shipping)}</span></div>
-            <div className="flex justify-between"><span>Tax (16%)</span><span>{formatKES(tax)}</span></div>
-            <div className="border-t pt-2 mt-2 flex justify-between font-bold text-lg"><span>Total</span><span>{formatKES(total)}</span></div>
-          </div>
-          {shipping > 0 && <p className="text-xs text-green-600 mt-2">Free shipping on orders over {formatKES(5000)}</p>}
-          <Link href="/checkout" className="block w-full bg-primary-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-primary-700 mt-4">
-            Proceed to Checkout <FiArrowRight className="inline ml-1" />
-          </Link>
-          <Link href="/products" className="block text-center text-primary-600 hover:underline mt-3 text-sm">Continue Shopping</Link>
-        </div>
+        <aside className="lg:sticky lg:top-28 lg:self-start">
+          <Reveal delay={120}>
+            <div className="rounded-2xl border border-stone-200/80 bg-white p-6">
+              <h2 className="text-lg font-bold">Order summary</h2>
+
+              <div className="mt-5 rounded-xl bg-stone-50 p-4">
+                {shipping > 0 && missingForFree > 0 ? (
+                  <>
+                    <p className="text-sm text-stone-600">
+                      Add <strong className="text-stone-900">{formatKES(missingForFree)}</strong> more for free delivery
+                    </p>
+                    <div className="mt-2.5 h-2 overflow-hidden rounded-full bg-stone-200" role="progressbar" aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100}>
+                      <div className="h-full rounded-full bg-gradient-to-r from-primary-500 to-emerald-400 transition-all duration-700" style={{ width: `${progress}%` }} />
+                    </div>
+                  </>
+                ) : (
+                  <p className="flex items-center gap-2 text-sm font-medium text-emerald-700">
+                    <FiTruck className="h-4 w-4" /> Free delivery unlocked
+                  </p>
+                )}
+              </div>
+
+              <dl className="mt-5 space-y-3 text-sm">
+                <div className="flex justify-between"><dt className="text-stone-500">Subtotal</dt><dd className="font-semibold">{formatKES(subtotal)}</dd></div>
+                <div className="flex justify-between"><dt className="text-stone-500">Delivery</dt><dd className="font-semibold">{shipping === 0 ? 'Free' : formatKES(shipping)}</dd></div>
+                <div className="flex justify-between"><dt className="text-stone-500">VAT ({Math.round(config.commerce.taxRate * 100)}%)</dt><dd className="font-semibold">{formatKES(tax)}</dd></div>
+                <div className="border-t border-stone-200 pt-3">
+                  <div className="flex justify-between text-base">
+                    <dt className="font-bold">Total</dt><dd className="text-xl font-extrabold">{formatKES(total)}</dd>
+                  </div>
+                </div>
+              </dl>
+
+              <Link href="/checkout" className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700">
+                Proceed to checkout <FiArrowRight />
+              </Link>
+              <Link href="/products" className="mt-3 block text-center text-sm font-medium text-stone-500 hover:text-primary-600">
+                Continue shopping
+              </Link>
+            </div>
+          </Reveal>
+        </aside>
       </div>
     </div>
   );

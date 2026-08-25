@@ -1,8 +1,7 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { auth as authApi, setAccessToken } from '@/services/api';
+import { auth as authApi, cart as cartRest, setAccessToken } from '@/services/api';
 import { User, Cart } from '@/types';
-import { cartApi } from '@/services/cartService';
 
 interface AuthContextType {
   user: User | null;
@@ -13,6 +12,7 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
   cart: Cart | null;
   refreshCart: () => Promise<void>;
+  addToCart: (productId: string, quantity: number) => Promise<void>;
   cartCount: number;
 }
 
@@ -25,8 +25,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshCart = useCallback(async () => {
     try {
-      const res = await cartApi.get();
-      if (res.data) setCart(res.data);
+      const res = await cartRest.get();
+      setCart(res.data ?? null);
     } catch { setCart(null); }
   }, []);
 
@@ -44,9 +44,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (tokenRes.data?.accessToken) {
           setAccessToken(tokenRes.data.accessToken);
           setUser(tokenRes.data.user);
-          await refreshCart();
         }
       } catch { /* not logged in */ }
+      await refreshCart();
       setLoading(false);
     };
     init();
@@ -72,8 +72,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCart(null);
   };
 
+  const addToCart = useCallback(async (productId: string, quantity: number) => {
+    await cartRest.addItem(productId, quantity);
+    await refreshCart();
+  }, [refreshCart]);
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, cart, refreshCart, cartCount: cart?.totalItems || 0 }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, cart, refreshCart, addToCart, cartCount: cart?.totalItems || 0 }}>
       {children}
     </AuthContext.Provider>
   );
@@ -84,3 +89,4 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
+

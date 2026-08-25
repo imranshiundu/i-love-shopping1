@@ -72,8 +72,9 @@ export interface BrandFacet { id: string; name: string; slug: string; count: num
 export interface PriceRangeFacet { min: number; max: number; }
 
 export interface CartItem {
-  id: string; productId: string; name: string; slug: string; price: number;
-  quantity: number; image?: string; stock: number; total: number;
+  id: string; productId: string; productName: string; productSlug: string;
+  productImage?: string; variantId?: string; quantity: number;
+  priceSnapshot: number; lineTotal: number; maxStock: number;
 }
 
 export interface Cart {
