@@ -4,10 +4,12 @@ import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { FiCheckCircle, FiArrowRight, FiPackage, FiMail, FiPhone } from 'react-icons/fi';
 import { config } from '@/lib/config';
+import { useAuth } from '@/contexts/AuthContext';
 
 function SuccessContent() {
   const searchParams = useSearchParams();
   const orderNumber = searchParams.get('order');
+  const { user, loading } = useAuth();
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-20 sm:px-6">
@@ -46,14 +48,23 @@ function SuccessContent() {
       </div>
 
       <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:justify-center">
-        <Link href="/account/orders"
-          className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700">
-          Track this order <FiArrowRight />
-        </Link>
-        <Link href="/products"
-          className="inline-flex items-center justify-center rounded-xl border border-stone-300 px-7 py-3.5 font-semibold text-stone-700 transition-colors hover:bg-stone-50">
-          Continue shopping
-        </Link>
+        {!loading && !user ? (
+          <Link href="/products"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700">
+            Continue shopping <FiArrowRight />
+          </Link>
+        ) : (
+          <>
+            <Link href="/account/orders"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700">
+              Track this order <FiArrowRight />
+            </Link>
+            <Link href="/products"
+              className="inline-flex items-center justify-center rounded-xl border border-stone-300 px-7 py-3.5 font-semibold text-stone-700 transition-colors hover:bg-stone-50">
+              Continue shopping
+            </Link>
+          </>
+        )}
       </div>
     </div>
   );
