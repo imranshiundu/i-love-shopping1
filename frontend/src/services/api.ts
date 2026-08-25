@@ -32,6 +32,8 @@ export const auth = {
     request<User>('/user/profile', { method: 'PUT', body: JSON.stringify(data) }),
   getAddresses: () => request<Address[]>('/user/addresses'),
   addAddress: (addr: Address) => request<Address>('/user/addresses', { method: 'POST', body: JSON.stringify(addr) }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<void>('/user/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
 };
 
 export const products = {
@@ -98,7 +100,11 @@ export const payments = {
 };
 
 export const admin = {
-  listOrders: (page = 0, size = 20) => request<{ orders: Order[]; pagination: any }>(`/admin/orders?page=${page}&size=${size}`),
+  getStats: () => request<any>('/admin/stats'),
+  listOrders: (page = 0, size = 20, status?: string) =>
+    request<{ content: Order[]; totalPages: number; totalElements: number; numberOfElements: number }>(
+      `/admin/orders?page=${page}&size=${size}${status ? `&status=${status}` : ''}`
+    ),
   updateOrderStatus: (orderNumber: string, status: string) =>
     request<Order>(`/admin/orders/${orderNumber}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
   listUsers: (page = 0, size = 20) => request<{ users: User[]; pagination: any }>(`/admin/users?page=${page}&size=${size}`),
