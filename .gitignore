@@ -58,3 +58,5 @@ git.txt
 test.txt
 description.txt
 description2.txt
+# Reusable standalone admin console template (local only, do not push)
+admin-console/
