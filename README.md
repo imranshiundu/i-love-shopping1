@@ -469,7 +469,7 @@ cd i-love-shopping
 
 ## Quick Start (Easiest Way)
 
-We have provided a foolproof start script located right at the root of the project. It works on **Linux, macOS and Windows**. Even if you aren't familiar with the terminal, this script will check your environment, install missing tools, and get the code running smoothly.
+We have provided a foolproof start script located right at the root of the project. It works on **Linux, macOS and Windows**. Even if you aren't familiar with the terminal, this script will check your environment, **install missing tools automatically**, set up configuration, and get the code running.
 
 **Just open your terminal, ensure you are in the project folder, and run:**
 
@@ -484,13 +484,37 @@ start.cmd
 .\start.cmd
 ```
 
-You will be presented with a simple menu asking how you want to run the project:
+The script will:
+1. Detect your OS (Linux, macOS, or Windows)
+2. Check for Docker — install it if missing, start the daemon if it's not running
+3. Check for Java 21+, Maven, and Node.js 18+ — install them if missing
+4. Auto-shift busy ports to the next free one
+5. Create a `.env` file from the template with generated secrets
+6. Start all services and print the URLs
+
+### Flags
+
+| Flag | What it does |
+|------|-------------|
+| *(no flag)* | Interactive menu — prompts you to choose option 1 or 2 |
+| `--auto` | Fully automated — runs option 2 (local backend) with no prompts |
+| `--stop` | Stops all services, kills lingering processes, removes containers |
+
+```bash
+# One-liner: install everything, no prompts
+bash start.sh --auto
+
+# Stop everything when you're done
+bash start.sh --stop
+```
+
+### Menu options
 
 ```
 How do you want to run the project?
   1) Everything in Docker (PostgreSQL + Redis + Mailhog + RabbitMQ + API + Frontend) - only Docker
   2) Dependencies in Docker + run API & Frontend locally - requires Docker, Java 21, Maven and Node.js
-Choose an option [1/2]:
+Choose [1/2]:
 ```
 
 - **Option 1** starts all services with Docker Compose in the foreground: PostgreSQL, Redis, Mailhog, RabbitMQ, the Spring Boot API and the Next.js frontend. Press `Ctrl+C` to stop everything.
