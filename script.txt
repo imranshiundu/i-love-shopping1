@@ -1,0 +1,7 @@
+⚠ This file is deprecated — use the platform start scripts instead:
+
+  Linux / macOS:  chmod +x start.sh && ./start.sh
+  Windows:        Double-click start.cmd  (or run from CMD / PowerShell)
+
+  They detect your OS, check Docker/Java/Node, auto-start Docker
+  daemon if needed, resolve port conflicts, and launch everything.
