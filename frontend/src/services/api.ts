@@ -10,6 +10,7 @@ export function getAccessToken() { return accessToken; }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...((options.headers as Record<string, string>) || {}) };
+  // Include accessToken in header if available (backup for cookie)
   if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
   const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
 
@@ -43,6 +44,8 @@ export const auth = {
     request<User>('/user/profile', { method: 'PUT', body: JSON.stringify(data) }),
   getAddresses: () => request<Address[]>('/user/addresses'),
   addAddress: (addr: Address) => request<Address>('/user/addresses', { method: 'POST', body: JSON.stringify(addr) }),
+  updateAddress: (id: string, addr: Address) => request<Address>(`/user/addresses/${id}`, { method: 'PUT', body: JSON.stringify(addr) }),
+  deleteAddress: (id: string) => request<void>(`/user/addresses/${id}`, { method: 'DELETE' }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>('/user/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
 };

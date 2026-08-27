@@ -33,10 +33,10 @@ export default function CheckoutPage() {
   const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
 
   const [shipping, setShipping] = useState<Address>({
-    name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '',
+    name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '', type: 'SHIPPING',
   });
   const [billing, setBilling] = useState<Address>({
-    name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry,
+    name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, type: 'BILLING',
   });
   const [sameAsShipping, setSameAsShipping] = useState(true);
   const [notes, setNotes] = useState('');
@@ -162,8 +162,8 @@ export default function CheckoutPage() {
     setLoading(true);
     try {
       const res = await orders.checkout({
-        shippingAddress: shipping,
-        billingAddress: sameAsShipping ? shipping : billing,
+        shippingAddress: { ...shipping, type: 'SHIPPING' },
+        billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : billing,
         notes,
       });
       if (res.data) {
@@ -172,8 +172,19 @@ export default function CheckoutPage() {
         setStep(2);
         await refreshCart();
         window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        toast.error('Checkout failed - no order was created');
       }
-    } catch (e: any) { toast.error(e.message || 'Checkout failed'); }
+    } catch (e: any) {
+      const msg = e.message || 'Checkout failed';
+      if (msg.includes('insufficient stock') || msg.includes('out of stock')) {
+        toast.error('Some items are no longer available. Please review your cart.');
+      } else if (msg.includes('Authentication required') || msg.includes('401')) {
+        toast.error('Please sign in to complete your order');
+      } else {
+        toast.error(msg);
+      }
+    }
     setLoading(false);
   };
 
@@ -223,7 +234,14 @@ export default function CheckoutPage() {
           router.push(`/checkout/success?order=${orderNumber}`);
         }
       }
-    } catch (e: any) { toast.error(e.message || 'Payment failed'); }
+    } catch (e: any) {
+      const msg = e.message || 'Payment failed';
+      if (msg.includes('Authentication required') || msg.includes('401')) {
+        toast.error('Your session expired. Please sign in again.');
+      } else {
+        toast.error(msg);
+      }
+    }
     setLoading(false);
   };
 

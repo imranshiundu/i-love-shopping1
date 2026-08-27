@@ -10,38 +10,46 @@ export default function AddressesPage() {
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
-  const [form, setForm] = useState<Address>({ name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '' });
+  const [form, setForm] = useState<Address>({ name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '', type: 'SHIPPING', isDefault: false });
 
   const load = async () => {
     setLoading(true);
-    try { const res = await auth.getAddresses(); setAddresses(res.data || []); } catch {}
+    try { const res = await auth.getAddresses(); setAddresses(res.data || []); } catch (e: any) { toast.error(e.message || 'Failed to load addresses'); }
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
+  const validate = (): boolean => {
+    if (!form.name?.trim()) { toast.error('Name is required'); return false; }
+    if (!form.line1?.trim()) { toast.error('Address line 1 is required'); return false; }
+    if (!form.city?.trim()) { toast.error('City is required'); return false; }
+    if (!form.state?.trim()) { toast.error('State/County is required'); return false; }
+    if (!form.postalCode?.trim()) { toast.error('Postal code is required'); return false; }
+    if (!form.country?.trim()) { toast.error('Country is required'); return false; }
+    return true;
+  };
+
   const handleSave = async () => {
+    if (!validate()) return;
     try {
+      const payload = { ...form, type: form.type || 'SHIPPING' };
       if (editing) {
-        await fetch(`${config.api.baseUrl}/user/addresses/${editing}`, {
-          method: 'PUT', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(form),
-        });
+        await auth.updateAddress(editing, payload);
       } else {
-        await auth.addAddress(form);
+        await auth.addAddress(payload);
       }
       toast.success('Address saved');
-      setEditing(null); setForm({ name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '' });
+      setEditing(null); setForm({ name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '', type: 'SHIPPING', isDefault: false });
       load();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) { toast.error(e.message || 'Failed to save address'); }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this address?')) return;
     try {
-      await fetch(`${config.api.baseUrl}/user/addresses/${id}`, { method: 'DELETE', credentials: 'include' });
+      await auth.deleteAddress(id);
       toast.success('Deleted'); load();
-    } catch (e: any) { toast.error(e.message); }
+    } catch (e: any) { toast.error(e.message || 'Failed to delete address'); }
   };
 
   return (
@@ -75,6 +83,14 @@ export default function AddressesPage() {
         <div className="bg-white rounded-lg p-6 border h-fit">
           <h2 className="text-xl font-bold mb-4">{editing ? 'Edit Address' : 'Add Address'}</h2>
           <div className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium mb-1">Address Type</label>
+              <select value={form.type || 'SHIPPING'} onChange={e => setForm({ ...form, type: e.target.value as any })}
+                className="w-full border rounded-lg px-3 py-2 text-sm">
+                <option value="SHIPPING">Shipping</option>
+                <option value="BILLING">Billing</option>
+              </select>
+            </div>
             {[
               { label: 'Name', key: 'name' }, { label: 'Address Line 1', key: 'line1' }, { label: 'Address Line 2', key: 'line2' },
               { label: 'City', key: 'city' }, { label: 'State/County', key: 'state' }, { label: 'Postal Code', key: 'postalCode' },
