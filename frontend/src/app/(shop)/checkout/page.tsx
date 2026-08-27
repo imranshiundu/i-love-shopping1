@@ -10,12 +10,10 @@ import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
 import { Address } from '@/types';
 import {
-  FiCheck, FiArrowLeft, FiArrowRight, FiShoppingBag,
+  FiCheck, FiArrowRight, FiShoppingBag,
   FiSmartphone, FiCreditCard, FiLock, FiZap, FiLoader,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
-
-const STEPS = ['Delivery', 'Payment'];
 
 type PayMethod = 'mpesa' | 'airtel' | 'stripe' | 'flutterwave';
 
@@ -23,18 +21,14 @@ export default function CheckoutPage() {
   const router = useRouter();
   const { cart, cartLoading, refreshCart, user } = useAuth();
   const { currency } = useCurrency();
-  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PayMethod>('mpesa');
-  const [orderId, setOrderId] = useState<string | null>(null);
-  const [orderNumber, setOrderNumber] = useState('');
   const [phoneNumber, setPhoneNumber] = useState('');
   const [card, setCard] = useState({ number: '', expiry: '', cvv: '', name: '' });
   const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
 
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedShippingId, setSelectedShippingId] = useState<string>('');
-  const [selectedBillingId, setSelectedBillingId] = useState<string>('');
 
   const [shipping, setShipping] = useState<Address>({
     name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '', type: 'SHIPPING',
@@ -121,42 +115,57 @@ export default function CheckoutPage() {
     return true;
   };
 
-  const validateCard = (): boolean => {
-    if (paymentMethod !== 'stripe' && paymentMethod !== 'flutterwave') return true;
-    const errors: Record<string, string> = {};
-    const digits = card.number.replace(/\D/g, '');
-    if (digits.length < 13 || digits.length > 19) {
-      errors.number = 'Enter a valid card number';
-    } else {
-      let sum = 0;
-      let dbl = false;
-      for (let i = digits.length - 1; i >= 0; i--) {
-        let d = parseInt(digits[i], 10);
-        if (dbl) { d *= 2; if (d > 9) d -= 9; }
-        sum += d;
-        dbl = !dbl;
+  const validatePayment = (): boolean => {
+    if (paymentMethod === 'mpesa' || paymentMethod === 'airtel') {
+      if (!phoneNumber) {
+        toast.error(`Enter your ${paymentMethod === 'mpesa' ? 'M-Pesa' : 'Airtel Money'} phone number`);
+        return false;
       }
-      if (sum % 10 !== 0) errors.number = 'This card number is invalid';
+      const digits = phoneNumber.replace(/\D/g, '');
+      if (digits.length < 9) {
+        toast.error('Enter a valid phone number');
+        return false;
+      }
+      return true;
     }
-    const m = card.expiry.trim().match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2})$/);
-    if (!m) {
-      errors.expiry = 'Use MM/YY';
-    } else {
-      const exp = new Date(2000 + parseInt(m[2], 10), parseInt(m[1], 10), 1);
-      if (exp <= new Date()) errors.expiry = 'This card has expired';
-    }
-    if (!/^\d{3,4}$/.test(card.cvv.trim())) errors.cvv = '3 or 4 digits';
-    if (!card.name.trim()) errors.name = 'Name on card is required';
-    setCardErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      toast.error('Check your card details');
-      return false;
+    if (paymentMethod === 'stripe' || paymentMethod === 'flutterwave') {
+      const errors: Record<string, string> = {};
+      const digits = card.number.replace(/\D/g, '');
+      if (digits.length < 13 || digits.length > 19) {
+        errors.number = 'Enter a valid card number';
+      } else {
+        let sum = 0;
+        let dbl = false;
+        for (let i = digits.length - 1; i >= 0; i--) {
+          let d = parseInt(digits[i], 10);
+          if (dbl) { d *= 2; if (d > 9) d -= 9; }
+          sum += d;
+          dbl = !dbl;
+        }
+        if (sum % 10 !== 0) errors.number = 'This card number is invalid';
+      }
+      const m = card.expiry.trim().match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2})$/);
+      if (!m) {
+        errors.expiry = 'Use MM/YY';
+      } else {
+        const exp = new Date(2000 + parseInt(m[2], 10), parseInt(m[1], 10), 1);
+        if (exp <= new Date()) errors.expiry = 'This card has expired';
+      }
+      if (!/^\d{3,4}$/.test(card.cvv.trim())) errors.cvv = '3 or 4 digits';
+      if (!card.name.trim()) errors.name = 'Name on card is required';
+      setCardErrors(errors);
+      if (Object.keys(errors).length > 0) {
+        toast.error('Check your card details');
+        return false;
+      }
+      return true;
     }
     return true;
   };
 
   const handlePlaceOrder = async () => {
     if (!validateAddress()) return;
+    if (!validatePayment()) return;
     setLoading(true);
     try {
       const res = await orders.checkout({
@@ -164,35 +173,16 @@ export default function CheckoutPage() {
         billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : { ...billing, type: 'BILLING' },
         notes,
       });
-      if (res.data) {
-        setOrderId(res.data.id);
-        setOrderNumber(res.data.number || '');
-        setStep(2);
-        await refreshCart();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-      } else {
+      if (!res.data) {
         toast.error('Checkout failed - no order was created');
+        setLoading(false);
+        return;
       }
-    } catch (e: any) {
-      const msg = e.message || 'Checkout failed';
-      if (msg.includes('insufficient stock') || msg.includes('out of stock')) {
-        toast.error('Some items are no longer available. Please review your cart.');
-      } else if (msg.includes('Authentication required') || msg.includes('401')) {
-        toast.error('Please sign in to complete your order');
-      } else {
-        toast.error(msg);
-      }
-    }
-    setLoading(false);
-  };
+      const orderId = res.data.id;
+      const orderNumber = res.data.number || '';
+      await refreshCart();
 
-  const handlePayment = async () => {
-    if (!orderId) return;
-    if (!validateCard()) { setLoading(false); return; }
-    setLoading(true);
-    try {
       if (paymentMethod === 'mpesa') {
-        if (!phoneNumber) { toast.error('Enter your M-Pesa phone number'); setLoading(false); return; }
         const push = await orders.mpesaStkPush(orderId, String(total), phoneNumber);
         toast.success('PIN prompt sent - approve it on your phone');
         if (push.data?.checkoutRequestId) {
@@ -208,34 +198,35 @@ export default function CheckoutPage() {
           setTimeout(() => router.push(`/checkout/success?order=${orderNumber}`), 3000);
         }
       } else if (paymentMethod === 'airtel') {
-        if (!phoneNumber) { toast.error('Enter your Airtel Money phone number'); setLoading(false); return; }
-        const res = await payments.airtelInitiate(orderId, total, phoneNumber);
-        if (res.data?.referenceId) {
+        const airtelRes = await payments.airtelInitiate(orderId, total, phoneNumber);
+        if (airtelRes.data?.referenceId) {
           toast.success('Approve the PIN prompt on your Airtel line');
-          await payments.airtelConfirm(res.data.referenceId);
+          await payments.airtelConfirm(airtelRes.data.referenceId);
           toast.success('Airtel Money payment complete');
           router.push(`/checkout/success?order=${orderNumber}`);
         }
       } else if (paymentMethod === 'stripe') {
-        const res = await payments.stripeCreateIntent(orderId, total);
-        if (res.data?.clientSecret) {
-          await payments.stripeConfirm(res.data.paymentIntentId);
+        const stripeRes = await payments.stripeCreateIntent(orderId, total);
+        if (stripeRes.data?.clientSecret) {
+          await payments.stripeConfirm(stripeRes.data.paymentIntentId);
           toast.success('Card payment processed');
           router.push(`/checkout/success?order=${orderNumber}`);
         }
       } else if (paymentMethod === 'flutterwave') {
-        const res = await payments.flutterwaveCreate(orderId, total, user?.email);
-        if (res.data?.transactionRef) {
+        const fwRes = await payments.flutterwaveCreate(orderId, total, user?.email);
+        if (fwRes.data?.transactionRef) {
           toast.success('Confirming with Flutterwave...');
-          await payments.flutterwaveVerify(res.data.transactionRef);
+          await payments.flutterwaveVerify(fwRes.data.transactionRef);
           toast.success('Flutterwave payment complete');
           router.push(`/checkout/success?order=${orderNumber}`);
         }
       }
     } catch (e: any) {
-      const msg = e.message || 'Payment failed';
-      if (msg.includes('Authentication required') || msg.includes('401')) {
-        toast.error('Your session expired. Please sign in again.');
+      const msg = e.message || 'Checkout failed';
+      if (msg.includes('insufficient stock') || msg.includes('out of stock')) {
+        toast.error('Some items are no longer available. Please review your cart.');
+      } else if (msg.includes('Authentication required') || msg.includes('401')) {
+        toast.error('Please sign in to complete your order');
       } else {
         toast.error(msg);
       }
@@ -269,200 +260,124 @@ export default function CheckoutPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-      <ol className="mb-10 flex items-center gap-3" aria-label="Checkout progress">
-        {STEPS.map((label, idx) => {
-          const n = idx + 1;
-          const active = step >= n;
-          return (
-            <li key={label} className="flex flex-1 items-center gap-3 last:flex-none">
-              <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${
-                active ? 'bg-primary-600 text-white shadow-md shadow-primary-600/30' : 'bg-stone-200 text-stone-500'
-              }`}>
-                {step > n ? <FiCheck /> : n}
-              </span>
-              <span className={`text-sm font-semibold ${active ? 'text-stone-900' : 'text-stone-400'}`}>{label}</span>
-              {n < STEPS.length && <span className={`hidden h-px flex-1 sm:block ${step > n ? 'bg-primary-500' : 'bg-stone-200'}`} />}
-            </li>
-          );
-        })}
-      </ol>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Checkout</h1>
+        <p className="mt-1 text-sm text-stone-500">Complete your delivery details and choose how to pay.</p>
+      </div>
 
-      <div key={step} className="page-enter">
-      {step === 1 && (
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
-          <div className="space-y-5">
-            <Reveal>
-              <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
-                <h2 className="text-lg font-bold">Delivery address</h2>
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
+        <div className="space-y-5">
+          <Reveal>
+            <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
+              <h2 className="text-lg font-bold">Delivery address</h2>
 
-                {savedAddresses.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <p className="text-sm font-medium text-stone-600">Use a saved address:</p>
-                    <div className="grid gap-2">
-                      {savedAddresses.map(addr => (
-                        <label key={addr.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-stone-200 p-3 transition-all hover:border-primary-300 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50/50">
-                          <input
-                            type="radio"
-                            name="savedShipping"
-                            checked={selectedShippingId === addr.id}
-                            onChange={() => {
-                              setSelectedShippingId(addr.id || '');
-                              applyAddress(addr, 'shipping');
-                              if (sameAsShipping) {
-                                setSelectedBillingId(addr.id || '');
-                              }
-                            }}
-                            className="accent-primary-600"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold">{addr.name}</p>
-                            <p className="truncate text-xs text-stone-500">{addr.line1}, {addr.city}, {addr.country}</p>
-                          </div>
-                          {addr.isDefault && <span className="shrink-0 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">Default</span>}
-                        </label>
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-stone-400">
-                      <span className="h-px flex-1 bg-stone-200" />
-                      <span>or enter a new address below</span>
-                      <span className="h-px flex-1 bg-stone-200" />
-                    </div>
-                  </div>
-                )}
-
-                <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {([
-                    { label: 'Full name', key: 'name', required: true, span: true },
-                    { label: 'Address line 1', key: 'line1', required: true, span: true },
-                    { label: 'Address line 2', key: 'line2', required: false, span: true },
-                    { label: 'City / Town', key: 'city', required: true, span: false },
-                    { label: 'County / State', key: 'state', required: true, span: false },
-                    { label: 'Postal code', key: 'postalCode', required: true, span: false },
-                    { label: 'Phone', key: 'phone', required: true, span: false },
-                  ]).map(field => (
-                    <div key={field.key} className={field.span ? 'sm:col-span-2' : ''}>
-                      <label className="mb-1 block text-sm font-medium text-stone-700">
-                        {field.label}{field.required && <span className="text-rose-500"> *</span>}
+              {savedAddresses.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm font-medium text-stone-600">Use a saved address:</p>
+                  <div className="grid gap-2">
+                    {savedAddresses.map(addr => (
+                      <label key={addr.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-stone-200 p-3 transition-all hover:border-primary-300 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50/50">
+                        <input
+                          type="radio"
+                          name="savedShipping"
+                          checked={selectedShippingId === addr.id}
+                          onChange={() => {
+                            setSelectedShippingId(addr.id || '');
+                            applyAddress(addr, 'shipping');
+                          }}
+                          className="accent-primary-600"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold">{addr.name}</p>
+                          <p className="truncate text-xs text-stone-500">{addr.line1}, {addr.city}, {addr.country}</p>
+                        </div>
+                        {addr.isDefault && <span className="shrink-0 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">Default</span>}
                       </label>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-stone-400">
+                    <span className="h-px flex-1 bg-stone-200" />
+                    <span>or enter a new address below</span>
+                    <span className="h-px flex-1 bg-stone-200" />
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {([
+                  { label: 'Full name', key: 'name', required: true, span: true },
+                  { label: 'Address line 1', key: 'line1', required: true, span: true },
+                  { label: 'Address line 2', key: 'line2', required: false, span: true },
+                  { label: 'City / Town', key: 'city', required: true, span: false },
+                  { label: 'County / State', key: 'state', required: true, span: false },
+                  { label: 'Postal code', key: 'postalCode', required: true, span: false },
+                  { label: 'Phone', key: 'phone', required: true, span: false },
+                ]).map(field => (
+                  <div key={field.key} className={field.span ? 'sm:col-span-2' : ''}>
+                    <label className="mb-1 block text-sm font-medium text-stone-700">
+                      {field.label}{field.required && <span className="text-rose-500"> *</span>}
+                    </label>
+                    <input
+                      type="text"
+                      value={(shipping as any)[field.key] || ''}
+                      onChange={e => {
+                        setShipping({ ...shipping, [field.key]: e.target.value });
+                        setSelectedShippingId('');
+                        if (fieldErrors[field.key]) setFieldErrors(prev => ({ ...prev, [field.key]: false }));
+                      }}
+                      required={field.required}
+                      placeholder={field.key === 'phone' ? '254712345678' : ''}
+                      className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${
+                        fieldErrors[field.key]
+                          ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100'
+                          : 'border-stone-300 focus:border-primary-500 focus:ring-primary-100'
+                      }`}
+                    />
+                    {fieldErrors[field.key] && (
+                      <p className="mt-1 text-xs font-medium text-rose-600">This field is required</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <label className="mt-5 flex cursor-pointer items-center gap-2.5 text-sm font-medium">
+                <input type="checkbox" checked={sameAsShipping} onChange={e => setSameAsShipping(e.target.checked)} className="h-4 w-4 accent-primary-600" />
+                Billing address is the same as delivery
+              </label>
+
+              {!sameAsShipping && (
+                <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl bg-stone-50 p-4 sm:grid-cols-2">
+                  {(['name', 'line1', 'line2', 'city', 'state', 'postalCode'] as const).map(key => (
+                    <div key={key} className={key === 'line1' || key === 'name' ? 'sm:col-span-2' : ''}>
+                      <label className="mb-1 block text-sm font-medium capitalize text-stone-700">{key.replace(/([A-Z])/g, ' $1')}</label>
                       <input
-                        type="text"
-                        value={(shipping as any)[field.key] || ''}
-                        onChange={e => {
-                          setShipping({ ...shipping, [field.key]: e.target.value });
-                          setSelectedShippingId('');
-                          if (fieldErrors[field.key]) setFieldErrors(prev => ({ ...prev, [field.key]: false }));
-                        }}
-                        required={field.required}
-                        placeholder={field.key === 'phone' ? '+254 7XX XXX XXX' : ''}
-                        className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${
-                          fieldErrors[field.key]
-                            ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100'
-                            : 'border-stone-300 focus:border-primary-500 focus:ring-primary-100'
-                        }`}
+                        type="text" value={(billing as any)[key] || ''}
+                        onChange={e => setBilling({ ...billing, [key]: e.target.value })}
+                        className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                       />
-                      {fieldErrors[field.key] && (
-                        <p className="mt-1 text-xs font-medium text-rose-600">This field is required</p>
-                      )}
                     </div>
                   ))}
                 </div>
+              )}
+            </section>
+          </Reveal>
 
-                <label className="mt-5 flex cursor-pointer items-center gap-2.5 text-sm font-medium">
-                  <input type="checkbox" checked={sameAsShipping} onChange={e => setSameAsShipping(e.target.checked)} className="h-4 w-4 accent-primary-600" />
-                  Billing address is the same as delivery
-                </label>
-
-                {!sameAsShipping && (
-                  <div className="mt-4 space-y-3 rounded-xl bg-stone-50 p-4">
-                    {savedAddresses.length > 0 && (
-                      <div className="grid gap-2">
-                        {savedAddresses.map(addr => (
-                          <label key={addr.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-stone-200 bg-white p-2.5 transition-all hover:border-primary-300 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50/50">
-                            <input
-                              type="radio"
-                              name="savedBilling"
-                              checked={selectedBillingId === addr.id}
-                              onChange={() => {
-                                setSelectedBillingId(addr.id || '');
-                                applyAddress(addr, 'billing');
-                              }}
-                              className="accent-primary-600"
-                            />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm font-semibold">{addr.name}</p>
-                              <p className="truncate text-xs text-stone-500">{addr.line1}, {addr.city}</p>
-                            </div>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      {(['name', 'line1', 'line2', 'city', 'state', 'postalCode'] as const).map(key => (
-                        <div key={key} className={key === 'line1' || key === 'name' ? 'sm:col-span-2' : ''}>
-                          <label className="mb-1 block text-sm font-medium capitalize text-stone-700">{key.replace(/([A-Z])/g, ' $1')}</label>
-                          <input
-                            type="text" value={(billing as any)[key] || ''}
-                            onChange={e => { setBilling({ ...billing, [key]: e.target.value }); setSelectedBillingId(''); }}
-                            className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </section>
-            </Reveal>
-
-            <Reveal delay={90}>
-              <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
-                <h2 className="text-lg font-bold">Order notes</h2>
-                <textarea
-                  value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-                  placeholder="Gate code, preferred delivery time, gift note..."
-                  className="mt-4 w-full resize-none rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                />
-              </section>
-            </Reveal>
-          </div>
-
-          <aside className="lg:sticky lg:top-28 lg:self-start">
-            <Reveal delay={140}>
-              <SummaryCard cart={cart.items} subtotal={subtotal} shippingCost={shippingCost} tax={tax} total={total}>
-                <button onClick={handlePlaceOrder} disabled={loading}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60 disabled:hover:translate-y-0">
-                  {loading ? 'Placing order...' : 'Continue to payment'} {!loading && <FiArrowRight />}
-                </button>
-              </SummaryCard>
-            </Reveal>
-          </aside>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
-          <Reveal>
-            <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-8">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-bold">How would you like to pay?</h2>
-                  <p className="mt-1 text-sm text-stone-500">Order <span className="font-mono font-semibold">{orderNumber}</span> is reserved.</p>
-                </div>
-                <button onClick={() => setStep(1)} className="flex items-center gap-1 text-sm font-medium text-stone-500 hover:text-primary-600">
-                  <FiArrowLeft /> Edit details
-                </button>
-              </div>
+          <Reveal delay={80}>
+            <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
+              <h2 className="text-lg font-bold">How would you like to pay?</h2>
+              <p className="mt-1 text-sm text-stone-500">All payments are simulated in sandbox mode.</p>
 
               <p className="mt-3 flex items-center justify-center gap-2 rounded-full bg-amber-50 px-4 py-1.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
-                <FiLock className="h-3 w-3" /> Sandbox mode - payments are simulated, no real money moves
+                <FiLock className="h-3 w-3" /> Sandbox mode - no real money moves
               </p>
 
               {currency.code !== 'KES' && (
                 <p className="mt-2 text-center text-xs text-stone-500">
-                  Prices shown in {currency.code} are estimates - your payment is processed in Kenyan shillings (KES).
+                  Prices shown in {currency.code} are estimates - payment is processed in KES.
                 </p>
               )}
 
-              <div className="mt-6 grid gap-3">
+              <div className="mt-5 grid gap-3">
                 {[
                   { id: 'mpesa', label: 'M-Pesa', desc: 'STK push to your Safaricom line', icon: FiSmartphone, accent: 'text-emerald-600 bg-emerald-100' },
                   { id: 'airtel', label: 'Airtel Money', desc: 'PIN prompt on your Airtel line', icon: FiZap, accent: 'text-rose-600 bg-rose-100' },
@@ -565,60 +480,64 @@ export default function CheckoutPage() {
                   </p>
                 </div>
               )}
-
-              <button onClick={handlePayment} disabled={loading}
-                className="mt-6 w-full rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60 disabled:hover:translate-y-0">
-                {loading ? 'Processing...' : `Pay ${formatKES(total)}`}
-              </button>
-              <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-stone-400">
-                <FiLock className="h-3 w-3" /> Card details are handled by the gateway - never stored on our servers.
-              </p>
             </section>
           </Reveal>
 
-          <aside className="lg:sticky lg:top-28 lg:self-start">
-            <Reveal delay={100}>
-              <SummaryCard cart={cart.items} subtotal={subtotal} shippingCost={shippingCost} tax={tax} total={total} />
-            </Reveal>
-          </aside>
+          <Reveal delay={120}>
+            <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
+              <h2 className="text-lg font-bold">Order notes</h2>
+              <textarea
+                value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+                placeholder="Gate code, preferred delivery time, gift note..."
+                className="mt-4 w-full resize-none rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+              />
+            </section>
+          </Reveal>
         </div>
-      )}
+
+        <aside className="lg:sticky lg:top-28 lg:self-start">
+          <Reveal delay={140}>
+            <div className="rounded-2xl border border-stone-200/80 bg-white p-6">
+              <h2 className="text-lg font-bold">Your order</h2>
+              <ul className="mt-4 space-y-3">
+                {cart.items.map(item => (
+                  <li key={item.id} className="flex items-center gap-3">
+                    <span className="relative shrink-0 overflow-hidden rounded-lg bg-stone-100">
+                      {item.productImage && <img src={item.productImage} alt="" className="h-12 w-12 object-cover" />}
+                      <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] font-bold text-white">
+                        {item.quantity}
+                      </span>
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm">{item.productName}</span>
+                    <span className="text-sm font-semibold">{formatKES(item.lineTotal)}</span>
+                  </li>
+                ))}
+              </ul>
+              <dl className="mt-5 space-y-2.5 border-t border-stone-200 pt-4 text-sm">
+                <div className="flex justify-between"><dt className="text-stone-500">Subtotal</dt><dd className="font-semibold">{formatKES(subtotal)}</dd></div>
+                <div className="flex justify-between"><dt className="text-stone-500">Delivery</dt><dd className="font-semibold">{shippingCost === 0 ? 'Free' : formatKES(shippingCost)}</dd></div>
+                <div className="flex justify-between"><dt className="text-stone-500">VAT ({Math.round(config.commerce.taxRate * 100)}%)</dt><dd className="font-semibold">{formatKES(tax)}</dd></div>
+                <div className="flex justify-between border-t border-stone-200 pt-3">
+                  <dt className="text-base font-bold">Total</dt><dd className="text-xl font-extrabold">{formatKES(total)}</dd>
+                </div>
+              </dl>
+              <button onClick={handlePlaceOrder} disabled={loading}
+                className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60 disabled:hover:translate-y-0">
+                {loading ? (
+                  <><FiLoader className="h-4 w-4 animate-spin" /> Processing...</>
+                ) : (
+                  <>Pay {formatKES(total)} <FiArrowRight /></>
+                )}
+              </button>
+              <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-stone-400">
+                <FiLock className="h-3 w-3" /> Secure checkout - card details are never stored on our servers.
+              </p>
+            </div>
+          </Reveal>
+        </aside>
       </div>
     </div>
   );
 }
 
 const cardInputCls = 'w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100';
-
-function SummaryCard({ cart, subtotal, shippingCost, tax, total, children }: {
-  cart: any[]; subtotal: number; shippingCost: number; tax: number; total: number; children?: React.ReactNode;
-}) {
-  return (
-    <div className="rounded-2xl border border-stone-200/80 bg-white p-6">
-      <h2 className="text-lg font-bold">Your order</h2>
-      <ul className="mt-4 space-y-3">
-        {cart.map(item => (
-          <li key={item.id} className="flex items-center gap-3">
-            <span className="relative shrink-0 overflow-hidden rounded-lg bg-stone-100">
-              {item.productImage && <img src={item.productImage} alt="" className="h-12 w-12 object-cover" />}
-              <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] font-bold text-white">
-                {item.quantity}
-              </span>
-            </span>
-            <span className="min-w-0 flex-1 truncate text-sm">{item.productName}</span>
-            <span className="text-sm font-semibold">{formatKES(item.lineTotal)}</span>
-          </li>
-        ))}
-      </ul>
-      <dl className="mt-5 space-y-2.5 border-t border-stone-200 pt-4 text-sm">
-        <div className="flex justify-between"><dt className="text-stone-500">Subtotal</dt><dd className="font-semibold">{formatKES(subtotal)}</dd></div>
-        <div className="flex justify-between"><dt className="text-stone-500">Delivery</dt><dd className="font-semibold">{shippingCost === 0 ? 'Free' : formatKES(shippingCost)}</dd></div>
-        <div className="flex justify-between"><dt className="text-stone-500">VAT ({Math.round(config.commerce.taxRate * 100)}%)</dt><dd className="font-semibold">{formatKES(tax)}</dd></div>
-        <div className="flex justify-between border-t border-stone-200 pt-3">
-          <dt className="text-base font-bold">Total</dt><dd className="text-xl font-extrabold">{formatKES(total)}</dd>
-        </div>
-      </dl>
-      {children}
-    </div>
-  );
-}
