@@ -11,7 +11,7 @@ import Reveal from '@/components/ui/Reveal';
 import { Address } from '@/types';
 import {
   FiCheck, FiArrowLeft, FiArrowRight, FiShoppingBag,
-  FiSmartphone, FiCreditCard, FiLock, FiZap,
+  FiSmartphone, FiCreditCard, FiLock, FiZap, FiLoader,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
@@ -21,7 +21,7 @@ type PayMethod = 'mpesa' | 'airtel' | 'stripe' | 'flutterwave';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { cart, refreshCart, user } = useAuth();
+  const { cart, cartLoading, refreshCart, user } = useAuth();
   const { currency } = useCurrency();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -31,6 +31,10 @@ export default function CheckoutPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [card, setCard] = useState({ number: '', expiry: '', cvv: '', name: '' });
   const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
+
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
+  const [selectedShippingId, setSelectedShippingId] = useState<string>('');
+  const [selectedBillingId, setSelectedBillingId] = useState<string>('');
 
   const [shipping, setShipping] = useState<Address>({
     name: '', line1: '', line2: '', city: '', state: '', postalCode: '', country: config.commerce.defaultCountry, phone: '', type: 'SHIPPING',
@@ -46,39 +50,34 @@ export default function CheckoutPage() {
   const tax = Math.round(subtotal * config.commerce.taxRate);
   const total = subtotal + shippingCost + tax;
 
-  const [prefilled, setPrefilled] = useState(false);
-
   useEffect(() => {
-    if (prefilled || !user) return;
+    if (!user) return;
     auth.getAddresses().then(res => {
       const list: Address[] = res.data || [];
-      const preferred = list.find(a => a.isDefault) || list[0];
-      if (preferred) {
-        setShipping(prev => ({
-          ...prev,
-          name: prev.name || preferred.name || user.name || '',
-          line1: prev.line1 || preferred.line1 || '',
-          line2: prev.line2 || preferred.line2 || '',
-          city: prev.city || preferred.city || '',
-          state: prev.state || preferred.state || '',
-          postalCode: prev.postalCode || preferred.postalCode || '',
-          country: preferred.country || config.commerce.defaultCountry,
-          phone: prev.phone || preferred.phone || '',
-        }));
-        setBilling(prev => ({
-          ...prev,
-          name: prev.name || preferred.name || '',
-          line1: prev.line1 || preferred.line1 || '',
-          line2: prev.line2 || preferred.line2 || '',
-          city: prev.city || preferred.city || '',
-          state: prev.state || preferred.state || '',
-          postalCode: prev.postalCode || preferred.postalCode || '',
-          country: preferred.country || config.commerce.defaultCountry,
-        }));
+      setSavedAddresses(list);
+      if (list.length > 0) {
+        const preferred = list.find(a => a.isDefault) || list[0];
+        applyAddress(preferred, 'shipping');
+        setSelectedShippingId(preferred.id || '');
       }
-      setPrefilled(true);
-    }).catch(() => setPrefilled(true));
-  }, [user, prefilled]);
+    }).catch(() => {});
+  }, [user]);
+
+  const applyAddress = (addr: Address, target: 'shipping' | 'billing') => {
+    const mapped: Address = {
+      name: addr.name || '',
+      line1: addr.line1 || '',
+      line2: addr.line2 || '',
+      city: addr.city || '',
+      state: addr.state || '',
+      postalCode: addr.postalCode || '',
+      country: addr.country || config.commerce.defaultCountry,
+      phone: addr.phone || '',
+      type: target === 'shipping' ? 'SHIPPING' : 'BILLING',
+    };
+    if (target === 'shipping') setShipping(mapped);
+    else setBilling(mapped);
+  };
 
   const REQUIRED_FIELDS: { key: keyof Address; label: string }[] = [
     { key: 'name', label: 'Full name' },
@@ -93,7 +92,7 @@ export default function CheckoutPage() {
 
   const validateAddress = (): boolean => {
     const errors: Record<string, boolean> = {};
-    for (const { key, label } of REQUIRED_FIELDS) {
+    for (const { key } of REQUIRED_FIELDS) {
       if (!String(shipping[key as keyof Address] || '').trim()) {
         errors[key as string] = true;
       }
@@ -121,7 +120,6 @@ export default function CheckoutPage() {
     setFieldErrors({});
     return true;
   };
-
 
   const validateCard = (): boolean => {
     if (paymentMethod !== 'stripe' && paymentMethod !== 'flutterwave') return true;
@@ -163,7 +161,7 @@ export default function CheckoutPage() {
     try {
       const res = await orders.checkout({
         shippingAddress: { ...shipping, type: 'SHIPPING' },
-        billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : billing,
+        billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : { ...billing, type: 'BILLING' },
         notes,
       });
       if (res.data) {
@@ -245,6 +243,15 @@ export default function CheckoutPage() {
     setLoading(false);
   };
 
+  if (cartLoading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-24 text-center">
+        <FiLoader className="mx-auto h-8 w-8 animate-spin text-primary-600" />
+        <p className="mt-4 text-stone-500">Loading your cart...</p>
+      </div>
+    );
+  }
+
   if (!cart || cart.items.length === 0) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-24 text-center">
@@ -287,6 +294,42 @@ export default function CheckoutPage() {
             <Reveal>
               <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
                 <h2 className="text-lg font-bold">Delivery address</h2>
+
+                {savedAddresses.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-sm font-medium text-stone-600">Use a saved address:</p>
+                    <div className="grid gap-2">
+                      {savedAddresses.map(addr => (
+                        <label key={addr.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-stone-200 p-3 transition-all hover:border-primary-300 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50/50">
+                          <input
+                            type="radio"
+                            name="savedShipping"
+                            checked={selectedShippingId === addr.id}
+                            onChange={() => {
+                              setSelectedShippingId(addr.id || '');
+                              applyAddress(addr, 'shipping');
+                              if (sameAsShipping) {
+                                setSelectedBillingId(addr.id || '');
+                              }
+                            }}
+                            className="accent-primary-600"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold">{addr.name}</p>
+                            <p className="truncate text-xs text-stone-500">{addr.line1}, {addr.city}, {addr.country}</p>
+                          </div>
+                          {addr.isDefault && <span className="shrink-0 rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">Default</span>}
+                        </label>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-stone-400">
+                      <span className="h-px flex-1 bg-stone-200" />
+                      <span>or enter a new address below</span>
+                      <span className="h-px flex-1 bg-stone-200" />
+                    </div>
+                  </div>
+                )}
+
                 <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                   {([
                     { label: 'Full name', key: 'name', required: true, span: true },
@@ -306,6 +349,7 @@ export default function CheckoutPage() {
                         value={(shipping as any)[field.key] || ''}
                         onChange={e => {
                           setShipping({ ...shipping, [field.key]: e.target.value });
+                          setSelectedShippingId('');
                           if (fieldErrors[field.key]) setFieldErrors(prev => ({ ...prev, [field.key]: false }));
                         }}
                         required={field.required}
@@ -329,17 +373,41 @@ export default function CheckoutPage() {
                 </label>
 
                 {!sameAsShipping && (
-                  <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl bg-stone-50 p-4 sm:grid-cols-2">
-                    {(['name', 'line1', 'line2', 'city', 'state', 'postalCode'] as const).map(key => (
-                      <div key={key} className={key === 'line1' || key === 'name' ? 'sm:col-span-2' : ''}>
-                        <label className="mb-1 block text-sm font-medium capitalize text-stone-700">{key.replace(/([A-Z])/g, ' $1')}</label>
-                        <input
-                          type="text" value={(billing as any)[key] || ''}
-                          onChange={e => setBilling({ ...billing, [key]: e.target.value })}
-                          className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                        />
+                  <div className="mt-4 space-y-3 rounded-xl bg-stone-50 p-4">
+                    {savedAddresses.length > 0 && (
+                      <div className="grid gap-2">
+                        {savedAddresses.map(addr => (
+                          <label key={addr.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-stone-200 bg-white p-2.5 transition-all hover:border-primary-300 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50/50">
+                            <input
+                              type="radio"
+                              name="savedBilling"
+                              checked={selectedBillingId === addr.id}
+                              onChange={() => {
+                                setSelectedBillingId(addr.id || '');
+                                applyAddress(addr, 'billing');
+                              }}
+                              className="accent-primary-600"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold">{addr.name}</p>
+                              <p className="truncate text-xs text-stone-500">{addr.line1}, {addr.city}</p>
+                            </div>
+                          </label>
+                        ))}
                       </div>
-                    ))}
+                    )}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      {(['name', 'line1', 'line2', 'city', 'state', 'postalCode'] as const).map(key => (
+                        <div key={key} className={key === 'line1' || key === 'name' ? 'sm:col-span-2' : ''}>
+                          <label className="mb-1 block text-sm font-medium capitalize text-stone-700">{key.replace(/([A-Z])/g, ' $1')}</label>
+                          <input
+                            type="text" value={(billing as any)[key] || ''}
+                            onChange={e => { setBilling({ ...billing, [key]: e.target.value }); setSelectedBillingId(''); }}
+                            className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </section>
@@ -419,7 +487,6 @@ export default function CheckoutPage() {
                   </label>
                 ))}
               </div>
-
 
               {(paymentMethod === 'stripe' || paymentMethod === 'flutterwave') && (
                 <div className="mt-5 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">

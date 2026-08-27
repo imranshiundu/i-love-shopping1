@@ -1,5 +1,5 @@
 'use client';
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { auth as authApi, cart as cartRest, setAccessToken } from '@/services/api';
 import { User, Cart } from '@/types';
 
@@ -11,6 +11,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   cart: Cart | null;
+  cartLoading: boolean;
   refreshCart: () => Promise<void>;
   addToCart: (productId: string, quantity: number) => Promise<void>;
   cartCount: number;
@@ -22,12 +23,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<Cart | null>(null);
+  const [cartLoading, setCartLoading] = useState(true);
+  const hydrated = useRef(false);
 
   const refreshCart = useCallback(async () => {
     try {
       const res = await cartRest.get();
       setCart(res.data ?? null);
     } catch { setCart(null); }
+    setCartLoading(false);
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -38,18 +42,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const init = async () => {
+    if (hydrated.current) return;
+    hydrated.current = true;
+
+    // 1. Set loading false immediately — don't block UI
+    setLoading(false);
+
+    // 2. Hydrate session + cart in background (non-blocking)
+    (async () => {
       try {
         const tokenRes = await authApi.refresh();
         if (tokenRes.data?.accessToken) {
           setAccessToken(tokenRes.data.accessToken);
           setUser(tokenRes.data.user);
         }
-      } catch { /* not logged in */ }
-      await refreshCart();
-      setLoading(false);
-    };
-    init();
+      } catch { /* not logged in — that's fine */ }
+      // Load cart regardless of auth state
+      refreshCart();
+    })();
   }, [refreshCart]);
 
   const login = async (email: string, password: string) => {
@@ -83,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshCart]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, cart, refreshCart, addToCart, cartCount: cart?.totalItems || 0 }}>
+    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, cart, cartLoading, refreshCart, addToCart, cartCount: cart?.totalItems || 0 }}>
       {children}
     </AuthContext.Provider>
   );
