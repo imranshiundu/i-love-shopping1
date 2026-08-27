@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Dev scripts now auto-start Docker Desktop (macOS/Windows) or the Docker
   service (Linux) when the daemon is not running, instead of just erroring
+- Dev scripts now auto-install Java 21, Maven and Node.js 18+ when missing
+  (via Homebrew on macOS, Chocolatey on Windows, apt/dnf on Linux)
+- `--auto` flag for unattended setup: runs option 2 with no prompts
+- `--stop` flag to cleanly shut down all services and containers
+- `.env` file auto-created from `.env.example` with generated JWT secrets
 - Node.js version check tightened to 18+ (was too lenient)
 - Multi-currency display: header selector with KES (base), USD, EUR, GBP,
   TZS, UGX and ZAR; rates configurable via NEXT_PUBLIC_CURRENCY_RATES;
