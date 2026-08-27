@@ -1,6 +1,7 @@
 package com.iloveshopping.dto.user;
 
 import com.iloveshopping.entity.Address;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -48,5 +49,6 @@ public class AddressRequest {
     @Size(max = 20, message = "Phone must not exceed 20 characters")
     private String phone;
 
+    @JsonProperty("isDefault")
     private boolean isDefault;
 }

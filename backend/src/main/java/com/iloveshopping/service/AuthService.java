@@ -56,8 +56,9 @@ public class AuthService {
 
         String passwordHash = passwordEncoder.encode(request.getPassword());
 
-        // In dev mode (captcha secret = dev-test-secret), auto-verify email
-        boolean devMode = "dev-test-secret".equals(recaptchaProperties.getSecretKey());
+        // In dev mode (captcha secret is not a real Google key), auto-verify email
+        String secretKey = recaptchaProperties.getSecretKey();
+        boolean devMode = secretKey == null || secretKey.isBlank() || "test-secret".equals(secretKey) || "dev-test-secret".equals(secretKey);
         LocalDateTime emailVerified = devMode ? LocalDateTime.now() : null;
 
         User user = User.builder()
@@ -119,7 +120,8 @@ public class AuthService {
         }
 
         // In dev mode, skip email verification check
-        boolean devMode = "dev-test-secret".equals(recaptchaProperties.getSecretKey());
+        String loginSecretKey = recaptchaProperties.getSecretKey();
+        boolean devMode = loginSecretKey == null || loginSecretKey.isBlank() || "test-secret".equals(loginSecretKey) || "dev-test-secret".equals(loginSecretKey);
         if (user.getEmailVerified() == null && !devMode) {
             throw AuthenticationException.accountNotVerified();
         }

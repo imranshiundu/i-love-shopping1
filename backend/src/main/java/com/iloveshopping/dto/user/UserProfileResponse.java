@@ -2,6 +2,7 @@ package com.iloveshopping.dto.user;
 
 import com.iloveshopping.entity.User;
 import com.iloveshopping.entity.Address;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -57,6 +58,7 @@ public class UserProfileResponse {
         private String postalCode;
         private String country;
         private String phone;
+        @JsonProperty("isDefault")
         private boolean isDefault;
 
         public static AddressResponse from(Address address) {
