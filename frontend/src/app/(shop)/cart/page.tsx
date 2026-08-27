@@ -7,11 +7,11 @@ import { config } from '@/lib/config';
 import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
 import ProductCard from '@/components/product/ProductCard';
-import { FiTrash2, FiMinus, FiPlus, FiShoppingBag, FiArrowRight, FiTruck } from 'react-icons/fi';
+import { FiTrash2, FiMinus, FiPlus, FiShoppingBag, FiArrowRight, FiTruck, FiLoader } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
 export default function CartPage() {
-  const { cart, refreshCart, addToCart } = useAuth();
+  const { cart, cartLoading, refreshCart, addToCart } = useAuth();
   const [updating, setUpdating] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
 
@@ -37,6 +37,15 @@ export default function CartPage() {
     catch (e: any) { toast.error(e.message); }
     setUpdating(null);
   };
+
+  if (cartLoading) {
+    return (
+      <div className="mx-auto max-w-7xl px-4 py-24 text-center">
+        <FiLoader className="mx-auto h-8 w-8 animate-spin text-primary-600" />
+        <p className="mt-4 text-stone-500">Loading your cart...</p>
+      </div>
+    );
+  }
 
   if (!cart || cart.items.length === 0) {
     return (
