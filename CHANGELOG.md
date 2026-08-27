@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Dev scripts now auto-start Docker Desktop (macOS/Windows) or the Docker
+  service (Linux) when the daemon is not running, instead of just erroring
+- Node.js version check tightened to 18+ (was too lenient)
 - Multi-currency display: header selector with KES (base), USD, EUR, GBP,
   TZS, UGX and ZAR; rates configurable via NEXT_PUBLIC_CURRENCY_RATES;
   checkout states clearly that payments settle in KES

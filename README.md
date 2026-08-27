@@ -423,7 +423,7 @@ These go beyond the core requirements - added for real-world polish:
 - **Offers engine** - launch bulk percentage promotions scoped to everything, a category or a brand, with live-offers tracking and one-click end-all.
 - **User account dashboard** - KPI cards, recent orders, quick actions; profile and security live under Settings.
 - **Guest checkout end-to-end** - visitors can buy without an account; orders attach to their session cart cookie.
-- **Port-conflict-aware dev script** - every service auto-shifts to the next free port when defaults are taken.
+- **Port-conflict-aware dev script** - every service auto-shifts to the next free port when defaults are taken. Docker daemon auto-starts on macOS, Windows and Linux if it is not already running.
 
 ## Prerequisites
 
