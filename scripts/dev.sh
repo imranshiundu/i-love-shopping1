@@ -49,7 +49,27 @@ check_docker() {
     have docker || die "Docker is still missing. Install it manually and run this script again."
   fi
   if ! docker info >/dev/null 2>&1; then
-    die "The Docker daemon is not running. Start Docker Desktop (or the docker service) and run this script again."
+    warn "Docker daemon is not running — attempting to start Docker..."
+    if [ "$OS" = "mac" ]; then
+      open -a Docker 2>/dev/null || open /Applications/Docker.app 2>/dev/null || true
+    elif [ "$OS" = "win" ]; then
+      start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe" 2>/dev/null || true
+    else
+      sudo systemctl start docker 2>/dev/null || sudo service docker start 2>/dev/null || true
+    fi
+    log "Waiting for Docker daemon to start..."
+    local _retries=0
+    while ! docker info >/dev/null 2>&1; do
+      _retries=$((_retries + 1))
+      if [ "$_retries" -ge 60 ]; then
+        die "Docker daemon did not start in time.
+  On macOS: open Docker Desktop and wait for the whale icon to stop animating.
+  On Linux:  sudo systemctl start docker
+  Then re-run this script."
+      fi
+      sleep 1
+    done
+    ok "Docker daemon is running."
   fi
   if docker compose version >/dev/null 2>&1; then
     COMPOSE=(docker compose)
@@ -104,7 +124,7 @@ check_maven() {
 }
 
 check_node() {
-  if have node && node -v 2>/dev/null | grep -qE 'v2[0-9]+'; then
+  if have node && node -v 2>/dev/null | grep -qE 'v(1[89]|2[0-9]|3[0-9])'; then
     ok "Node.js found: $(node -v)"
   else
     warn "Node.js is required for the frontend. Attempting to install it..."

@@ -1,8 +1,0 @@
-⚠ This file is deprecated — use the platform setup scripts instead:
-
-  Linux / macOS:  chmod +x setup.sh && ./setup.sh
-  Windows:        Double-click setup.bat  (or run from PowerShell)
-
-  To stop everything:
-  Linux / macOS:  ./setup.sh stop
-  Windows:        setup.bat stop

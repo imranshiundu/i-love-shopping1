@@ -16,8 +16,23 @@ if errorlevel 1 (
 )
 docker info >nul 2>&1
 if errorlevel 1 (
-  echo [i-love-shopping] The Docker daemon is not running. Start Docker Desktop and run this script again.
-  exit /b 1
+  echo [i-love-shopping] Docker daemon is not running — attempting to start Docker Desktop...
+  start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe" 2>nul
+  echo [i-love-shopping] Waiting for Docker daemon to start...
+  set /a _dretries=0
+  :wait_docker_start
+  docker info >nul 2>&1
+  if not errorlevel 1 goto docker_running
+  set /a _dretries+=1
+  if !_dretries! gtr 60 (
+    echo [i-love-shopping] Docker daemon did not start in time.
+    echo [i-love-shopping] Open Docker Desktop manually, wait for the whale icon, then re-run this script.
+    exit /b 1
+  )
+  timeout /t 1 /nobreak >nul
+  goto wait_docker_start
+  :docker_running
+  echo [i-love-shopping] Docker daemon is running.
 )
 docker compose version >nul 2>&1
 if errorlevel 1 (
@@ -30,7 +45,12 @@ if errorlevel 1 (
 )
 where node >nul 2>&1
 if errorlevel 1 (
-  echo [i-love-shopping] Node.js is not installed. Install Node.js 20+ from https://nodejs.org and run this script again.
+  echo [i-love-shopping] Node.js is not installed. Install Node.js 18+ from https://nodejs.org and run this script again.
+  exit /b 1
+)
+for /f "tokens=1 delims=v." %%a in ('node --version 2^>nul') do set "NODE_MAJOR=%%a"
+if !NODE_MAJOR! lss 18 (
+  echo [i-love-shopping] Node.js version is too old (found v!NODE_MAJOR!, need 18+^). Update from https://nodejs.org
   exit /b 1
 )
 echo [i-love-shopping] Docker, Docker Compose and Node.js are ready.
