@@ -1,6 +1,7 @@
 package com.iloveshopping.service;
 
 import com.iloveshopping.config.JwtProperties;
+import com.iloveshopping.config.RecaptchaProperties;
 import com.iloveshopping.config.TwoFactorConfig;
 import com.iloveshopping.dto.auth.*;
 import com.iloveshopping.dto.user.ChangePasswordRequest;
@@ -38,6 +39,7 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final PasswordEncoder passwordEncoder;
     private final CaptchaUtil captchaUtil;
+    private final RecaptchaProperties recaptchaProperties;
     private final EmailService emailService;
 
     @Transactional
@@ -53,29 +55,50 @@ public class AuthService {
         }
 
         String passwordHash = passwordEncoder.encode(request.getPassword());
+
+        // In dev mode (captcha secret = dev-test-secret), auto-verify email
+        boolean devMode = "dev-test-secret".equals(recaptchaProperties.getSecretKey());
+        LocalDateTime emailVerified = devMode ? LocalDateTime.now() : null;
+
         User user = User.builder()
                 .email(request.getEmail().toLowerCase())
                 .passwordHash(passwordHash)
                 .name(request.getName())
-                .emailVerified(null)
+                .emailVerified(emailVerified)
                 .twoFactorEnabled(false)
                 .roles(Set.of(User.Role.USER))
                 .build();
 
         userRepository.save(user);
 
-        String verificationToken = UUID.randomUUID().toString();
-        emailService.sendVerificationEmail(user.getEmail(), verificationToken);
+        if (!devMode) {
+            String verificationToken = UUID.randomUUID().toString();
+            emailService.sendVerificationEmail(user.getEmail(), verificationToken);
+        }
 
-        log.info("User registered successfully: {}", user.getEmail());
+        log.info("User registered successfully: {} (emailVerified={})", user.getEmail(), emailVerified != null);
+
+        // Generate tokens so user can log in immediately
+        String sessionId = UUID.randomUUID().toString();
+        String accessToken = jwtService.generateAccessToken(user, sessionId);
+        String refreshToken = jwtService.generateRefreshToken(user, sessionId);
+        String refreshTokenHash = passwordEncoder.encode(refreshToken);
+
+        Session session = Session.builder()
+                .id(sessionId)
+                .user(user)
+                .refreshTokenHash(refreshTokenHash)
+                .expiresAt(LocalDateTime.now().plusDays(jwtProperties.getRefreshExpiryDays()))
+                .build();
+        sessionRepository.save(session);
 
         return AuthResponse.builder()
-                .accessToken(null)
-                .refreshToken(null)
-                .expiresIn(0)
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .expiresIn(jwtProperties.getAccessExpiryMinutes() * 60)
                 .user(AuthResponse.UserDto.from(user))
                 .twoFactorRequired(false)
-                .message("Registration successful. Check your email for verification.")
+                .message(devMode ? "Registration successful." : "Registration successful. Check your email for verification.")
                 .build();
     }
 
@@ -95,8 +118,17 @@ public class AuthService {
             throw AuthenticationException.invalidCredentials();
         }
 
-        if (user.getEmailVerified() == null) {
+        // In dev mode, skip email verification check
+        boolean devMode = "dev-test-secret".equals(recaptchaProperties.getSecretKey());
+        if (user.getEmailVerified() == null && !devMode) {
             throw AuthenticationException.accountNotVerified();
+        }
+
+        // Auto-verify in dev mode
+        if (user.getEmailVerified() == null && devMode) {
+            user.setEmailVerified(LocalDateTime.now());
+            userRepository.save(user);
+            log.info("Auto-verified email in dev mode for: {}", user.getEmail());
         }
 
         if (user.getTwoFactorEnabled()) {

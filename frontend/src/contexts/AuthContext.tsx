@@ -62,7 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (email: string, password: string, name: string) => {
-    await authApi.register(email, password, name, 'dev-token');
+    const res = await authApi.register(email, password, name, 'dev-bypass-token');
+    if (res.data?.accessToken) {
+      setAccessToken(res.data.accessToken);
+      setUser(res.data.user);
+      await refreshCart();
+    }
   };
 
   const logout = async () => {
