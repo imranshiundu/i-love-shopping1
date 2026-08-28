@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { auth as authApi, cart as cartRest, setAccessToken } from '@/services/api';
+import { auth as authApi, cart as cartRest, setAccessToken, setRefreshToken } from '@/services/api';
 import { User, Cart } from '@/types';
 
 interface AuthContextType {
@@ -54,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const tokenRes = await authApi.refresh();
         if (tokenRes.data?.accessToken) {
           setAccessToken(tokenRes.data.accessToken);
+          if (tokenRes.data.refreshToken) setRefreshToken(tokenRes.data.refreshToken);
           setUser(tokenRes.data.user);
         }
       } catch { /* not logged in — that's fine */ }
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.login(email, password);
     if (res.data?.accessToken) {
       setAccessToken(res.data.accessToken);
+      if (res.data.refreshToken) setRefreshToken(res.data.refreshToken);
       setUser(res.data.user);
       await refreshCart();
     }
@@ -75,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const res = await authApi.register(email, password, name, 'dev-bypass-token');
     if (res.data?.accessToken) {
       setAccessToken(res.data.accessToken);
+      if (res.data.refreshToken) setRefreshToken(res.data.refreshToken);
       setUser(res.data.user);
       await refreshCart();
     }
@@ -83,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try { await authApi.logout(); } catch { /* ok */ }
     setAccessToken(null);
+    setRefreshToken(null);
     setUser(null);
     setCart(null);
   };

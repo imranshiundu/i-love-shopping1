@@ -4,9 +4,12 @@ import { config } from '@/lib/config';
 const API_URL = config.api.baseUrl;
 
 let accessToken: string | null = null;
+let refreshToken: string | null = null;
 
 export function setAccessToken(token: string | null) { accessToken = token; }
 export function getAccessToken() { return accessToken; }
+export function setRefreshToken(token: string | null) { refreshToken = token; }
+export function getRefreshToken() { return refreshToken; }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...((options.headers as Record<string, string>) || {}) };
@@ -34,7 +37,11 @@ export const auth = {
     request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name, captchaToken }) }),
   login: (email: string, password: string, rememberMe = false, twoFactorCode?: string) =>
     request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, rememberMe, twoFactorCode }) }),
-  refresh: () => request<AuthResponse>('/auth/refresh', { method: 'POST' }),
+  refresh: () => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (refreshToken) headers['X-Refresh-Token'] = refreshToken;
+    return request<AuthResponse>('/auth/refresh', { method: 'POST', headers });
+  },
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   forgotPassword: (email: string) => request<void>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (token: string, newPassword: string) => request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
