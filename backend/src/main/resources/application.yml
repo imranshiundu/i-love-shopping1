@@ -119,13 +119,12 @@ security:
 
 mpesa:
   environment: ${MPESA_ENVIRONMENT:sandbox}
-  simulation-enabled: ${MPESA_SIMULATION_ENABLED:true}
-  consumer-key: ${MPESA_CONSUMER_KEY:}
-  consumer-secret: ${MPESA_CONSUMER_SECRET:}
+  consumer-key: ${MPESA_CONSUMER_KEY:o6tPhH5EoSsGmtLZAG4yMT7b2GQp9e87X3h4T6dk0DuZh2aU}
+  consumer-secret: ${MPESA_CONSUMER_SECRET:LgJ5V6tShu5SCA9nhcyAA8qrkuq3nHUsbQdmCDRinBIPmjGEY2hVmxoqi28XSdPE}
   shortcode: ${MPESA_SHORTCODE:174379}
-  passkey: ${MPESA_PASSKEY:}
-  callback-url: ${MPESA_CALLBACK_URL:http://localhost:8080/api/v1/payments/mpesa/callback}
-  timeout-url: ${MPESA_TIMEOUT_URL:http://localhost:8080/api/v1/payments/mpesa/timeout}
+  passkey: ${MPESA_PASSKEY:bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919}
+  callback-url: ${MPESA_CALLBACK_URL:http://localhost:8080/api/v1/orders/payments/mpesa/callback}
+  timeout-url: ${MPESA_TIMEOUT_URL:http://localhost:8080/api/v1/orders/payments/mpesa/timeout}
   base-url: ${MPESA_BASE_URL:https://sandbox.safaricom.co.ke}
 
 spring.rabbitmq:
@@ -211,15 +210,6 @@ security:
   recaptcha:
     secret-key: test-secret
     site-key: test-site-key
-
-mpesa:
-  environment: sandbox
-  consumer-key: test
-  consumer-secret: test
-  shortcode: 174379
-  passkey: test-passkey
-  callback-url: http://localhost:8080/api/v1/payments/mpesa/callback
-  base-url: https://sandbox.safaricom.co.ke
 
 logging:
   level:

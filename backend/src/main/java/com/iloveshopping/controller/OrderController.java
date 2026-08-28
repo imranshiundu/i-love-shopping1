@@ -6,14 +6,12 @@ import com.iloveshopping.dto.order.OrderResponse;
 import com.iloveshopping.dto.payment.MpesaStkPushRequest;
 import com.iloveshopping.dto.payment.MpesaStkPushResponse;
 import com.iloveshopping.dto.payment.PaymentResponse;
-import com.iloveshopping.entity.Order;
 import com.iloveshopping.service.OrderService;
 import com.iloveshopping.service.PaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -66,8 +64,6 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success(order));
     }
 
-    // ===== Payment endpoints =====
-
     @PostMapping("/payments/mpesa/stk-push")
     @Operation(summary = "Initiate M-Pesa STK Push payment")
     public ResponseEntity<ApiResponse<MpesaStkPushResponse>> initiateMpesaPayment(
@@ -79,9 +75,7 @@ public class OrderController {
 
     @PostMapping("/payments/mpesa/callback")
     @Operation(summary = "M-Pesa payment callback (Daraja)")
-    public ResponseEntity<Void> mpesaCallback(
-            @RequestBody String callbackBody) {
-
+    public ResponseEntity<Void> mpesaCallback(@RequestBody String callbackBody) {
         paymentService.processMpesaCallback(callbackBody);
         return ResponseEntity.ok().build();
     }

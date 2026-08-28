@@ -7,6 +7,8 @@ import com.iloveshopping.entity.Payment;
 import com.iloveshopping.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,14 @@ public class PaymentService {
         mpesaService.processMpesaTimeout(timeoutBody);
     }
 
+    public MpesaStkPushResponse queryStkStatus(String checkoutRequestId) {
+        return mpesaService.queryStkPushStatus(checkoutRequestId);
+    }
+
+    public PaymentResponse getPaymentByCheckoutRequestId(String checkoutRequestId) {
+        return mpesaService.getPaymentByCheckoutRequestId(checkoutRequestId);
+    }
+
     public List<PaymentResponse> getOrderPayments(String orderNumber) {
         return mpesaService.getOrderPayments(orderNumber);
     }
@@ -43,7 +53,14 @@ public class PaymentService {
         return mpesaService.retryPayment(orderNumber);
     }
 
-    public String getPaymentStatus(String checkoutRequestId) {
-        return mpesaService.getPaymentStatus(checkoutRequestId);
+    public Page<PaymentResponse> getUserPayments(int page, int size) {
+        return paymentRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
+                .map(PaymentResponse::from);
+    }
+
+    public PaymentResponse getPaymentById(String paymentId) {
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new com.iloveshopping.exception.ResourceNotFoundException("Payment", "id", paymentId));
+        return PaymentResponse.from(payment);
     }
 }
