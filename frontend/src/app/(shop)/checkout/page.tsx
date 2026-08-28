@@ -11,11 +11,11 @@ import Reveal from '@/components/ui/Reveal';
 import { Address } from '@/types';
 import {
   FiCheck, FiArrowRight, FiShoppingBag,
-  FiSmartphone, FiLock, FiLoader, FiClock, FiAlertCircle, FiCheckCircle,
+  FiSmartphone, FiCreditCard, FiLock, FiLoader, FiAlertCircle, FiCheckCircle,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-type PayMethod = 'mpesa';
+type PayMethod = 'mpesa' | 'stripe' | 'flutterwave';
 type StkStatus = 'idle' | 'sending' | 'waiting_pin' | 'polling' | 'success' | 'failed' | 'cancelled';
 
 const STK_POLL_INTERVAL_MS = 3000;
@@ -26,8 +26,10 @@ export default function CheckoutPage() {
   const { cart, cartLoading, refreshCart, user } = useAuth();
   const { currency } = useCurrency();
   const [loading, setLoading] = useState(false);
-  const [paymentMethod] = useState<PayMethod>('mpesa');
+  const [paymentMethod, setPaymentMethod] = useState<PayMethod>('mpesa');
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [card, setCard] = useState({ number: '', expiry: '', cvv: '', name: '' });
+  const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
   const [stkStatus, setStkStatus] = useState<StkStatus>('idle');
   const [stkMessage, setStkMessage] = useState('');
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -66,34 +68,23 @@ export default function CheckoutPage() {
   }, [user]);
 
   useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
   const applyAddress = (addr: Address, target: 'shipping' | 'billing') => {
     const mapped: Address = {
-      name: addr.name || '',
-      line1: addr.line1 || '',
-      line2: addr.line2 || '',
-      city: addr.city || '',
-      state: addr.state || '',
-      postalCode: addr.postalCode || '',
-      country: addr.country || config.commerce.defaultCountry,
-      phone: addr.phone || '',
+      name: addr.name || '', line1: addr.line1 || '', line2: addr.line2 || '',
+      city: addr.city || '', state: addr.state || '', postalCode: addr.postalCode || '',
+      country: addr.country || config.commerce.defaultCountry, phone: addr.phone || '',
       type: target === 'shipping' ? 'SHIPPING' : 'BILLING',
     };
-    if (target === 'shipping') setShipping(mapped);
-    else setBilling(mapped);
+    if (target === 'shipping') setShipping(mapped); else setBilling(mapped);
   };
 
   const REQUIRED_FIELDS: { key: keyof Address; label: string }[] = [
-    { key: 'name', label: 'Full name' },
-    { key: 'line1', label: 'Address line 1' },
-    { key: 'city', label: 'City / Town' },
-    { key: 'state', label: 'County / State' },
-    { key: 'postalCode', label: 'Postal code' },
-    { key: 'phone', label: 'Phone number' },
+    { key: 'name', label: 'Full name' }, { key: 'line1', label: 'Address line 1' },
+    { key: 'city', label: 'City / Town' }, { key: 'state', label: 'County / State' },
+    { key: 'postalCode', label: 'Postal code' }, { key: 'phone', label: 'Phone number' },
   ];
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
@@ -101,28 +92,17 @@ export default function CheckoutPage() {
   const validateAddress = (): boolean => {
     const errors: Record<string, boolean> = {};
     for (const { key } of REQUIRED_FIELDS) {
-      if (!String(shipping[key as keyof Address] || '').trim()) {
-        errors[key as string] = true;
-      }
+      if (!String(shipping[key as keyof Address] || '').trim()) errors[key as string] = true;
     }
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      const first = Object.keys(errors)[0];
-      toast.error(`Please fill in ${REQUIRED_FIELDS.find(f => f.key === first)?.label}`);
+      toast.error(`Please fill in ${REQUIRED_FIELDS.find(f => f.key === Object.keys(errors)[0])?.label}`);
       return false;
     }
-    const digits = (shipping.phone || '').replace(/\D/g, '');
-    if (digits.length < 9) {
-      setFieldErrors({ phone: true });
-      toast.error('Enter a valid phone number');
-      return false;
-    }
+    if ((shipping.phone || '').replace(/\D/g, '').length < 9) { toast.error('Enter a valid phone number'); return false; }
     if (!sameAsShipping) {
       for (const { key, label } of REQUIRED_FIELDS.filter(f => f.key !== 'phone')) {
-        if (!String(billing[key as keyof Address] || '').trim()) {
-          toast.error(`Billing address is missing ${label}`);
-          return false;
-        }
+        if (!String(billing[key as keyof Address] || '').trim()) { toast.error(`Billing address is missing ${label}`); return false; }
       }
     }
     setFieldErrors({});
@@ -131,76 +111,68 @@ export default function CheckoutPage() {
 
   const validatePayment = (): boolean => {
     if (paymentMethod === 'mpesa') {
-      if (!phoneNumber) {
-        toast.error('Enter your M-Pesa phone number');
-        return false;
+      if (!phoneNumber) { toast.error('Enter your M-Pesa phone number'); return false; }
+      if (phoneNumber.replace(/\D/g, '').length < 9) { toast.error('Enter a valid phone number'); return false; }
+      return true;
+    }
+    if (paymentMethod === 'stripe' || paymentMethod === 'flutterwave') {
+      const errs: Record<string, string> = {};
+      const digits = card.number.replace(/\D/g, '');
+      if (digits.length < 13 || digits.length > 19) errs.number = 'Enter a valid card number';
+      else {
+        let sum = 0, dbl = false;
+        for (let i = digits.length - 1; i >= 0; i--) {
+          let d = parseInt(digits[i], 10);
+          if (dbl) { d *= 2; if (d > 9) d -= 9; }
+          sum += d; dbl = !dbl;
+        }
+        if (sum % 10 !== 0) errs.number = 'This card number is invalid';
       }
-      const digits = phoneNumber.replace(/\D/g, '');
-      if (digits.length < 9) {
-        toast.error('Enter a valid phone number');
-        return false;
-      }
+      const m = card.expiry.trim().match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2})$/);
+      if (!m) errs.expiry = 'Use MM/YY';
+      else { const exp = new Date(2000 + parseInt(m[2], 10), parseInt(m[1], 10), 1); if (exp <= new Date()) errs.expiry = 'Expired'; }
+      if (!/^\d{3,4}$/.test(card.cvv.trim())) errs.cvv = '3 or 4 digits';
+      if (!card.name.trim()) errs.name = 'Name on card is required';
+      setCardErrors(errs);
+      if (Object.keys(errs).length > 0) { toast.error('Check your card details'); return false; }
       return true;
     }
     return true;
   };
 
-  const startPolling = useCallback((checkoutRequestId: string) => {
+  const startMpesaPolling = useCallback((checkoutRequestId: string) => {
     pollCountRef.current = 0;
     checkoutRequestIdRef.current = checkoutRequestId;
     setStkStatus('polling');
     setStkMessage('Waiting for M-Pesa confirmation...');
-
     if (pollRef.current) clearInterval(pollRef.current);
 
     pollRef.current = setInterval(async () => {
       pollCountRef.current += 1;
-
       if (pollCountRef.current > STK_POLL_MAX_ATTEMPTS) {
         if (pollRef.current) clearInterval(pollRef.current);
-        setStkStatus('failed');
-        setStkMessage('Payment timed out. Please try again.');
-        toast.error('Payment timed out');
-        return;
+        setStkStatus('failed'); setStkMessage('Payment timed out.'); toast.error('Payment timed out'); return;
       }
-
       try {
         const result = await payments.mpesaStkQuery(checkoutRequestId);
-        const data = result.data;
-        const desc = (data?.responseDescription || data?.customerMessage || '').toLowerCase();
-
+        const desc = (result.data?.responseDescription || result.data?.customerMessage || '').toLowerCase();
         if (desc.includes('successfully') || desc.includes('completed')) {
           if (pollRef.current) clearInterval(pollRef.current);
-          setStkStatus('success');
-          setStkMessage('Payment confirmed!');
+          setStkStatus('success'); setStkMessage('Payment confirmed!');
           toast.success('M-Pesa payment confirmed');
-          if (orderNumberRef.current) {
-            router.push(`/checkout/success?order=${orderNumberRef.current}`);
-          }
+          router.push(`/checkout/success?order=${orderNumberRef.current}`);
           return;
         }
-
-        if (desc.includes('cancelled') || desc.includes('cancelled by user')) {
+        if (desc.includes('cancelled')) {
           if (pollRef.current) clearInterval(pollRef.current);
-          setStkStatus('cancelled');
-          setStkMessage('Payment was cancelled.');
-          toast.error('Payment cancelled');
-          return;
+          setStkStatus('cancelled'); setStkMessage('Payment was cancelled.'); toast.error('Payment cancelled'); return;
         }
-
         if (desc.includes('timeout') || desc.includes('expired')) {
           if (pollRef.current) clearInterval(pollRef.current);
-          setStkStatus('failed');
-          setStkMessage('Payment request expired.');
-          toast.error('Payment expired');
-          return;
+          setStkStatus('failed'); setStkMessage('Payment expired.'); toast.error('Payment expired'); return;
         }
-
-        setStkMessage(`Checking payment status... (${pollCountRef.current}/${STK_POLL_MAX_ATTEMPTS})`);
-
-      } catch {
-        // Keep polling — network hiccup
-      }
+        setStkMessage(`Checking status... (${pollCountRef.current}/${STK_POLL_MAX_ATTEMPTS})`);
+      } catch { /* keep polling */ }
     }, STK_POLL_INTERVAL_MS);
   }, [router]);
 
@@ -217,56 +189,49 @@ export default function CheckoutPage() {
         billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : { ...billing, type: 'BILLING' },
         notes,
       });
-      if (!res.data) {
-        toast.error('Checkout failed — no order was created');
-        setLoading(false);
-        setStkStatus('idle');
-        return;
-      }
+      if (!res.data) { toast.error('Checkout failed'); setLoading(false); setStkStatus('idle'); return; }
       const orderId = res.data.id;
       orderNumberRef.current = res.data.number || '';
       await refreshCart();
 
-      setStkStatus('waiting_pin');
-      setStkMessage('Enter your M-Pesa PIN on your phone...');
+      if (paymentMethod === 'mpesa') {
+        setStkStatus('waiting_pin'); setStkMessage('Enter your M-Pesa PIN on your phone...');
+        const pushRes = await orders.mpesaStkPush(orderId, String(total), phoneNumber);
+        const checkoutRequestId = pushRes.data?.checkoutRequestId;
+        if (!checkoutRequestId) { toast.error('Failed to send M-Pesa prompt'); setLoading(false); setStkStatus('failed'); return; }
+        toast.success('PIN prompt sent — check your phone');
+        startMpesaPolling(checkoutRequestId);
 
-      const pushRes = await orders.mpesaStkPush(orderId, String(total), phoneNumber);
-      const checkoutRequestId = pushRes.data?.checkoutRequestId;
+      } else if (paymentMethod === 'stripe') {
+        setStkMessage('Processing card payment...');
+        const intentRes = await payments.stripeCreateIntent(orderId, total);
+        if (!intentRes.data?.clientSecret) { throw new Error('Failed to initialize card payment'); }
+        await payments.stripeConfirm(intentRes.data.paymentIntentId);
+        toast.success('Card payment processed');
+        router.push(`/checkout/success?order=${orderNumberRef.current}`);
 
-      if (!checkoutRequestId) {
-        toast.error('Failed to send M-Pesa prompt');
-        setLoading(false);
-        setStkStatus('failed');
-        setStkMessage('Could not initiate M-Pesa payment.');
-        return;
+      } else if (paymentMethod === 'flutterwave') {
+        setStkMessage('Redirecting to card payment...');
+        const fwRes = await payments.flutterwaveInit(orderId, total, 'KES', user?.email, user?.name);
+        if (fwRes.data?.checkoutUrl) {
+          window.location.href = fwRes.data.checkoutUrl;
+        } else {
+          throw new Error('Failed to initialize card payment');
+        }
       }
-
-      toast.success('PIN prompt sent — check your phone');
-      startPolling(checkoutRequestId);
-
     } catch (e: any) {
       const msg = e.message || 'Checkout failed';
-      if (msg.includes('insufficient stock') || msg.includes('out of stock')) {
-        toast.error('Some items are no longer available. Please review your cart.');
-      } else if (msg.includes('Authentication required') || msg.includes('401')) {
-        toast.error('Please sign in to complete your order');
-      } else {
-        toast.error(msg);
-      }
-      setLoading(false);
-      setStkStatus('failed');
-      setStkMessage(msg);
+      if (msg.includes('insufficient stock')) toast.error('Some items are no longer available.');
+      else if (msg.includes('401')) toast.error('Please sign in to complete your order');
+      else toast.error(msg);
+      setLoading(false); setStkStatus('failed'); setStkMessage(msg);
     }
   };
 
   const resetPayment = () => {
     if (pollRef.current) clearInterval(pollRef.current);
-    setStkStatus('idle');
-    setStkMessage('');
-    setLoading(false);
-    checkoutRequestIdRef.current = null;
-    orderNumberRef.current = null;
-    pollCountRef.current = 0;
+    setStkStatus('idle'); setStkMessage(''); setLoading(false);
+    checkoutRequestIdRef.current = null; orderNumberRef.current = null; pollCountRef.current = 0;
   };
 
   if (cartLoading) {
@@ -285,7 +250,7 @@ export default function CheckoutPage() {
           <FiShoppingBag className="h-9 w-9 text-stone-400" />
         </span>
         <h1 className="mt-6 text-2xl font-bold">Nothing to check out yet</h1>
-        <p className="mx-auto mt-2 max-w-[42ch] text-stone-500">Add items to your cart first, then come back to complete your order.</p>
+        <p className="mx-auto mt-2 max-w-[42ch] text-stone-500">Add items to your cart first.</p>
         <Link href="/products" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-primary-600 px-7 py-3.5 font-semibold text-white hover:bg-primary-700">
           Browse products <FiArrowRight />
         </Link>
@@ -299,7 +264,7 @@ export default function CheckoutPage() {
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Checkout</h1>
-        <p className="mt-1 text-sm text-stone-500">Complete your delivery details and pay with M-Pesa.</p>
+        <p className="mt-1 text-sm text-stone-500">Complete your delivery details and choose how to pay.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
@@ -307,23 +272,15 @@ export default function CheckoutPage() {
           <Reveal>
             <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
               <h2 className="text-lg font-bold">Delivery address</h2>
-
               {savedAddresses.length > 0 && (
                 <div className="mt-4 space-y-2">
                   <p className="text-sm font-medium text-stone-600">Use a saved address:</p>
                   <div className="grid gap-2">
                     {savedAddresses.map(addr => (
                       <label key={addr.id} className="flex cursor-pointer items-center gap-3 rounded-xl border border-stone-200 p-3 transition-all hover:border-primary-300 has-[:checked]:border-primary-500 has-[:checked]:bg-primary-50/50">
-                        <input
-                          type="radio"
-                          name="savedShipping"
-                          checked={selectedShippingId === addr.id}
-                          onChange={() => {
-                            setSelectedShippingId(addr.id || '');
-                            applyAddress(addr, 'shipping');
-                          }}
-                          className="accent-primary-600"
-                        />
+                        <input type="radio" name="savedShipping" checked={selectedShippingId === addr.id}
+                          onChange={() => { setSelectedShippingId(addr.id || ''); applyAddress(addr, 'shipping'); }}
+                          className="accent-primary-600" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-semibold">{addr.name}</p>
                           <p className="truncate text-xs text-stone-500">{addr.line1}, {addr.city}, {addr.country}</p>
@@ -333,67 +290,38 @@ export default function CheckoutPage() {
                     ))}
                   </div>
                   <div className="flex items-center gap-2 text-xs text-stone-400">
-                    <span className="h-px flex-1 bg-stone-200" />
-                    <span>or enter a new address below</span>
-                    <span className="h-px flex-1 bg-stone-200" />
+                    <span className="h-px flex-1 bg-stone-200" /><span>or enter a new address below</span><span className="h-px flex-1 bg-stone-200" />
                   </div>
                 </div>
               )}
-
               <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {([
-                  { label: 'Full name', key: 'name', required: true, span: true },
-                  { label: 'Address line 1', key: 'line1', required: true, span: true },
-                  { label: 'Address line 2', key: 'line2', required: false, span: true },
-                  { label: 'City / Town', key: 'city', required: true, span: false },
-                  { label: 'County / State', key: 'state', required: true, span: false },
-                  { label: 'Postal code', key: 'postalCode', required: true, span: false },
-                  { label: 'Phone', key: 'phone', required: true, span: false },
+                  { label: 'Full name', key: 'name', span: true }, { label: 'Address line 1', key: 'line1', span: true },
+                  { label: 'Address line 2', key: 'line2', span: true },
+                  { label: 'City / Town', key: 'city' }, { label: 'County / State', key: 'state' },
+                  { label: 'Postal code', key: 'postalCode' }, { label: 'Phone', key: 'phone' },
                 ]).map(field => (
                   <div key={field.key} className={field.span ? 'sm:col-span-2' : ''}>
-                    <label className="mb-1 block text-sm font-medium text-stone-700">
-                      {field.label}{field.required && <span className="text-rose-500"> *</span>}
-                    </label>
-                    <input
-                      type="text"
-                      value={(shipping as any)[field.key] || ''}
-                      onChange={e => {
-                        setShipping({ ...shipping, [field.key]: e.target.value });
-                        setSelectedShippingId('');
-                        if (fieldErrors[field.key]) setFieldErrors(prev => ({ ...prev, [field.key]: false }));
-                      }}
-                      required={field.required}
+                    <label className="mb-1 block text-sm font-medium text-stone-700">{field.label}<span className="text-rose-500"> *</span></label>
+                    <input type="text" value={(shipping as any)[field.key] || ''} disabled={isProcessing}
+                      onChange={e => { setShipping({ ...shipping, [field.key]: e.target.value }); setSelectedShippingId(''); if (fieldErrors[field.key]) setFieldErrors(prev => ({ ...prev, [field.key]: false })); }}
                       placeholder={field.key === 'phone' ? '254712345678' : ''}
-                      disabled={isProcessing}
-                      className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${
-                        fieldErrors[field.key]
-                          ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100'
-                          : 'border-stone-300 focus:border-primary-500 focus:ring-primary-100'
-                      }`}
-                    />
-                    {fieldErrors[field.key] && (
-                      <p className="mt-1 text-xs font-medium text-rose-600">This field is required</p>
-                    )}
+                      className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${fieldErrors[field.key] ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100' : 'border-stone-300 focus:border-primary-500 focus:ring-primary-100'}`} />
                   </div>
                 ))}
               </div>
-
               <label className="mt-5 flex cursor-pointer items-center gap-2.5 text-sm font-medium">
                 <input type="checkbox" checked={sameAsShipping} onChange={e => setSameAsShipping(e.target.checked)} disabled={isProcessing} className="h-4 w-4 accent-primary-600" />
                 Billing address is the same as delivery
               </label>
-
               {!sameAsShipping && (
                 <div className="mt-4 grid grid-cols-1 gap-4 rounded-xl bg-stone-50 p-4 sm:grid-cols-2">
                   {(['name', 'line1', 'line2', 'city', 'state', 'postalCode'] as const).map(key => (
                     <div key={key} className={key === 'line1' || key === 'name' ? 'sm:col-span-2' : ''}>
                       <label className="mb-1 block text-sm font-medium capitalize text-stone-700">{key.replace(/([A-Z])/g, ' $1')}</label>
-                      <input
-                        type="text" value={(billing as any)[key] || ''}
+                      <input type="text" value={(billing as any)[key] || ''} disabled={isProcessing}
                         onChange={e => setBilling({ ...billing, [key]: e.target.value })}
-                        disabled={isProcessing}
-                        className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-                      />
+                        className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100" />
                     </div>
                   ))}
                 </div>
@@ -403,31 +331,88 @@ export default function CheckoutPage() {
 
           <Reveal delay={80}>
             <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
-              <h2 className="text-lg font-bold">Payment — M-Pesa</h2>
-              <p className="mt-1 text-sm text-stone-500">
-                You will receive an STK push prompt on your Safaricom phone to enter your M-Pesa PIN.
-              </p>
+              <h2 className="text-lg font-bold">How would you like to pay?</h2>
+              <p className="mt-1 text-sm text-stone-500">Choose your preferred payment method.</p>
 
               {currency.code !== 'KES' && (
-                <p className="mt-2 text-xs text-stone-500">
-                  Prices shown in {currency.code} are estimates — payment is processed in KES.
-                </p>
+                <p className="mt-2 text-xs text-stone-500">Prices in {currency.code} are estimates — payment is processed in KES.</p>
               )}
 
-              <div className="mt-5 rounded-xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
-                <label className="mb-1 block text-sm font-medium text-emerald-900">
-                  M-Pesa phone number
-                </label>
-                <input
-                  type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
-                  placeholder="254712345678"
-                  disabled={isProcessing}
-                  className="w-full rounded-xl border border-emerald-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-60"
-                />
-                <p className="mt-2 text-xs text-emerald-700">
-                  Enter the phone number registered with M-Pesa. You will receive a PIN prompt to approve the payment.
-                </p>
+              <div className="mt-5 grid gap-3">
+                {[
+                  { id: 'mpesa', label: 'M-Pesa', desc: 'STK push to your Safaricom line', icon: FiSmartphone, accent: 'text-emerald-600 bg-emerald-100' },
+                  { id: 'stripe', label: 'Card — Stripe', desc: 'Visa, Mastercard, Amex (test: 4242 4242 4242 4242)', icon: FiCreditCard, accent: 'text-indigo-600 bg-indigo-100' },
+                  { id: 'flutterwave', label: 'Card — Flutterwave', desc: 'Cards and mobile wallets across Africa', icon: FiLock, accent: 'text-orange-600 bg-orange-100' },
+                ].map(m => (
+                  <label key={m.id}>
+                    <input type="radio" name="payment" value={m.id} checked={paymentMethod === m.id}
+                      onChange={() => setPaymentMethod(m.id as PayMethod)} className="peer sr-only" disabled={isProcessing} />
+                    <div className={`flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all ${paymentMethod === m.id ? 'border-primary-600 bg-primary-50/50 shadow-sm' : 'border-stone-200 hover:border-stone-300'}`}>
+                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${m.accent}`}>
+                        <m.icon className="h-5 w-5" />
+                      </span>
+                      <span className="flex-1">
+                        <span className="block font-semibold">{m.label}</span>
+                        <span className="block text-sm text-stone-500">{m.desc}</span>
+                      </span>
+                      <span className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${paymentMethod === m.id ? 'border-primary-600 bg-primary-600' : 'border-stone-300'}`}>
+                        {paymentMethod === m.id && <FiCheck className="h-3 w-3 text-white" />}
+                      </span>
+                    </div>
+                  </label>
+                ))}
               </div>
+
+              {(paymentMethod === 'stripe' || paymentMethod === 'flutterwave') && (
+                <div className="mt-5 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-stone-400">Card details — validated in your browser, never stored</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <input inputMode="numeric" placeholder="4242 4242 4242 4242" disabled={isProcessing}
+                        value={card.number}
+                        onChange={e => { const d = e.target.value.replace(/\D/g, '').slice(0, 19); setCard({ ...card, number: d.replace(/(.{4})/g, '$1 ').trim() }); if (cardErrors.number) setCardErrors(prev => ({ ...prev, number: '' })); }}
+                        className={`${cardInputCls} ${cardErrors.number ? 'border-rose-400' : ''}`} />
+                      {cardErrors.number && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.number}</p>}
+                    </div>
+                    <div>
+                      <input inputMode="numeric" placeholder="MM / YY" disabled={isProcessing}
+                        value={card.expiry}
+                        onChange={e => { let v = e.target.value.replace(/\D/g, '').slice(0, 4); if (v.length > 2) v = v.slice(0, 2) + ' / ' + v.slice(2); setCard({ ...card, expiry: v }); if (cardErrors.expiry) setCardErrors(prev => ({ ...prev, expiry: '' })); }}
+                        className={`${cardInputCls} ${cardErrors.expiry ? 'border-rose-400' : ''}`} />
+                      {cardErrors.expiry && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.expiry}</p>}
+                    </div>
+                    <div>
+                      <input inputMode="numeric" placeholder="CVV" disabled={isProcessing}
+                        value={card.cvv}
+                        onChange={e => setCard({ ...card, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                        className={`${cardInputCls} ${cardErrors.cvv ? 'border-rose-400' : ''}`} />
+                      {cardErrors.cvv && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.cvv}</p>}
+                    </div>
+                    <div className="sm:col-span-2">
+                      <input placeholder="Name on card" disabled={isProcessing}
+                        value={card.name}
+                        onChange={e => setCard({ ...card, name: e.target.value })}
+                        className={`${cardInputCls} ${cardErrors.name ? 'border-rose-400' : ''}`} />
+                      {cardErrors.name && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.name}</p>}
+                    </div>
+                  </div>
+                  <p className="mt-3 text-xs text-stone-400">
+                    {paymentMethod === 'stripe'
+                      ? 'Stripe test card: 4242 4242 4242 4242, any future expiry, any CVV.'
+                      : 'Flutterwave test cards: 4187427415564246 (Visa) or 4000000000000002 (Mastercard).'}
+                  </p>
+                </div>
+              )}
+
+              {paymentMethod === 'mpesa' && (
+                <div className="mt-5 rounded-xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
+                  <label className="mb-1 block text-sm font-medium text-emerald-900">M-Pesa phone number</label>
+                  <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
+                    placeholder="254712345678" disabled={isProcessing}
+                    className="w-full rounded-xl border border-emerald-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" />
+                  <p className="mt-2 text-xs text-emerald-700">You will receive a PIN prompt to approve the payment.</p>
+                </div>
+              )}
 
               {stkStatus !== 'idle' && (
                 <div className={`mt-5 rounded-xl p-4 ring-1 ${
@@ -444,11 +429,7 @@ export default function CheckoutPage() {
                       <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
                     )}
                     <div className="flex-1">
-                      <p className={`text-sm font-semibold ${
-                        stkStatus === 'success' ? 'text-emerald-900' :
-                        stkStatus === 'cancelled' || stkStatus === 'failed' ? 'text-rose-900' :
-                        'text-amber-900'
-                      }`}>
+                      <p className={`text-sm font-semibold ${stkStatus === 'success' ? 'text-emerald-900' : stkStatus === 'cancelled' || stkStatus === 'failed' ? 'text-rose-900' : 'text-amber-900'}`}>
                         {stkStatus === 'sending' && 'Initiating payment...'}
                         {stkStatus === 'waiting_pin' && 'Enter your M-Pesa PIN on your phone'}
                         {stkStatus === 'polling' && 'Waiting for confirmation...'}
@@ -456,17 +437,11 @@ export default function CheckoutPage() {
                         {stkStatus === 'failed' && 'Payment failed'}
                         {stkStatus === 'cancelled' && 'Payment cancelled'}
                       </p>
-                      <p className={`mt-1 text-xs ${
-                        stkStatus === 'success' ? 'text-emerald-700' :
-                        stkStatus === 'cancelled' || stkStatus === 'failed' ? 'text-rose-700' :
-                        'text-amber-700'
-                      }`}>
+                      <p className={`mt-1 text-xs ${stkStatus === 'success' ? 'text-emerald-700' : stkStatus === 'cancelled' || stkStatus === 'failed' ? 'text-rose-700' : 'text-amber-700'}`}>
                         {stkMessage}
                       </p>
                       {(stkStatus === 'failed' || stkStatus === 'cancelled') && (
-                        <button onClick={resetPayment} className="mt-3 text-sm font-medium text-rose-700 underline hover:text-rose-900">
-                          Try again
-                        </button>
+                        <button onClick={resetPayment} className="mt-3 text-sm font-medium text-rose-700 underline hover:text-rose-900">Try again</button>
                       )}
                     </div>
                   </div>
@@ -478,12 +453,9 @@ export default function CheckoutPage() {
           <Reveal delay={120}>
             <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
               <h2 className="text-lg font-bold">Order notes</h2>
-              <textarea
-                value={notes} onChange={e => setNotes(e.target.value)} rows={3}
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} disabled={isProcessing}
                 placeholder="Gate code, preferred delivery time, gift note..."
-                disabled={isProcessing}
-                className="mt-4 w-full resize-none rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
-              />
+                className="mt-4 w-full resize-none rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100" />
             </section>
           </Reveal>
         </div>
@@ -497,9 +469,7 @@ export default function CheckoutPage() {
                   <li key={item.id} className="flex items-center gap-3">
                     <span className="relative shrink-0 overflow-hidden rounded-lg bg-stone-100">
                       {item.productImage && <img src={item.productImage} alt="" className="h-12 w-12 object-cover" />}
-                      <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] font-bold text-white">
-                        {item.quantity}
-                      </span>
+                      <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] font-bold text-white">{item.quantity}</span>
                     </span>
                     <span className="min-w-0 flex-1 truncate text-sm">{item.productName}</span>
                     <span className="text-sm font-semibold">{formatKES(item.lineTotal)}</span>
@@ -516,14 +486,11 @@ export default function CheckoutPage() {
               </dl>
               <button onClick={handlePlaceOrder} disabled={loading || isProcessing}
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60 disabled:hover:translate-y-0">
-                {loading ? (
-                  <><FiLoader className="h-4 w-4 animate-spin" /> Processing...</>
-                ) : (
-                  <>Pay {formatKES(total)} via M-Pesa <FiArrowRight /></>
-                )}
+                {loading ? <><FiLoader className="h-4 w-4 animate-spin" /> Processing...</> :
+                  <>Pay {formatKES(total)} <FiArrowRight /></>}
               </button>
               <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-stone-400">
-                <FiLock className="h-3 w-3" /> Secure — powered by Safaricom Daraja API
+                <FiLock className="h-3 w-3" /> Secure — encrypted end to end
               </p>
             </div>
           </Reveal>
@@ -532,3 +499,5 @@ export default function CheckoutPage() {
     </div>
   );
 }
+
+const cardInputCls = 'w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100';

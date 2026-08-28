@@ -127,6 +127,17 @@ mpesa:
   timeout-url: ${MPESA_TIMEOUT_URL:http://localhost:8080/api/v1/orders/payments/mpesa/timeout}
   base-url: ${MPESA_BASE_URL:https://sandbox.safaricom.co.ke}
 
+stripe:
+  secret-key: ${STRIPE_SECRET_KEY:}
+  publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+
+flutterwave:
+  secret-key: ${FLUTTERWAVE_SECRET_KEY:}
+  public-key: ${FLUTTERWAVE_PUBLIC_KEY:}
+  encryption-key: ${FLUTTERWAVE_ENCRYPTION_KEY:}
+  redirect-url: ${FLUTTERWAVE_REDIRECT_URL:http://localhost:3000/checkout/success}
+
 spring.rabbitmq:
   host: ${RABBITMQ_HOST:localhost}
   port: ${RABBITMQ_PORT:5672}

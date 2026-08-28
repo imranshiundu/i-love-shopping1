@@ -229,6 +229,18 @@
             <artifactId>junit-jupiter-params</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Stripe -->
+        <dependency>
+            <groupId>com.stripe</groupId>
+            <artifactId>stripe-java</artifactId>
+            <version>28.3.0</version>
+        </dependency>
+        <!-- Flutterwave -->
+        <dependency>
+            <groupId>com.flutterwave</groupId>
+            <artifactId>f4b-java</artifactId>
+            <version>3.0</version>
+        </dependency>
     </dependencies>
 
     <build>
