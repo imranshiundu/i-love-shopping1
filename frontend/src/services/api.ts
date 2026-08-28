@@ -133,6 +133,16 @@ export const payments = {
     request<any[]>(`/payments?page=${page}&size=${size}`),
   getPaymentById: (paymentId: string) =>
     request<any>(`/payments/${paymentId}`),
+  stripeCreateIntent: (orderId: string, amount: number, currency = 'KES') =>
+    request<any>('/payments/stripe/create-intent', { method: 'POST', body: JSON.stringify({ orderId, amount, currency }) }),
+  stripeConfirm: (paymentIntentId: string) =>
+    request<any>('/payments/stripe/confirm', { method: 'POST', body: JSON.stringify({ paymentIntentId }) }),
+  stripeConfig: () =>
+    request<any>('/payments/stripe/config'),
+  flutterwaveInit: (orderId: string, amount: number, currency = 'KES', customerEmail?: string, customerName?: string) =>
+    request<any>('/payments/flutterwave/initialize', { method: 'POST', body: JSON.stringify({ orderId, amount, currency, customerEmail, customerName }) }),
+  flutterwaveVerify: (transactionRef: string) =>
+    request<any>('/payments/flutterwave/verify', { method: 'POST', body: JSON.stringify({ transactionRef }) }),
 };
 
 export const admin = {
