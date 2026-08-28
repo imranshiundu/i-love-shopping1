@@ -81,7 +81,7 @@ Then restart the backend.
 
 ## Sandbox Notes
 
-- **Shortcode**: 174379 (test shortcode)
+- **Shortcode**: Provided by Safaricom (your test shortcode)
 - **Phone number**: Use any valid format, e.g., 254712345678
 - **Amounts**: Any amount works in sandbox
 - **No real money moves** — sandbox is completely free

@@ -11,9 +11,16 @@ public class MpesaProperties {
     private String environment = "sandbox";
     private String consumerKey;
     private String consumerSecret;
-    private String shortcode = "174379";
+    private String shortcode;
     private String passkey;
-    private String callbackUrl = "http://localhost:8080/api/v1/payments/mpesa/callback";
-    private String timeoutUrl = "http://localhost:8080/api/v1/payments/mpesa/timeout";
+    private String callbackUrl;
+    private String timeoutUrl;
     private String baseUrl = "https://sandbox.safaricom.co.ke";
+
+    public boolean isConfigured() {
+        return consumerKey != null && !consumerKey.isBlank()
+                && consumerSecret != null && !consumerSecret.isBlank()
+                && shortcode != null && !shortcode.isBlank()
+                && passkey != null && !passkey.isBlank();
+    }
 }

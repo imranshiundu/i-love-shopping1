@@ -50,6 +50,9 @@ public class MpesaService {
     private Instant tokenExpiryTime;
 
     public String getAccessToken() {
+        if (!mpesaProperties.isConfigured()) {
+            throw new PaymentException("M-Pesa credentials not configured");
+        }
         if (cachedAccessToken != null && tokenExpiryTime != null && Instant.now().isBefore(tokenExpiryTime)) {
             return cachedAccessToken;
         }
@@ -93,6 +96,10 @@ public class MpesaService {
 
     @Transactional
     public MpesaStkPushResponse initiateStkPush(MpesaStkPushRequest request) {
+        if (!mpesaProperties.isConfigured()) {
+            throw new PaymentException("M-Pesa is not configured. Set MPESA_CONSUMER_KEY, MPESA_CONSUMER_SECRET, MPESA_SHORTCODE, and MPESA_PASSKEY environment variables.");
+        }
+
         log.info("Initiating M-Pesa STK Push — order: {} amount: {} phone: {}",
                 request.getOrderId(), request.getAmount(), request.getPhoneNumber());
 

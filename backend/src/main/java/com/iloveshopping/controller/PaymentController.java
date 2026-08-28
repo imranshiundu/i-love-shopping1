@@ -1,5 +1,6 @@
 package com.iloveshopping.controller;
 
+import com.iloveshopping.config.StripeProperties;
 import com.iloveshopping.dto.common.ApiResponse;
 import com.iloveshopping.dto.payment.MpesaStkPushResponse;
 import com.iloveshopping.dto.payment.PaymentResponse;
@@ -28,6 +29,7 @@ public class PaymentController {
     private final PaymentService paymentService;
     private final StripePaymentService stripePaymentService;
     private final FlutterwavePaymentService flutterwavePaymentService;
+    private final StripeProperties stripeProperties;
 
     @PostMapping("/mpesa/stk-query")
     @Operation(summary = "Query M-Pesa STK Push transaction status")
@@ -83,8 +85,7 @@ public class PaymentController {
     @Operation(summary = "Get Stripe publishable key (safe for client)")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStripeConfig() {
         Map<String, Object> config = new HashMap<>();
-        config.put("publishableKey", stripePaymentService.isConfigured()
-                ? stripePaymentService.getClass().getPackageName() : null);
+        config.put("publishableKey", stripeProperties.getPublishableKey());
         config.put("configured", stripePaymentService.isConfigured());
         return ResponseEntity.ok(ApiResponse.success(config));
     }

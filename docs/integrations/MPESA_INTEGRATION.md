@@ -15,7 +15,7 @@ M-Pesa Daraja is Safaricom's API platform for integrating M-Pesa payments. We im
 ### Sandbox Credentials
 1. Register at https://developer.safaricom.co.ke/
 2. Create app, get Consumer Key & Secret
-3. Use test shortcode: `174379`
+3. Use your test shortcode from the Daraja dashboard
 4. Test passkey from sandbox
 
 ### Production Credentials
@@ -29,7 +29,7 @@ M-Pesa Daraja is Safaricom's API platform for integrating M-Pesa payments. We im
 ```bash
 MPESA_CONSUMER_KEY=your_consumer_key
 MPESA_CONSUMER_SECRET=your_consumer_secret
-MPESA_SHORTCODE=174379
+MPESA_SHORTCODE=your_shortcode
 MPESA_PASSKEY=your_base64_passkey
 MPESA_CALLBACK_URL=https://yourdomain.com/api/v1/orders/payments/mpesa/callback
 MPESA_TIMEOUT_URL=https://yourdomain.com/api/v1/orders/payments/mpesa/timeout

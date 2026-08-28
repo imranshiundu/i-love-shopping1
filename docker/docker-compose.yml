@@ -72,7 +72,7 @@ services:
       - BACKEND_INTERNAL_URL=http://api:8080
       - NEXT_PUBLIC_APP_URL=http://localhost:${FRONTEND_PORT:-3000}
       - NEXT_PUBLIC_RECAPTCHA_SITE_KEY=dev-test-site
-      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_simulated
+      - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
       - NEXT_PUBLIC_APP_NAME=i-love-shopping
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
@@ -118,12 +118,18 @@ services:
       - MAIL_USERNAME=
       - MAIL_PASSWORD=
       - MAIL_FROM=noreply@iloveshopping.com
-      - MPESA_CONSUMER_KEY=o6tPhH5EoSsGmtLZAG4yMT7b2GQp9e87X3h4T6dk0DuZh2aU
-      - MPESA_CONSUMER_SECRET=LgJ5V6tShu5SCA9nhcyAA8qrkuq3nHUsbQdmCDRinBIPmjGEY2hVmxoqi28XSdPE
-      - MPESA_SHORTCODE=174379
-      - MPESA_PASSKEY=bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919
-      - MPESA_CALLBACK_URL=http://host.docker.internal:${API_PORT:-8080}/api/v1/orders/payments/mpesa/callback
-      - MPESA_BASE_URL=https://sandbox.safaricom.co.ke
+      - MPESA_CONSUMER_KEY=${MPESA_CONSUMER_KEY:-}
+      - MPESA_CONSUMER_SECRET=${MPESA_CONSUMER_SECRET:-}
+      - MPESA_SHORTCODE=${MPESA_SHORTCODE:-}
+      - MPESA_PASSKEY=${MPESA_PASSKEY:-}
+      - MPESA_CALLBACK_URL=${MPESA_CALLBACK_URL:-http://host.docker.internal:${API_PORT:-8080}/api/v1/orders/payments/mpesa/callback}
+      - MPESA_BASE_URL=${MPESA_BASE_URL:-https://sandbox.safaricom.co.ke}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - FLUTTERWAVE_SECRET_KEY=${FLUTTERWAVE_SECRET_KEY:-}
+      - FLUTTERWAVE_PUBLIC_KEY=${FLUTTERWAVE_PUBLIC_KEY:-}
+      - FLUTTERWAVE_ENCRYPTION_KEY=${FLUTTERWAVE_ENCRYPTION_KEY:-}
       - RABBITMQ_HOST=rabbitmq
       - RABBITMQ_PORT=5672
       - RABBITMQ_USERNAME=iloveshopping
