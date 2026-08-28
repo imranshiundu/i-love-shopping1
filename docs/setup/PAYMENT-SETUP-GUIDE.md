@@ -27,13 +27,15 @@ Stripe is the simplest way to test card payments. No redirect — card details a
 
 #### Step 2: Set Environment Variables
 
+Add your keys to the `.env` file in the project root:
+
 ```bash
-export STRIPE_SECRET_KEY=sk_test_your_key_here
-export STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
-export STRIPE_WEBHOOK_SECRET=whsec_your_secret_here
+STRIPE_SECRET_KEY=sk_test_your_key_here
+STRIPE_PUBLISHABLE_KEY=pk_test_your_key_here
+STRIPE_WEBHOOK_SECRET=whsec_your_secret_here
 ```
 
-Or add to `scripts/dev.sh` / `start-backend2.sh`.
+Then restart the backend — it picks up values from `.env` automatically.
 
 #### Step 3: Test with Stripe Test Cards
 
@@ -76,11 +78,15 @@ Flutterwave redirects to their hosted checkout page. Supports cards, mobile mone
 
 #### Step 2: Set Environment Variables
 
+Add your keys to the `.env` file in the project root:
+
 ```bash
-export FLUTTERWAVE_SECRET_KEY=FLWSECK_TEST-your_key_here
-export FLUTTERWAVE_PUBLIC_KEY=FLWPUBK_TEST-your_key_here
-export FLUTTERWAVE_ENCRYPTION_KEY=your_encryption_key_here
+FLUTTERWAVE_SECRET_KEY=FLWSECK_TEST-your_key_here
+FLUTTERWAVE_PUBLIC_KEY=FLWPUBK_TEST-your_key_here
+FLUTTERWAVE_ENCRYPTION_KEY=your_encryption_key_here
 ```
+
+Then restart the backend.
 
 #### Step 3: Test with Flutterwave Test Cards
 
@@ -112,13 +118,18 @@ export FLUTTERWAVE_ENCRYPTION_KEY=your_encryption_key_here
 
 The sandbox uses Safaricom's test environment. No real money moves.
 
-#### Step 1: Credentials (Pre-configured)
+#### Step 1: Credentials (Required)
 
-The sandbox credentials are already configured in the application:
-- Consumer Key: `o6tPhH5EoSsGmtLZAG4yMT7b2GQp9e87X3h4T6dk0DuZh2aU`
-- Consumer Secret: `LgJ5V6tShu5SCA9nhcyAA8qrkuq3nHUsbQdmCDRinBIPmjGEY2hVmxoqi28XSdPE`
-- Shortcode: `174379`
-- Passkey: `bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919`
+You must provide your own Daraja credentials. Get them from https://developer.safaricom.co.ke.
+
+Add to your `.env` file:
+```bash
+MPESA_CONSUMER_KEY=your_consumer_key
+MPESA_CONSUMER_SECRET=your_consumer_secret
+MPESA_SHORTCODE=your_shortcode
+MPESA_PASSKEY=your_passkey
+MPESA_BASE_URL=https://sandbox.safaricom.co.ke
+```
 
 #### Step 2: Get a Daraja App (Optional, for production)
 
@@ -139,11 +150,11 @@ npm install -g ngrok
 ngrok http 8080
 
 # Copy the public URL (e.g., https://abc123.ngrok-free.app)
-# Update the callback URL:
-export MPESA_CALLBACK_URL=https://YOUR_NGROK_URL/api/v1/orders/payments/mpesa/callback
+# Add to your .env file:
+MPESA_CALLBACK_URL=https://YOUR_NGROK_URL/api/v1/orders/payments/mpesa/callback
 ```
 
-See `docs/setup/M-PESA-DARAJA-SETUP.md` for full details.
+Then restart the backend. See `docs/setup/M-PESA-DARAJA-SETUP.md` for full details.
 
 #### Step 4: Test the Flow
 
@@ -205,24 +216,38 @@ Go to https://app.flutterwave.com/test → Settings → Webhooks:
 
 ## Environment Variables Reference
 
+All variables go in your `.env` file in the project root. See `.env.example` for the full template.
+
+### Required (to start the app)
 ```bash
-# M-Pesa (sandbox)
-MPESA_CONSUMER_KEY=o6tPhH5EoSsGmtLZAG4yMT7b2GQp9e87X3h4T6dk0DuZh2aU
-MPESA_CONSUMER_SECRET=LgJ5V6tShu5SCA9nhcyAA8qrkuq3nHUsbQdmCDRinBIPmjGEY2hVmxoqi28XSdPE
-MPESA_SHORTCODE=174379
-MPESA_PASSKEY=bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919
+DATABASE_URL=jdbc:postgresql://localhost:5433/iloveshopping?stringtype=unspecified
+DATABASE_USER=iloveshopping
+DATABASE_PASSWORD=iloveshopping
+REDIS_HOST=localhost
+REDIS_PORT=6380
+```
+
+### Payment Providers (optional — configure one or more)
+```bash
+# M-Pesa (Kenya)
+MPESA_CONSUMER_KEY=
+MPESA_CONSUMER_SECRET=
+MPESA_SHORTCODE=
+MPESA_PASSKEY=
 MPESA_BASE_URL=https://sandbox.safaricom.co.ke
 
-# Stripe (test mode)
-STRIPE_SECRET_KEY=sk_test_your_key
-STRIPE_PUBLISHABLE_KEY=pk_test_your_key
-STRIPE_WEBHOOK_SECRET=whsec_your_secret
+# Stripe (worldwide cards)
+STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
+STRIPE_WEBHOOK_SECRET=
 
-# Flutterwave (test mode)
-FLUTTERWAVE_SECRET_KEY=FLWSECK_TEST-your_key
-FLUTTERWAVE_PUBLIC_KEY=FLWPUBK_TEST-your_key
-FLUTTERWAVE_ENCRYPTION_KEY=your_encryption_key
+# Flutterwave (Africa-wide cards)
+FLUTTERWAVE_SECRET_KEY=
+FLUTTERWAVE_PUBLIC_KEY=
+FLUTTERWAVE_ENCRYPTION_KEY=
 ```
+
+> **Tip**: Only configure the providers you need. The app starts without any payment keys — unconfigured methods show a clear error message at checkout.
 
 ---
 
@@ -230,10 +255,12 @@ FLUTTERWAVE_ENCRYPTION_KEY=your_encryption_key
 
 | Problem | Solution |
 |---------|----------|
-| "Stripe is not configured" | Set `STRIPE_SECRET_KEY` env var |
-| "Flutterwave is not configured" | Set `FLUTTERWAVE_SECRET_KEY` env var |
-| M-Pesa callback not received | Start ngrok, update callback URL |
+| "Stripe is not configured" | Add `STRIPE_SECRET_KEY` to your `.env` file |
+| "Flutterwave is not configured" | Add `FLUTTERWAVE_SECRET_KEY` to your `.env` file |
+| "M-Pesa is not configured" | Add `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_SHORTCODE`, `MPESA_PASSKEY` to `.env` |
+| M-Pesa callback not received | Start ngrok, add `MPESA_CALLBACK_URL` to `.env` |
 | Card payment fails immediately | Check test card number and expiry |
 | 401 on payment endpoint | Ensure you're logged in |
 | Payment stuck in "Processing" | Check webhook/callback is configured |
 | "Request cancelled by user" (M-Pesa) | Normal in sandbox if PIN not entered within 60s |
+| Backend won't start | Check `.env` exists and has `DATABASE_URL` set |

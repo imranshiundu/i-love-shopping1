@@ -1,6 +1,6 @@
 # i-love-shopping
 
-B2C E-commerce Platform for the Kenyan market, built with a **Next.js 14 storefront**, a **Spring Boot 3 API**, PostgreSQL, Redis, RabbitMQ, M-Pesa Daraja integration and simulated Stripe/PayPal payments.
+B2C E-commerce Platform for the Kenyan market, built with a **Next.js 14 storefront**, a **Spring Boot 3 API**, PostgreSQL, Redis, RabbitMQ, M-Pesa Daraja, Stripe, and Flutterwave integrations.
 
 ## Table of Contents
 
@@ -56,8 +56,8 @@ The application follows a modular monolith architecture with clean separation of
                               └───────────────┬───────────────────┬─────────────┘
                                               │                   │
                                      ┌────────▼────────┐  ┌───────▼──────────┐
-                                     │ M-Pesa Daraja   │  │ Simulated Stripe │
-                                     │ (sandbox)       │  │ & PayPal         │
+                                     │ M-Pesa Daraja   │  │ Stripe           │
+                                     │ (sandbox)       │  │ & Flutterwave    │
                                      └─────────────────┘  └──────────────────┘
 ```
 
@@ -286,8 +286,9 @@ erDiagram
 - **Redis 7** - Caching & Sessions
 - **RabbitMQ 3** - Message queue for order/payment events
 - **JJWT (0.12.5)** - JWT Token handling
-- **M-Pesa Daraja API** - Mobile payments (sandbox)
-- **Simulated Stripe & PayPal** - Payment gateway simulation endpoints
+- **M-Pesa Daraja API** - Mobile payments (sandbox/production)
+- **Stripe** - Card payments (test/live mode)
+- **Flutterwave** - Card payments across Africa (test/live mode)
 - **Google reCAPTCHA** - Bot protection
 - **Lombok** - Boilerplate reduction
 
@@ -362,10 +363,11 @@ erDiagram
 - ✅ Retry failed payments
 - ✅ Payment metadata storage
 
-### Simulated Card & Wallet Payments (Stripe / PayPal)
-- ✅ Stripe-style PaymentIntent create + confirm endpoints (sandbox simulation)
-- ✅ PayPal-style order create + capture endpoints
-- ✅ Webhook simulation (`payment_intent.succeeded`, `payment_intent.payment_failed`)
+### Card Payments (Stripe / Flutterwave)
+- ✅ Stripe PaymentIntent create + confirm (test/live mode)
+- ✅ Stripe webhook handling (`payment_intent.succeeded`, `payment_intent.payment_failed`)
+- ✅ Flutterwave Standard Checkout — redirect to hosted page, verify on return
+- ✅ Test cards: Stripe `4242 4242 4242 4242`, Flutterwave `4187427415564246`
 - ✅ No card data ever touches the server - PCI-friendly tokenized flow
 - ✅ Failure scenarios: declined cards, gateway errors, invalid payment IDs
 
@@ -380,7 +382,7 @@ erDiagram
 - ✅ Product listing with faceted filters (category, brand, price, stock, sale), sorting and pagination
 - ✅ Product detail page with image gallery, similar products and reviews
 - ✅ Cart page with real-time totals, quantity updates and free-shipping threshold
-- ✅ Single-page checkout: address form + payment method selection (M-Pesa, card, PayPal)
+- ✅ Single-page checkout: address form + payment method selection (M-Pesa, Stripe card, Flutterwave card)
 - ✅ Order success page and order history
 - ✅ Auth pages: login, register, forgot password
 - ✅ Account area: profile, addresses book, password change
@@ -409,7 +411,7 @@ These go beyond the core requirements - added for real-world polish:
 
 ### Payments
 - **Four payment rails at checkout** - M-Pesa, Airtel Money, Card via Stripe and Card via Flutterwave. The brief asked for one gateway; we ship four, all selectable in a single payment step.
-- **Working sandbox M-Pesa** - `MPESA_SIMULATION_ENABLED=true` simulates the customer PIN entry so the full STK-push journey completes locally without Daraja callbacks. Set it to `false` and the same code path calls the real Safaricom API.
+- **Real M-Pesa Daraja** - STK push via Safaricom sandbox/production. Configure keys in `.env`. Callback polling fallback for local dev.
 - **Client-side card validation** - Luhn check, expiry and CVV validation happen in the browser before any request; card data is never sent to or stored on our servers.
 
 ### Security & reliability
@@ -445,7 +447,7 @@ The project needs **Docker** for the database, cache, queue and mail services. O
 - **GitHub OAuth2** (Client ID, Secret) - OAuth2 login stays disabled when unset
 - **SMTP Server** for emails (Mailhog for development)
 
-> These external services are **not required** to start the project. The development setup runs fully with the built-in defaults and a sandbox M-Pesa configuration, so you can start learning right away. Card/PayPal payments work out of the box via the built-in simulation endpoints - no Stripe or PayPal keys needed in development.
+> Payment providers are optional. The app starts without any payment keys — configure one or more in your `.env` file as needed. See `docs/setup/PAYMENT-SETUP-GUIDE.md` for setup instructions.
 
 ## Getting Started (Development)
 
@@ -714,9 +716,9 @@ spring.mail.properties.mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:true}
 # Encryption at rest (order addresses, payment records)
 app.data-encryption-key: ${DATA_ENCRYPTION_KEY}
 
-# M-Pesa (simulation mode completes STK push locally; set false for real Daraja)
-mpesa.simulation-enabled: ${MPESA_SIMULATION_ENABLED:true}
-mpesa.environment: sandbox
+# M-Pesa (set your keys in .env)
+mpesa.environment: ${MPESA_ENVIRONMENT:sandbox}
+mpesa.consumer-key: ${MPESA_CONSUMER_KEY:}
 mpesa.consumer-key: ${MPESA_CONSUMER_KEY}
 mpesa.consumer-secret: ${MPESA_CONSUMER_SECRET}
 mpesa.shortcode: ${MPESA_SHORTCODE}
@@ -757,7 +759,7 @@ Every value in the frontend is configurable - no hardcoded URLs, prices or ident
 | `NEXT_PUBLIC_ORDERS_PAGE_SIZE` | `10` | Orders per account page |
 | `NEXT_PUBLIC_ADMIN_PAGE_SIZE` | `20` | Rows per admin table |
 | `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` / `_ENABLED` | dev bypass | reCAPTCHA integration |
-| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | `pk_test_simulated` | Card payment simulation |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | (empty) | Stripe publishable key (test or live) |
 | `NEXT_PUBLIC_CURRENCY_RATES` | `USD=0.0077,EUR=0.0071,...` | Display-currency conversion rates from KES |
 
 ### Multi-Currency Display
@@ -818,11 +820,11 @@ Swagger UI is available at: `http://localhost:8080/api/v1/docs`
 | `GET` | `/orders/{number}` | Get order details | Yes |
 | `POST` | `/orders/{number}/cancel` | Cancel order | Yes |
 | `POST` | `/orders/payments/mpesa/stk-push` | Initiate M-Pesa payment | Yes |
-| `POST` | `/payments/stripe/create-intent` | Create simulated Stripe PaymentIntent | Yes |
-| `POST` | `/payments/stripe/confirm` | Confirm simulated Stripe payment | Yes |
-| `POST` | `/payments/stripe/webhook` | Simulate Stripe webhook events | No |
-| `POST` | `/payments/paypal/create-order` | Create simulated PayPal order | Yes |
-| `POST` | `/payments/paypal/capture` | Capture simulated PayPal payment | Yes |
+| `POST` | `/payments/stripe/create-intent` | Create Stripe PaymentIntent | Yes |
+| `POST` | `/payments/stripe/confirm` | Confirm Stripe payment | Yes |
+| `POST` | `/payments/stripe/webhook` | Stripe webhook handler | No |
+| `POST` | `/payments/flutterwave/initialize` | Initialize Flutterwave transaction | Yes |
+| `POST` | `/payments/flutterwave/verify` | Verify Flutterwave transaction | Yes |
 | `GET` | `/products/{slug}/reviews` | List product reviews | No |
 | `GET` | `/user/profile` | Get user profile | Yes |
 | `PUT` | `/user/profile` | Update profile | Yes |
@@ -916,7 +918,7 @@ curl -X POST http://localhost:8080/api/v1/orders/payments/mpesa/stk-push \
   }'
 ```
 
-#### Pay an Order with the Simulated Card Gateway (Stripe-style)
+#### Pay an Order with Stripe Card
 
 ```bash
 # 1. Create a payment intent
@@ -934,7 +936,7 @@ curl -X POST http://localhost:8080/api/v1/payments/stripe/confirm \
   -d '{"paymentIntentId": "pi_sim_xxxxxxxxxxxxxxxx"}'
 ```
 
-> The simulation succeeds ~95% of the time so failure handling can be demonstrated. The webhook endpoint (`/payments/stripe/webhook`) can also be used to replay `payment_intent.succeeded` / `payment_intent.payment_failed` events.
+> The payment is processed via the configured provider (Stripe or Flutterwave). Set up webhooks for real-time status updates.
 
 ## Testing
 
