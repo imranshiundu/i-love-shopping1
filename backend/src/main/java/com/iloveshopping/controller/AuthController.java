@@ -7,11 +7,11 @@ import com.iloveshopping.service.AuthService;
 import com.iloveshopping.util.RequestUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
@@ -59,11 +59,14 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(summary = "Refresh access token using refresh token")
     public ResponseEntity<ApiResponse<AuthResponse>> refresh(
-            @CookieValue(name = "refreshToken", required = false) String refreshToken,
+            @CookieValue(name = "refreshToken", required = false) String cookieRefreshToken,
+            @RequestHeader(value = "X-Refresh-Token", required = false) String headerRefreshToken,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
 
-        String token = refreshToken != null ? refreshToken : "";
+        String token = headerRefreshToken != null && !headerRefreshToken.isBlank()
+                ? headerRefreshToken
+                : cookieRefreshToken != null ? cookieRefreshToken : "";
         RefreshRequest request = RefreshRequest.builder().refreshToken(token).build();
         AuthResponse response = authService.refresh(request);
         setAuthCookies(httpResponse, response);
@@ -83,35 +86,43 @@ public class AuthController {
 
     private void setAuthCookies(HttpServletResponse response, AuthResponse authResponse) {
         if (authResponse.getAccessToken() != null) {
-            Cookie accessCookie = new Cookie("accessToken", authResponse.getAccessToken());
-            accessCookie.setPath("/api/v1");
-            accessCookie.setHttpOnly(true);
-            accessCookie.setSecure(false); // set true in production
-            accessCookie.setMaxAge((int) (authResponse.getExpiresIn()));
-            response.addCookie(accessCookie);
+            ResponseCookie accessCookie = ResponseCookie.from("accessToken", authResponse.getAccessToken())
+                    .path("/api/v1")
+                    .httpOnly(true)
+                    .secure(false) // set true in production
+                    .sameSite("None")
+                    .maxAge(authResponse.getExpiresIn())
+                    .build();
+            response.addHeader("Set-Cookie", accessCookie.toString());
         }
         if (authResponse.getRefreshToken() != null) {
-            Cookie refreshCookie = new Cookie("refreshToken", authResponse.getRefreshToken());
-            refreshCookie.setPath("/api/v1/auth");
-            refreshCookie.setHttpOnly(true);
-            refreshCookie.setSecure(false); // set true in production
-            refreshCookie.setMaxAge(7 * 24 * 60 * 60); // 7 days
-            response.addCookie(refreshCookie);
+            ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", authResponse.getRefreshToken())
+                    .path("/api/v1/auth")
+                    .httpOnly(true)
+                    .secure(false) // set true in production
+                    .sameSite("None")
+                    .maxAge(7L * 24 * 60 * 60) // 7 days
+                    .build();
+            response.addHeader("Set-Cookie", refreshCookie.toString());
         }
     }
 
     private void clearAuthCookies(HttpServletResponse response) {
-        Cookie accessCookie = new Cookie("accessToken", "");
-        accessCookie.setPath("/api/v1");
-        accessCookie.setHttpOnly(true);
-        accessCookie.setMaxAge(0);
-        response.addCookie(accessCookie);
+        ResponseCookie accessCookie = ResponseCookie.from("accessToken", "")
+                .path("/api/v1")
+                .httpOnly(true)
+                .sameSite("None")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", accessCookie.toString());
 
-        Cookie refreshCookie = new Cookie("refreshToken", "");
-        refreshCookie.setPath("/api/v1/auth");
-        refreshCookie.setHttpOnly(true);
-        refreshCookie.setMaxAge(0);
-        response.addCookie(refreshCookie);
+        ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", "")
+                .path("/api/v1/auth")
+                .httpOnly(true)
+                .sameSite("None")
+                .maxAge(0)
+                .build();
+        response.addHeader("Set-Cookie", refreshCookie.toString());
     }
 
     @PostMapping("/logout-all")
