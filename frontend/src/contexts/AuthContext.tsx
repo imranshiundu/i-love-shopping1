@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { auth as authApi, cart as cartRest, setAccessToken, setRefreshToken } from '@/services/api';
+import { auth as authApi, cart as cartRest, setAccessToken, setRefreshToken, getAccessToken, getRefreshToken } from '@/services/api';
 import { User, Cart } from '@/types';
 
 interface AuthContextType {
@@ -45,20 +45,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (hydrated.current) return;
     hydrated.current = true;
 
-    // 1. Set loading false immediately — don't block UI
     setLoading(false);
 
-    // 2. Hydrate session + cart in background (non-blocking)
     (async () => {
-      try {
-        const tokenRes = await authApi.refresh();
-        if (tokenRes.data?.accessToken) {
-          setAccessToken(tokenRes.data.accessToken);
-          if (tokenRes.data.refreshToken) setRefreshToken(tokenRes.data.refreshToken);
-          setUser(tokenRes.data.user);
+      const storedAccess = getAccessToken();
+      const storedRefresh = getRefreshToken();
+
+      // 1. If we have a stored access token, try to fetch profile directly
+      if (storedAccess) {
+        try {
+          const profileRes = await authApi.getProfile();
+          if (profileRes.data) {
+            setUser(profileRes.data as unknown as User);
+            refreshCart();
+            return;
+          }
+        } catch {
+          // Access token expired or invalid — try refresh
         }
-      } catch { /* not logged in — that's fine */ }
-      // Load cart regardless of auth state
+      }
+
+      // 2. Try refresh with stored refresh token
+      if (storedRefresh) {
+        try {
+          const tokenRes = await authApi.refresh();
+          if (tokenRes.data?.accessToken) {
+            setAccessToken(tokenRes.data.accessToken);
+            if (tokenRes.data.refreshToken) setRefreshToken(tokenRes.data.refreshToken);
+            setUser(tokenRes.data.user);
+            refreshCart();
+            return;
+          }
+        } catch {
+          // Refresh token expired — not logged in
+        }
+      }
+
+      // 3. Not logged in — clear any stale tokens
+      setAccessToken(null);
+      setRefreshToken(null);
       refreshCart();
     })();
   }, [refreshCart]);
@@ -108,4 +133,3 @@ export function useAuth() {
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
   return ctx;
 }
-
