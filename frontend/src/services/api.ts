@@ -3,12 +3,27 @@ import { ApiResponse, AuthResponse, Product, ProductSearchResponse, Cart, Order,
 import { config } from '@/lib/config';
 const API_URL = config.api.baseUrl;
 
-let accessToken: string | null = null;
-let refreshToken: string | null = null;
+const STORAGE_KEY_ACCESS = 'ils_access_token';
+const STORAGE_KEY_REFRESH = 'ils_refresh_token';
 
-export function setAccessToken(token: string | null) { accessToken = token; }
+let accessToken: string | null = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_ACCESS) : null;
+let refreshToken: string | null = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_REFRESH) : null;
+
+export function setAccessToken(token: string | null) {
+  accessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) localStorage.setItem(STORAGE_KEY_ACCESS, token);
+    else localStorage.removeItem(STORAGE_KEY_ACCESS);
+  }
+}
 export function getAccessToken() { return accessToken; }
-export function setRefreshToken(token: string | null) { refreshToken = token; }
+export function setRefreshToken(token: string | null) {
+  refreshToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) localStorage.setItem(STORAGE_KEY_REFRESH, token);
+    else localStorage.removeItem(STORAGE_KEY_REFRESH);
+  }
+}
 export function getRefreshToken() { return refreshToken; }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
@@ -40,7 +55,7 @@ export const auth = {
   refresh: () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (refreshToken) headers['X-Refresh-Token'] = refreshToken;
-    return request<AuthResponse>('/auth/refresh', { method: 'POST', headers });
+    return request<AuthResponse>('/auth/refresh', { method: 'POST', headers, credentials: 'include' });
   },
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   forgotPassword: (email: string) => request<void>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
