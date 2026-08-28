@@ -89,7 +89,8 @@ public class CartController {
         }
         ResponseCookie cookie = ResponseCookie.from(GUEST_COOKIE, cart.getSessionId())
                 .httpOnly(true)
-                .sameSite("Lax")
+                .sameSite("None")
+                .secure(false)
                 .path("/")
                 .maxAge(7 * 24 * 3600)
                 .build();
