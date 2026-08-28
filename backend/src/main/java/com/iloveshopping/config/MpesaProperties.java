@@ -13,8 +13,7 @@ public class MpesaProperties {
     private String consumerSecret;
     private String shortcode = "174379";
     private String passkey;
-    private String callbackUrl;
-    private String timeoutUrl;
+    private String callbackUrl = "http://localhost:8080/api/v1/payments/mpesa/callback";
+    private String timeoutUrl = "http://localhost:8080/api/v1/payments/mpesa/timeout";
     private String baseUrl = "https://sandbox.safaricom.co.ke";
-    private boolean simulationEnabled = true;
 }

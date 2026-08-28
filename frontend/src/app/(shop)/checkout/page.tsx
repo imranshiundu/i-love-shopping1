@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
@@ -11,21 +11,29 @@ import Reveal from '@/components/ui/Reveal';
 import { Address } from '@/types';
 import {
   FiCheck, FiArrowRight, FiShoppingBag,
-  FiSmartphone, FiCreditCard, FiLock, FiZap, FiLoader,
+  FiSmartphone, FiLock, FiLoader, FiClock, FiAlertCircle, FiCheckCircle,
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-type PayMethod = 'mpesa' | 'airtel' | 'stripe' | 'flutterwave';
+type PayMethod = 'mpesa';
+type StkStatus = 'idle' | 'sending' | 'waiting_pin' | 'polling' | 'success' | 'failed' | 'cancelled';
+
+const STK_POLL_INTERVAL_MS = 3000;
+const STK_POLL_MAX_ATTEMPTS = 40;
 
 export default function CheckoutPage() {
   const router = useRouter();
   const { cart, cartLoading, refreshCart, user } = useAuth();
   const { currency } = useCurrency();
   const [loading, setLoading] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<PayMethod>('mpesa');
+  const [paymentMethod] = useState<PayMethod>('mpesa');
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [card, setCard] = useState({ number: '', expiry: '', cvv: '', name: '' });
-  const [cardErrors, setCardErrors] = useState<Record<string, string>>({});
+  const [stkStatus, setStkStatus] = useState<StkStatus>('idle');
+  const [stkMessage, setStkMessage] = useState('');
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollCountRef = useRef(0);
+  const checkoutRequestIdRef = useRef<string | null>(null);
+  const orderNumberRef = useRef<string | null>(null);
 
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedShippingId, setSelectedShippingId] = useState<string>('');
@@ -56,6 +64,12 @@ export default function CheckoutPage() {
       }
     }).catch(() => {});
   }, [user]);
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
 
   const applyAddress = (addr: Address, target: 'shipping' | 'billing') => {
     const mapped: Address = {
@@ -116,9 +130,9 @@ export default function CheckoutPage() {
   };
 
   const validatePayment = (): boolean => {
-    if (paymentMethod === 'mpesa' || paymentMethod === 'airtel') {
+    if (paymentMethod === 'mpesa') {
       if (!phoneNumber) {
-        toast.error(`Enter your ${paymentMethod === 'mpesa' ? 'M-Pesa' : 'Airtel Money'} phone number`);
+        toast.error('Enter your M-Pesa phone number');
         return false;
       }
       const digits = phoneNumber.replace(/\D/g, '');
@@ -128,45 +142,75 @@ export default function CheckoutPage() {
       }
       return true;
     }
-    if (paymentMethod === 'stripe' || paymentMethod === 'flutterwave') {
-      const errors: Record<string, string> = {};
-      const digits = card.number.replace(/\D/g, '');
-      if (digits.length < 13 || digits.length > 19) {
-        errors.number = 'Enter a valid card number';
-      } else {
-        let sum = 0;
-        let dbl = false;
-        for (let i = digits.length - 1; i >= 0; i--) {
-          let d = parseInt(digits[i], 10);
-          if (dbl) { d *= 2; if (d > 9) d -= 9; }
-          sum += d;
-          dbl = !dbl;
-        }
-        if (sum % 10 !== 0) errors.number = 'This card number is invalid';
-      }
-      const m = card.expiry.trim().match(/^(0[1-9]|1[0-2])\s*\/\s*(\d{2})$/);
-      if (!m) {
-        errors.expiry = 'Use MM/YY';
-      } else {
-        const exp = new Date(2000 + parseInt(m[2], 10), parseInt(m[1], 10), 1);
-        if (exp <= new Date()) errors.expiry = 'This card has expired';
-      }
-      if (!/^\d{3,4}$/.test(card.cvv.trim())) errors.cvv = '3 or 4 digits';
-      if (!card.name.trim()) errors.name = 'Name on card is required';
-      setCardErrors(errors);
-      if (Object.keys(errors).length > 0) {
-        toast.error('Check your card details');
-        return false;
-      }
-      return true;
-    }
     return true;
   };
+
+  const startPolling = useCallback((checkoutRequestId: string) => {
+    pollCountRef.current = 0;
+    checkoutRequestIdRef.current = checkoutRequestId;
+    setStkStatus('polling');
+    setStkMessage('Waiting for M-Pesa confirmation...');
+
+    if (pollRef.current) clearInterval(pollRef.current);
+
+    pollRef.current = setInterval(async () => {
+      pollCountRef.current += 1;
+
+      if (pollCountRef.current > STK_POLL_MAX_ATTEMPTS) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setStkStatus('failed');
+        setStkMessage('Payment timed out. Please try again.');
+        toast.error('Payment timed out');
+        return;
+      }
+
+      try {
+        const result = await payments.mpesaStkQuery(checkoutRequestId);
+        const data = result.data;
+        const desc = (data?.responseDescription || data?.customerMessage || '').toLowerCase();
+
+        if (desc.includes('successfully') || desc.includes('completed')) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setStkStatus('success');
+          setStkMessage('Payment confirmed!');
+          toast.success('M-Pesa payment confirmed');
+          if (orderNumberRef.current) {
+            router.push(`/checkout/success?order=${orderNumberRef.current}`);
+          }
+          return;
+        }
+
+        if (desc.includes('cancelled') || desc.includes('cancelled by user')) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setStkStatus('cancelled');
+          setStkMessage('Payment was cancelled.');
+          toast.error('Payment cancelled');
+          return;
+        }
+
+        if (desc.includes('timeout') || desc.includes('expired')) {
+          if (pollRef.current) clearInterval(pollRef.current);
+          setStkStatus('failed');
+          setStkMessage('Payment request expired.');
+          toast.error('Payment expired');
+          return;
+        }
+
+        setStkMessage(`Checking payment status... (${pollCountRef.current}/${STK_POLL_MAX_ATTEMPTS})`);
+
+      } catch {
+        // Keep polling — network hiccup
+      }
+    }, STK_POLL_INTERVAL_MS);
+  }, [router]);
 
   const handlePlaceOrder = async () => {
     if (!validateAddress()) return;
     if (!validatePayment()) return;
     setLoading(true);
+    setStkStatus('sending');
+    setStkMessage('Creating your order...');
+
     try {
       const res = await orders.checkout({
         shippingAddress: { ...shipping, type: 'SHIPPING' },
@@ -174,53 +218,32 @@ export default function CheckoutPage() {
         notes,
       });
       if (!res.data) {
-        toast.error('Checkout failed - no order was created');
+        toast.error('Checkout failed — no order was created');
         setLoading(false);
+        setStkStatus('idle');
         return;
       }
       const orderId = res.data.id;
-      const orderNumber = res.data.number || '';
+      orderNumberRef.current = res.data.number || '';
       await refreshCart();
 
-      if (paymentMethod === 'mpesa') {
-        const push = await orders.mpesaStkPush(orderId, String(total), phoneNumber);
-        toast.success('PIN prompt sent - approve it on your phone');
-        if (push.data?.checkoutRequestId) {
-          await new Promise(r => setTimeout(r, 2500));
-          const result = await payments.mpesaSimulateConfirm(push.data.checkoutRequestId);
-          if (result.data?.status === 'successful') {
-            toast.success('M-Pesa payment received');
-            router.push(`/checkout/success?order=${orderNumber}`);
-          } else {
-            throw new Error(result.data?.resultDesc || 'M-Pesa payment was not completed');
-          }
-        } else {
-          setTimeout(() => router.push(`/checkout/success?order=${orderNumber}`), 3000);
-        }
-      } else if (paymentMethod === 'airtel') {
-        const airtelRes = await payments.airtelInitiate(orderId, total, phoneNumber);
-        if (airtelRes.data?.referenceId) {
-          toast.success('Approve the PIN prompt on your Airtel line');
-          await payments.airtelConfirm(airtelRes.data.referenceId);
-          toast.success('Airtel Money payment complete');
-          router.push(`/checkout/success?order=${orderNumber}`);
-        }
-      } else if (paymentMethod === 'stripe') {
-        const stripeRes = await payments.stripeCreateIntent(orderId, total);
-        if (stripeRes.data?.clientSecret) {
-          await payments.stripeConfirm(stripeRes.data.paymentIntentId);
-          toast.success('Card payment processed');
-          router.push(`/checkout/success?order=${orderNumber}`);
-        }
-      } else if (paymentMethod === 'flutterwave') {
-        const fwRes = await payments.flutterwaveCreate(orderId, total, user?.email);
-        if (fwRes.data?.transactionRef) {
-          toast.success('Confirming with Flutterwave...');
-          await payments.flutterwaveVerify(fwRes.data.transactionRef);
-          toast.success('Flutterwave payment complete');
-          router.push(`/checkout/success?order=${orderNumber}`);
-        }
+      setStkStatus('waiting_pin');
+      setStkMessage('Enter your M-Pesa PIN on your phone...');
+
+      const pushRes = await orders.mpesaStkPush(orderId, String(total), phoneNumber);
+      const checkoutRequestId = pushRes.data?.checkoutRequestId;
+
+      if (!checkoutRequestId) {
+        toast.error('Failed to send M-Pesa prompt');
+        setLoading(false);
+        setStkStatus('failed');
+        setStkMessage('Could not initiate M-Pesa payment.');
+        return;
       }
+
+      toast.success('PIN prompt sent — check your phone');
+      startPolling(checkoutRequestId);
+
     } catch (e: any) {
       const msg = e.message || 'Checkout failed';
       if (msg.includes('insufficient stock') || msg.includes('out of stock')) {
@@ -230,8 +253,20 @@ export default function CheckoutPage() {
       } else {
         toast.error(msg);
       }
+      setLoading(false);
+      setStkStatus('failed');
+      setStkMessage(msg);
     }
+  };
+
+  const resetPayment = () => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    setStkStatus('idle');
+    setStkMessage('');
     setLoading(false);
+    checkoutRequestIdRef.current = null;
+    orderNumberRef.current = null;
+    pollCountRef.current = 0;
   };
 
   if (cartLoading) {
@@ -258,11 +293,13 @@ export default function CheckoutPage() {
     );
   }
 
+  const isProcessing = stkStatus !== 'idle' && stkStatus !== 'success' && stkStatus !== 'failed' && stkStatus !== 'cancelled';
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Checkout</h1>
-        <p className="mt-1 text-sm text-stone-500">Complete your delivery details and choose how to pay.</p>
+        <p className="mt-1 text-sm text-stone-500">Complete your delivery details and pay with M-Pesa.</p>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1.5fr_1fr]">
@@ -327,6 +364,7 @@ export default function CheckoutPage() {
                       }}
                       required={field.required}
                       placeholder={field.key === 'phone' ? '254712345678' : ''}
+                      disabled={isProcessing}
                       className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${
                         fieldErrors[field.key]
                           ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100'
@@ -341,7 +379,7 @@ export default function CheckoutPage() {
               </div>
 
               <label className="mt-5 flex cursor-pointer items-center gap-2.5 text-sm font-medium">
-                <input type="checkbox" checked={sameAsShipping} onChange={e => setSameAsShipping(e.target.checked)} className="h-4 w-4 accent-primary-600" />
+                <input type="checkbox" checked={sameAsShipping} onChange={e => setSameAsShipping(e.target.checked)} disabled={isProcessing} className="h-4 w-4 accent-primary-600" />
                 Billing address is the same as delivery
               </label>
 
@@ -353,6 +391,7 @@ export default function CheckoutPage() {
                       <input
                         type="text" value={(billing as any)[key] || ''}
                         onChange={e => setBilling({ ...billing, [key]: e.target.value })}
+                        disabled={isProcessing}
                         className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
                       />
                     </div>
@@ -364,120 +403,73 @@ export default function CheckoutPage() {
 
           <Reveal delay={80}>
             <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
-              <h2 className="text-lg font-bold">How would you like to pay?</h2>
-              <p className="mt-1 text-sm text-stone-500">All payments are simulated in sandbox mode.</p>
-
-              <p className="mt-3 flex items-center justify-center gap-2 rounded-full bg-amber-50 px-4 py-1.5 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
-                <FiLock className="h-3 w-3" /> Sandbox mode - no real money moves
+              <h2 className="text-lg font-bold">Payment — M-Pesa</h2>
+              <p className="mt-1 text-sm text-stone-500">
+                You will receive an STK push prompt on your Safaricom phone to enter your M-Pesa PIN.
               </p>
 
               {currency.code !== 'KES' && (
-                <p className="mt-2 text-center text-xs text-stone-500">
-                  Prices shown in {currency.code} are estimates - payment is processed in KES.
+                <p className="mt-2 text-xs text-stone-500">
+                  Prices shown in {currency.code} are estimates — payment is processed in KES.
                 </p>
               )}
 
-              <div className="mt-5 grid gap-3">
-                {[
-                  { id: 'mpesa', label: 'M-Pesa', desc: 'STK push to your Safaricom line', icon: FiSmartphone, accent: 'text-emerald-600 bg-emerald-100' },
-                  { id: 'airtel', label: 'Airtel Money', desc: 'PIN prompt on your Airtel line', icon: FiZap, accent: 'text-rose-600 bg-rose-100' },
-                  { id: 'stripe', label: 'Card - Stripe', desc: 'Visa, Mastercard, Amex', icon: FiCreditCard, accent: 'text-indigo-600 bg-indigo-100' },
-                  { id: 'flutterwave', label: 'Card - Flutterwave', desc: 'Cards and mobile wallets across Africa', icon: FiLock, accent: 'text-orange-600 bg-orange-100' },
-                ].map(m => (
-                  <label key={m.id}>
-                    <input type="radio" name="payment" value={m.id} checked={paymentMethod === m.id}
-                      onChange={() => setPaymentMethod(m.id as PayMethod)} className="peer sr-only" />
-                    <div className="flex cursor-pointer items-center gap-4 rounded-xl border-2 border-stone-200 p-4 transition-all peer-checked:border-primary-600 peer-checked:bg-primary-50/50 peer-checked:shadow-sm hover:border-stone-300">
-                      <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${m.accent}`}>
-                        <m.icon className="h-5 w-5" />
-                      </span>
-                      <span>
-                        <span className="block font-semibold">{m.label}</span>
-                        <span className="block text-sm text-stone-500">{m.desc}</span>
-                      </span>
-                      <span className={`ml-auto flex h-5 w-5 items-center justify-center rounded-full border-2 ${paymentMethod === m.id ? 'border-primary-600 bg-primary-600' : 'border-stone-300'}`}>
-                        {paymentMethod === m.id && <FiCheck className="h-3 w-3 text-white" />}
-                      </span>
-                    </div>
-                  </label>
-                ))}
+              <div className="mt-5 rounded-xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
+                <label className="mb-1 block text-sm font-medium text-emerald-900">
+                  M-Pesa phone number
+                </label>
+                <input
+                  type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
+                  placeholder="254712345678"
+                  disabled={isProcessing}
+                  className="w-full rounded-xl border border-emerald-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100 disabled:opacity-60"
+                />
+                <p className="mt-2 text-xs text-emerald-700">
+                  Enter the phone number registered with M-Pesa. You will receive a PIN prompt to approve the payment.
+                </p>
               </div>
 
-              {(paymentMethod === 'stripe' || paymentMethod === 'flutterwave') && (
-                <div className="mt-5 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-widest text-stone-400">
-                    Card details - validated in your browser, never stored
-                  </p>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <input
-                        inputMode="numeric" placeholder="4242 4242 4242 4242"
-                        value={card.number}
-                        onChange={e => {
-                          const digits = e.target.value.replace(/\D/g, '').slice(0, 19);
-                          setCard({ ...card, number: digits.replace(/(.{4})/g, '$1 ').trim() });
-                          if (cardErrors.number) setCardErrors(prev => ({ ...prev, number: '' }));
-                        }}
-                        className={`${cardInputCls} ${cardErrors.number ? 'border-rose-400' : ''}`}
-                      />
-                      {cardErrors.number && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.number}</p>}
-                    </div>
-                    <div>
-                      <input
-                        inputMode="numeric" placeholder="MM / YY"
-                        value={card.expiry}
-                        onChange={e => {
-                          let v = e.target.value.replace(/\D/g, '').slice(0, 4);
-                          if (v.length > 2) v = v.slice(0, 2) + ' / ' + v.slice(2);
-                          setCard({ ...card, expiry: v });
-                          if (cardErrors.expiry) setCardErrors(prev => ({ ...prev, expiry: '' }));
-                        }}
-                        className={`${cardInputCls} ${cardErrors.expiry ? 'border-rose-400' : ''}`}
-                      />
-                      {cardErrors.expiry && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.expiry}</p>}
-                    </div>
-                    <div>
-                      <input
-                        inputMode="numeric" placeholder="CVV"
-                        value={card.cvv}
-                        onChange={e => setCard({ ...card, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
-                        className={`${cardInputCls} ${cardErrors.cvv ? 'border-rose-400' : ''}`}
-                      />
-                      {cardErrors.cvv && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.cvv}</p>}
-                    </div>
-                    <div className="sm:col-span-2">
-                      <input
-                        placeholder="Name on card"
-                        value={card.name}
-                        onChange={e => setCard({ ...card, name: e.target.value })}
-                        className={`${cardInputCls} ${cardErrors.name ? 'border-rose-400' : ''}`}
-                      />
-                      {cardErrors.name && <p className="mt-1 text-xs font-medium text-rose-600">{cardErrors.name}</p>}
+              {stkStatus !== 'idle' && (
+                <div className={`mt-5 rounded-xl p-4 ring-1 ${
+                  stkStatus === 'success' ? 'bg-emerald-50 ring-emerald-200' :
+                  stkStatus === 'cancelled' || stkStatus === 'failed' ? 'bg-rose-50 ring-rose-200' :
+                  'bg-amber-50 ring-amber-200'
+                }`}>
+                  <div className="flex items-start gap-3">
+                    {stkStatus === 'sending' || stkStatus === 'waiting_pin' || stkStatus === 'polling' ? (
+                      <FiLoader className="mt-0.5 h-5 w-5 shrink-0 animate-spin text-amber-600" />
+                    ) : stkStatus === 'success' ? (
+                      <FiCheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" />
+                    ) : (
+                      <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
+                    )}
+                    <div className="flex-1">
+                      <p className={`text-sm font-semibold ${
+                        stkStatus === 'success' ? 'text-emerald-900' :
+                        stkStatus === 'cancelled' || stkStatus === 'failed' ? 'text-rose-900' :
+                        'text-amber-900'
+                      }`}>
+                        {stkStatus === 'sending' && 'Initiating payment...'}
+                        {stkStatus === 'waiting_pin' && 'Enter your M-Pesa PIN on your phone'}
+                        {stkStatus === 'polling' && 'Waiting for confirmation...'}
+                        {stkStatus === 'success' && 'Payment confirmed!'}
+                        {stkStatus === 'failed' && 'Payment failed'}
+                        {stkStatus === 'cancelled' && 'Payment cancelled'}
+                      </p>
+                      <p className={`mt-1 text-xs ${
+                        stkStatus === 'success' ? 'text-emerald-700' :
+                        stkStatus === 'cancelled' || stkStatus === 'failed' ? 'text-rose-700' :
+                        'text-amber-700'
+                      }`}>
+                        {stkMessage}
+                      </p>
+                      {(stkStatus === 'failed' || stkStatus === 'cancelled') && (
+                        <button onClick={resetPayment} className="mt-3 text-sm font-medium text-rose-700 underline hover:text-rose-900">
+                          Try again
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <p className="mt-3 text-xs text-stone-400">
-                    Sandbox tip: 4242 4242 4242 4242 with any future expiry succeeds.
-                  </p>
-                </div>
-              )}
-
-              {(paymentMethod === 'mpesa' || paymentMethod === 'airtel') && (
-                <div className={`mt-5 rounded-xl p-4 ring-1 ${paymentMethod === 'mpesa' ? 'bg-emerald-50 ring-emerald-200' : 'bg-rose-50 ring-rose-200'}`}>
-                  <label className={`mb-1 block text-sm font-medium ${paymentMethod === 'mpesa' ? 'text-emerald-900' : 'text-rose-900'}`}>
-                    {paymentMethod === 'mpesa' ? 'M-Pesa phone number' : 'Airtel Money phone number'}
-                  </label>
-                  <input
-                    type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
-                    placeholder={paymentMethod === 'mpesa' ? '254712345678' : '254701234567'}
-                    className={`w-full rounded-xl border px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 ${
-                      paymentMethod === 'mpesa'
-                        ? 'border-emerald-300 focus:border-emerald-500 focus:ring-emerald-100'
-                        : 'border-rose-300 focus:border-rose-500 focus:ring-rose-100'
-                    }`}
-                  />
-                  <p className={`mt-2 text-xs ${paymentMethod === 'mpesa' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    You will receive a prompt on this number to approve the payment.
-                  </p>
                 </div>
               )}
             </section>
@@ -489,6 +481,7 @@ export default function CheckoutPage() {
               <textarea
                 value={notes} onChange={e => setNotes(e.target.value)} rows={3}
                 placeholder="Gate code, preferred delivery time, gift note..."
+                disabled={isProcessing}
                 className="mt-4 w-full resize-none rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100"
               />
             </section>
@@ -521,16 +514,16 @@ export default function CheckoutPage() {
                   <dt className="text-base font-bold">Total</dt><dd className="text-xl font-extrabold">{formatKES(total)}</dd>
                 </div>
               </dl>
-              <button onClick={handlePlaceOrder} disabled={loading}
+              <button onClick={handlePlaceOrder} disabled={loading || isProcessing}
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60 disabled:hover:translate-y-0">
                 {loading ? (
                   <><FiLoader className="h-4 w-4 animate-spin" /> Processing...</>
                 ) : (
-                  <>Pay {formatKES(total)} <FiArrowRight /></>
+                  <>Pay {formatKES(total)} via M-Pesa <FiArrowRight /></>
                 )}
               </button>
               <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-stone-400">
-                <FiLock className="h-3 w-3" /> Secure checkout - card details are never stored on our servers.
+                <FiLock className="h-3 w-3" /> Secure — powered by Safaricom Daraja API
               </p>
             </div>
           </Reveal>
@@ -539,5 +532,3 @@ export default function CheckoutPage() {
     </div>
   );
 }
-
-const cardInputCls = 'w-full rounded-xl border border-stone-300 bg-white px-3.5 py-2.5 text-sm transition-colors focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100';

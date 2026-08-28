@@ -6,12 +6,13 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import {
-  FiGrid, FiShoppingBag, FiMapPin, FiSettings, FiArrowLeft,
+  FiGrid, FiShoppingBag, FiMapPin, FiSettings, FiArrowLeft, FiCreditCard,
 } from 'react-icons/fi';
 
 const NAV = [
   { href: '/account', label: 'Dashboard', icon: FiGrid },
   { href: '/account/orders', label: 'Orders', icon: FiShoppingBag },
+  { href: '/account/payments', label: 'Payments', icon: FiCreditCard },
   { href: '/account/addresses', label: 'Addresses', icon: FiMapPin },
   { href: '/account/settings', label: 'Settings', icon: FiSettings },
 ];

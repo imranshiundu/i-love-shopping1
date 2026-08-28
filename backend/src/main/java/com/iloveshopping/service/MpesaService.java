@@ -8,6 +8,7 @@ import com.iloveshopping.entity.Order;
 import com.iloveshopping.entity.Payment;
 import com.iloveshopping.exception.PaymentException;
 import com.iloveshopping.exception.ResourceNotFoundException;
+import com.iloveshopping.messaging.OrderMessagePublisher;
 import com.iloveshopping.repository.OrderRepository;
 import com.iloveshopping.repository.PaymentRepository;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -28,7 +29,6 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.List;
-import java.util.UUID;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -43,22 +43,24 @@ public class MpesaService {
     private final PaymentRepository paymentRepository;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
+    private final OrderMessagePublisher orderMessagePublisher;
+    private final EmailService emailService;
 
     private String cachedAccessToken;
     private Instant tokenExpiryTime;
 
-    private String getAccessToken() {
+    public String getAccessToken() {
         if (cachedAccessToken != null && tokenExpiryTime != null && Instant.now().isBefore(tokenExpiryTime)) {
             return cachedAccessToken;
         }
 
-        log.debug("Requesting new M-Pesa access token");
+        log.debug("Requesting M-Pesa OAuth token from {}", mpesaProperties.getBaseUrl());
 
         try {
             String authKey = mpesaProperties.getConsumerKey() + ":" + mpesaProperties.getConsumerSecret();
             String encodedAuth = Base64.getEncoder().encodeToString(authKey.getBytes(StandardCharsets.UTF_8));
 
-            String authUrl = "https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials";
+            String authUrl = mpesaProperties.getBaseUrl() + "/oauth/v1/generate?grant_type=client_credentials";
 
             HttpHeaders headers = new HttpHeaders();
             headers.set("Authorization", "Basic " + encodedAuth);
@@ -71,44 +73,46 @@ public class MpesaService {
             );
 
             JsonNode node = response.getBody();
-            if (node == null) {
-                throw new PaymentException("Failed to get M-Pesa access token - null response");
+            if (node == null || !node.has("access_token")) {
+                throw new PaymentException("Failed to get M-Pesa access token - invalid response");
             }
 
             cachedAccessToken = node.get("access_token").asText();
             int expiresIn = node.get("expires_in").asInt();
             tokenExpiryTime = Instant.now().plusSeconds(expiresIn - 30);
 
-            log.info("M-Pesa access token obtained, expires in {} seconds", expiresIn);
+            log.info("M-Pesa OAuth token obtained, expires in {}s", expiresIn);
             return cachedAccessToken;
+        } catch (PaymentException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("Failed to get M-Pesa access token: {}", e.getMessage(), e);
+            log.error("M-Pesa OAuth failed: {}", e.getMessage(), e);
             throw new PaymentException("Failed to authenticate with M-Pesa API: " + e.getMessage());
         }
     }
 
     @Transactional
     public MpesaStkPushResponse initiateStkPush(MpesaStkPushRequest request) {
-        log.info("Initiating M-Pesa STK Push for order: {} amount: {} phone: {}",
+        log.info("Initiating M-Pesa STK Push — order: {} amount: {} phone: {}",
                 request.getOrderId(), request.getAmount(), request.getPhoneNumber());
 
         Order order = orderRepository.findById(request.getOrderId())
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", request.getOrderId()));
 
         if (request.getAmount().compareTo(order.getTotal()) != 0) {
+            log.warn("Amount mismatch: request={} order={}", request.getAmount(), order.getTotal());
             throw new PaymentException("Payment amount does not match order total");
         }
 
-        if (mpesaProperties.isSimulationEnabled()) {
-            return simulateStkPush(order, request);
-        }
+        String phoneNumber = normalizePhone(request.getPhoneNumber());
+        String accountRef = truncateAccountRef(
+                request.getAccountReference() != null ? request.getAccountReference() : order.getNumber()
+        );
 
         try {
             String accessToken = getAccessToken();
             String timestamp = getTimestamp();
             String password = generatePassword(timestamp);
-            String partyA = request.getPhoneNumber();
-            String callbackUrl = mpesaProperties.getCallbackUrl();
 
             ObjectNode stkRequest = objectMapper.createObjectNode();
             stkRequest.put("BusinessShortCode", mpesaProperties.getShortcode());
@@ -116,24 +120,24 @@ public class MpesaService {
             stkRequest.put("Timestamp", timestamp);
             stkRequest.put("TransactionType", "CustomerPayBillOnline");
             stkRequest.put("Amount", String.valueOf(request.getAmount().intValue()));
-            stkRequest.put("PartyA", partyA);
+            stkRequest.put("PartyA", phoneNumber);
             stkRequest.put("PartyB", mpesaProperties.getShortcode());
-            stkRequest.put("PhoneNumber", partyA);
-            stkRequest.put("IdentifierType", "4");
+            stkRequest.put("PhoneNumber", phoneNumber);
+            stkRequest.put("IdentifierType", "17");
             stkRequest.put("Remarks", "Payment for order " + order.getNumber());
-            stkRequest.put("CallBackURL", callbackUrl);
-            stkRequest.put("AccountName", "i-love-shopping");
-            stkRequest.put("AccountReference", request.getAccountReference() != null ? request.getAccountReference() : order.getNumber());
-            stkRequest.put("TransactionDesc", request.getTransactionDesc() != null ? request.getTransactionDesc() : "Order payment");
+            stkRequest.put("CallBackURL", mpesaProperties.getCallbackUrl());
+            stkRequest.put("AccountReference", accountRef);
+            stkRequest.put("TransactionDesc", request.getTransactionDesc() != null
+                    ? request.getTransactionDesc() : "Order " + order.getNumber());
 
             Payment payment = Payment.builder()
                     .order(order)
                     .provider(Payment.PaymentProvider.MPESA)
-                    .providerId("PENDING")
+                    .providerId("PENDING_STK")
                     .amount(request.getAmount())
                     .currency("KES")
                     .status(Payment.PaymentStatus.PENDING)
-                    .metadata("{\"checkoutRequestId\": null}")
+                    .metadata(buildInitMetadata(phoneNumber, accountRef))
                     .build();
             payment = paymentRepository.save(payment);
 
@@ -149,56 +153,49 @@ public class MpesaService {
 
             JsonNode responseNode = objectMapper.readTree(response.getBody());
 
+            String responseCode = responseNode.has("ResponseCode")
+                    ? responseNode.get("ResponseCode").asText() : null;
+            String merchantRequestId = responseNode.has("MerchantRequestID")
+                    ? responseNode.get("MerchantRequestID").asText() : null;
             String checkoutRequestId = responseNode.has("CheckoutRequestID")
-                    ? responseNode.get("CheckoutRequestID").asText()
-                    : null;
+                    ? responseNode.get("CheckoutRequestID").asText() : null;
+            String customerMessage = responseNode.has("CustomerMessage")
+                    ? responseNode.get("CustomerMessage").asText() : null;
+            String responseDescription = responseNode.has("ResponseDescription")
+                    ? responseNode.get("ResponseDescription").asText() : null;
+
+            if (!"0".equals(responseCode)) {
+                payment.setStatus(Payment.PaymentStatus.FAILED);
+                payment.setMetadata(buildFailedMetadata(responseCode, responseDescription));
+                paymentRepository.save(payment);
+                throw new PaymentException("STK Push rejected: " + responseDescription);
+            }
 
             payment.setProviderId(checkoutRequestId);
-            payment.setMetadata("{\"checkoutRequestId\": \"" + checkoutRequestId + "\", \"customerPhone\": \"" + partyA + "\"}");
+            payment.setMetadata(buildStkMetadata(checkoutRequestId, merchantRequestId, phoneNumber));
             paymentRepository.save(payment);
 
+            log.info("STK Push sent — checkoutRequestId={}, merchantRequestId={}", checkoutRequestId, merchantRequestId);
+
             return MpesaStkPushResponse.builder()
-                    .merchantRequestId(responseNode.has("MerchantRequestID") ? responseNode.get("MerchantRequestID").asText() : null)
+                    .merchantRequestId(merchantRequestId)
                     .checkoutRequestId(checkoutRequestId)
-                    .responseCode(responseNode.has("ResponseCode") ? responseNode.get("ResponseCode").asText() : null)
-                    .responseDescription(responseNode.has("ResponseDescription") ? responseNode.get("ResponseDescription").asText() : null)
-                    .customerMessage(responseNode.has("CustomerMessage") ? responseNode.get("CustomerMessage").asText() : null)
+                    .responseCode(responseCode)
+                    .responseDescription(responseDescription)
+                    .customerMessage(customerMessage)
                     .build();
 
+        } catch (PaymentException e) {
+            throw e;
         } catch (Exception e) {
             log.error("STK Push failed: {}", e.getMessage(), e);
             throw new PaymentException("Failed to initiate M-Pesa payment: " + e.getMessage());
         }
     }
 
-    private MpesaStkPushResponse simulateStkPush(Order order, MpesaStkPushRequest request) {
-        String checkoutRequestId = "SIM-ws_CO_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-
-        Payment payment = Payment.builder()
-                .order(order)
-                .provider(Payment.PaymentProvider.MPESA)
-                .providerId(checkoutRequestId)
-                .amount(request.getAmount())
-                .currency("KES")
-                .status(Payment.PaymentStatus.PENDING)
-                .metadata(com.iloveshopping.service.DataEncryptionService.encryptForJson("{\"checkoutRequestId\": \"" + checkoutRequestId + "\", \"customerPhone\": \"" + request.getPhoneNumber() + "\", \"simulated\": true}"))
-                .build();
-        paymentRepository.save(payment);
-
-        log.info("Simulated M-Pesa STK Push for order: {} checkoutId: {}", order.getNumber(), checkoutRequestId);
-
-        return MpesaStkPushResponse.builder()
-                .merchantRequestId("SIM-" + UUID.randomUUID().toString().substring(0, 8))
-                .checkoutRequestId(checkoutRequestId)
-                .responseCode("0")
-                .responseDescription("Success. Request accepted for processing")
-                .customerMessage("An M-Pesa PIN prompt has been sent to your phone.")
-                .build();
-    }
-
     @Transactional
     public void processMpesaCallback(String callbackBody) {
-        log.info("Processing M-Pesa callback: {}", callbackBody);
+        log.info("M-Pesa callback received");
 
         try {
             JsonNode callbackJson = objectMapper.readTree(callbackBody);
@@ -210,72 +207,141 @@ public class MpesaService {
 
             Optional<Payment> paymentOpt = paymentRepository.findByProviderId(checkoutRequestId);
             if (paymentOpt.isEmpty()) {
-                log.warn("Payment not found for checkout request ID: {}", checkoutRequestId);
+                log.warn("No payment found for checkoutRequestId={}", checkoutRequestId);
                 return;
             }
 
             Payment payment = paymentOpt.get();
+            if (payment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {
+                log.info("Payment already succeeded, ignoring duplicate callback for {}", checkoutRequestId);
+                return;
+            }
+
+            payment.setCallbackData(callbackBody);
 
             if (resultCode == 0) {
-                JsonNode callbackMetadata = stkCallback.get("CallbackMetadata").get("Item");
-                String amount = callbackMetadata.get(0).get("Value").asText();
-                String mpesaReceipt = callbackMetadata.get(1).get("Value").asText();
-                String phoneNumber = callbackMetadata.get(4).get("Value").asText();
+                JsonNode items = stkCallback.get("CallbackMetadata").get("Item");
+                BigDecimal amount = null;
+                String mpesaReceipt = null;
+                String phoneNumber = null;
+
+                for (JsonNode item : items) {
+                    String name = item.get("Name").asText();
+                    switch (name) {
+                        case "Amount" -> amount = new BigDecimal(item.get("Value").asText());
+                        case "MpesaReceiptNumber" -> mpesaReceipt = item.get("Value").asText();
+                        case "PhoneNumber" -> phoneNumber = item.get("Value").asText();
+                    }
+                }
 
                 payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
-                payment.setAmount(new BigDecimal(amount));
-                payment.setCallbackData(callbackBody);
+                if (amount != null) payment.setAmount(amount);
+                payment.setProviderId(checkoutRequestId);
                 paymentRepository.save(payment);
 
-                Order order = payment.getOrder();
-                order.setStatus(Order.OrderStatus.CONFIRMED);
-                orderRepository.save(order);
+                onPaymentSucceeded(payment, mpesaReceipt);
 
-                log.info("M-Pesa payment successful: checkout={}, receipt={}", checkoutRequestId, mpesaReceipt);
+                log.info("M-Pesa payment SUCCESS — checkout={}, receipt={}", checkoutRequestId, mpesaReceipt);
 
             } else {
                 payment.setStatus(Payment.PaymentStatus.FAILED);
-                payment.setCallbackData(callbackBody);
                 paymentRepository.save(payment);
 
-                log.warn("M-Pesa payment failed: checkout={}, result={}, desc={}",
-                        checkoutRequestId, resultCode, resultDesc);
+                String status = describeResultCode(resultCode);
+                log.warn("M-Pesa payment FAILED — checkout={}, code={}, desc={} ({})",
+                        checkoutRequestId, resultCode, resultDesc, status);
             }
 
         } catch (Exception e) {
             log.error("Failed to process M-Pesa callback: {}", e.getMessage(), e);
-            throw new PaymentException("Failed to process M-Pesa callback: " + e.getMessage());
         }
     }
 
     @Transactional
     public void processMpesaTimeout(String timeoutBody) {
-        log.warn("M-Pesa timeout: {}", timeoutBody);
+        log.warn("M-Pesa timeout received: {}", timeoutBody);
 
         try {
             JsonNode timeoutJson = objectMapper.readTree(timeoutBody);
             String checkoutRequestId = timeoutJson.has("CheckoutRequestID")
-                    ? timeoutJson.get("CheckoutRequestID").asText()
-                    : null;
+                    ? timeoutJson.get("CheckoutRequestID").asText() : null;
 
             if (checkoutRequestId != null) {
-                Optional<Payment> paymentOpt = paymentRepository.findByProviderId(checkoutRequestId);
-                if (paymentOpt.isPresent()) {
-                    Payment payment = paymentOpt.get();
-                    payment.setStatus(Payment.PaymentStatus.FAILED);
-                    payment.setCallbackData(timeoutBody);
-                    paymentRepository.save(payment);
-                }
+                paymentRepository.findByProviderId(checkoutRequestId).ifPresent(payment -> {
+                    if (payment.getStatus() != Payment.PaymentStatus.SUCCEEDED) {
+                        payment.setStatus(Payment.PaymentStatus.FAILED);
+                        payment.setCallbackData(timeoutBody);
+                        paymentRepository.save(payment);
+                    }
+                });
             }
         } catch (Exception e) {
             log.error("Failed to process M-Pesa timeout: {}", e.getMessage(), e);
         }
     }
 
+    public MpesaStkPushResponse queryStkPushStatus(String checkoutRequestId) {
+        log.info("Querying STK Push status for {}", checkoutRequestId);
+
+        try {
+            String accessToken = getAccessToken();
+            String timestamp = getTimestamp();
+            String password = generatePassword(timestamp);
+
+            ObjectNode queryRequest = objectMapper.createObjectNode();
+            queryRequest.put("BusinessShortCode", mpesaProperties.getShortcode());
+            queryRequest.put("Password", password);
+            queryRequest.put("Timestamp", timestamp);
+            queryRequest.put("CheckoutRequestID", checkoutRequestId);
+
+            String statusUrl = mpesaProperties.getBaseUrl() + "/mpesa/stkpushquery/v1/query";
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer " + accessToken);
+            headers.setContentType(MediaType.APPLICATION_JSON);
+
+            HttpEntity<String> httpRequest = new HttpEntity<>(objectMapper.writeValueAsString(queryRequest), headers);
+            ResponseEntity<JsonNode> response = restTemplate.exchange(
+                    statusUrl, HttpMethod.POST, httpRequest, JsonNode.class
+            );
+
+            JsonNode node = response.getBody();
+            if (node == null) {
+                throw new PaymentException("Empty response from STK query");
+            }
+
+            String responseCode = node.has("ResponseCode") ? node.get("ResponseCode").asText() : null;
+            String responseDescription = node.has("ResponseDescription") ? node.get("ResponseDescription").asText() : null;
+            String resultCode = node.has("ResultCode") ? node.get("ResultCode").asText() : null;
+            String resultDesc = node.has("ResultDesc") ? node.get("ResultDesc").asText() : null;
+
+            log.info("STK query result — checkout={}, resultCode={}, desc={}", checkoutRequestId, resultCode, resultDesc);
+
+            return MpesaStkPushResponse.builder()
+                    .merchantRequestId(null)
+                    .checkoutRequestId(checkoutRequestId)
+                    .responseCode(responseCode)
+                    .responseDescription(responseDescription)
+                    .customerMessage(resultDesc)
+                    .build();
+
+        } catch (PaymentException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("STK query failed: {}", e.getMessage(), e);
+            throw new PaymentException("Failed to query M-Pesa payment status: " + e.getMessage());
+        }
+    }
+
+    public PaymentResponse getPaymentByCheckoutRequestId(String checkoutRequestId) {
+        Payment payment = paymentRepository.findByProviderId(checkoutRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment", "checkoutRequestId", checkoutRequestId));
+        return PaymentResponse.from(payment);
+    }
+
     public List<PaymentResponse> getOrderPayments(String orderNumber) {
         Order order = orderRepository.findByNumber(orderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "number", orderNumber));
-
         return paymentRepository.findByOrderId(order.getId()).stream()
                 .map(PaymentResponse::from)
                 .collect(Collectors.toList());
@@ -296,36 +362,52 @@ public class MpesaService {
         return initiateStkPush(request);
     }
 
-    public String getPaymentStatus(String checkoutRequestId) {
-        try {
-            String accessToken = getAccessToken();
-            String timestamp = getTimestamp();
-            String password = generatePassword(timestamp);
+    @Transactional
+    public void onPaymentSucceeded(Payment payment, String mpesaReceipt) {
+        Order order = payment.getOrder();
+        order.setStatus(Order.OrderStatus.CONFIRMED);
+        orderRepository.save(order);
 
-            ObjectNode queryRequest = objectMapper.createObjectNode();
-            queryRequest.put("BusinessShortCode", mpesaProperties.getShortcode());
-            queryRequest.put("Password", password);
-            queryRequest.put("Timestamp", timestamp);
-            queryRequest.put("CheckoutRequestID", checkoutRequestId);
+        Runnable notify = () -> {
+            try {
+                orderMessagePublisher.publishOrderPaid(order);
+            } catch (Exception e) {
+                log.error("Failed to publish ORDER_PAID event for {}: {}", order.getNumber(), e.getMessage());
+            }
+            if (order.getUser() != null && order.getUser().getEmail() != null) {
+                try {
+                    emailService.sendOrderConfirmation(
+                            order.getUser().getEmail(), order.getNumber(), order.getId().toString());
+                } catch (Exception e) {
+                    log.error("Failed to send confirmation email for {}: {}", order.getNumber(), e.getMessage());
+                }
+            }
+        };
 
-            String statusUrl = mpesaProperties.getBaseUrl() + "/mpesa/stkpush/v1/query";
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer " + accessToken);
-            headers.setContentType(MediaType.APPLICATION_JSON);
-
-            HttpEntity<String> httpRequest = new HttpEntity<>(objectMapper.writeValueAsString(queryRequest), headers);
-            ResponseEntity<JsonNode> response = restTemplate.exchange(
-                    statusUrl, HttpMethod.POST, httpRequest, JsonNode.class
-            );
-
-            JsonNode node = response.getBody();
-            return node.has("ResponseCode") ? node.get("ResponseCode").asText() : "UNKNOWN";
-
-        } catch (Exception e) {
-            log.error("Failed to query M-Pesa payment status: {}", e.getMessage(), e);
-            throw new PaymentException("Failed to query payment status: " + e.getMessage());
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                    new org.springframework.transaction.support.TransactionSynchronization() {
+                        @Override
+                        public void afterCommit() { notify.run(); }
+                    });
+        } else {
+            notify.run();
         }
+    }
+
+    private String normalizePhone(String phone) {
+        if (phone == null) return "";
+        String digits = phone.replaceAll("[^0-9]", "");
+        if (digits.startsWith("254")) return digits;
+        if (digits.startsWith("0")) return "254" + digits.substring(1);
+        if (digits.startsWith("7") || digits.startsWith("1")) return "254" + digits;
+        return digits;
+    }
+
+    private String truncateAccountRef(String ref) {
+        if (ref == null) return "ORDER";
+        String clean = ref.replaceAll("[^a-zA-Z0-9]", "");
+        return clean.length() > 12 ? clean.substring(0, 12) : clean;
     }
 
     private String getTimestamp() {
@@ -336,5 +418,55 @@ public class MpesaService {
     private String generatePassword(String timestamp) {
         String data = mpesaProperties.getShortcode() + mpesaProperties.getPasskey() + timestamp;
         return Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String describeResultCode(int code) {
+        return switch (code) {
+            case 0 -> "success";
+            case 1032 -> "cancelled_by_user";
+            case 1037 -> "timeout_or_expired";
+            case 2001 -> "wrong_pin";
+            case 1 -> "insufficient_funds";
+            case 2007 -> "referred";
+            case 2026 -> "debit_account_limit_exceeded";
+            default -> "failed_" + code;
+        };
+    }
+
+    private String buildInitMetadata(String phone, String accountRef) {
+        try {
+            return objectMapper.writeValueAsString(new java.util.LinkedHashMap<>() {{
+                put("customerPhone", phone);
+                put("accountReference", accountRef);
+                put("initiatedAt", Instant.now().toString());
+            }});
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
+    private String buildStkMetadata(String checkoutRequestId, String merchantRequestId, String phone) {
+        try {
+            return objectMapper.writeValueAsString(new java.util.LinkedHashMap<>() {{
+                put("checkoutRequestId", checkoutRequestId);
+                put("merchantRequestId", merchantRequestId);
+                put("customerPhone", phone);
+                put("initiatedAt", Instant.now().toString());
+            }});
+        } catch (Exception e) {
+            return "{}";
+        }
+    }
+
+    private String buildFailedMetadata(String responseCode, String description) {
+        try {
+            return objectMapper.writeValueAsString(new java.util.LinkedHashMap<>() {{
+                put("responseCode", responseCode);
+                put("responseDescription", description);
+                put("failedAt", Instant.now().toString());
+            }});
+        } catch (Exception e) {
+            return "{}";
+        }
     }
 }

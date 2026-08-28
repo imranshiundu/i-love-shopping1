@@ -125,24 +125,14 @@ export const orders = {
 };
 
 export const payments = {
-  mpesaSimulateConfirm: (checkoutRequestId: string) =>
-    request<any>('/payments/mpesa/simulate-confirm', { method: 'POST', body: JSON.stringify({ checkoutRequestId }) }),
-  stripeCreateIntent: (orderId: string, amount: number, currency = 'kes') =>
-    request<any>('/payments/stripe/create-intent', { method: 'POST', body: JSON.stringify({ orderId, amount, currency }) }),
-  stripeConfirm: (paymentIntentId: string) =>
-    request<any>('/payments/stripe/confirm', { method: 'POST', body: JSON.stringify({ paymentIntentId }) }),
-  paypalCreateOrder: (orderId: string, amount: number, currency = 'KES') =>
-    request<any>('/payments/paypal/create-order', { method: 'POST', body: JSON.stringify({ orderId, amount, currency }) }),
-  paypalCapture: (paypalOrderId: string) =>
-    request<any>('/payments/paypal/capture', { method: 'POST', body: JSON.stringify({ paypalOrderId }) }),
-  flutterwaveCreate: (orderId: string, amount: number, customerEmail?: string, currency = 'KES') =>
-    request<any>('/payments/flutterwave/create-payment', { method: 'POST', body: JSON.stringify({ orderId, amount, currency, customerEmail }) }),
-  flutterwaveVerify: (transactionRef: string) =>
-    request<any>('/payments/flutterwave/verify', { method: 'POST', body: JSON.stringify({ transactionRef }) }),
-  airtelInitiate: (orderId: string, amount: number, phoneNumber: string) =>
-    request<any>('/payments/airtel/initiate', { method: 'POST', body: JSON.stringify({ orderId, amount, phoneNumber }) }),
-  airtelConfirm: (referenceId: string) =>
-    request<any>('/payments/airtel/confirm', { method: 'POST', body: JSON.stringify({ referenceId }) }),
+  mpesaStkQuery: (checkoutRequestId: string) =>
+    request<any>('/payments/mpesa/stk-query', { method: 'POST', body: JSON.stringify({ checkoutRequestId }) }),
+  getPaymentByCheckoutRequestId: (checkoutRequestId: string) =>
+    request<any>(`/payments/mpesa/${checkoutRequestId}`),
+  getPaymentHistory: (page = 0, size = 20) =>
+    request<any[]>(`/payments?page=${page}&size=${size}`),
+  getPaymentById: (paymentId: string) =>
+    request<any>(`/payments/${paymentId}`),
 };
 
 export const admin = {
