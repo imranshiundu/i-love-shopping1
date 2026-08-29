@@ -1,0 +1,8 @@
+
+{"test":"Guest checkout without email returns 400","status":"PASS","detail":"matched: 400"}
+{"test":"Empty-cart checkout returns 400","status":"PASS","detail":"matched: 400"}
+{"test":"Guest checkout creates PENDING order with number","status":"PASS","detail":"matched: OK"}
+{"test":"Shipping address encrypted at rest (enc:v1:...)","status":"PASS","detail":"enc:v1:Cg2PDlQfi5OBM6tJDLUg59fJAsSR6i2pAZpdSP0TvqL90jlHHLeIJyCvyuyTY6vg6F29UXu/W75Mb3IVVl9ce5KYqW/7fwnibeJ+kZFp/89mzowz0nNNtu/Ag31smwy9wdUHsadcqdKj6BdPIQ8Kg5TJ/JW1fGCLRNjc5rWP2rZ7oAc4OJVKJVnXSUIYawo="}
+{"test":"Stock decremented after checkout","status":"PASS","detail":"stock=22"}
+{"test":"M-Pesa push without creds returns 400 (not 500)","status":"PASS","detail":"matched: 400"}
+{"test":"Cancel restores cart items","status":"PASS","detail":"matched: OK"}

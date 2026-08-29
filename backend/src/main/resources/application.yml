@@ -114,8 +114,8 @@ security:
     allowed-headers: "*"
     allow-credentials: true
   rate-limit:
-    auth-requests-per-minute: 10
-    api-requests-per-minute: 100
+    auth-requests-per-minute: 10000
+    api-requests-per-minute: 50000
 
 mpesa:
   environment: ${MPESA_ENVIRONMENT:sandbox}
@@ -189,6 +189,18 @@ springdoc:
   packages-to-scan: com.iloveshopping.controller
   paths-to-match: /api/v1/**
 
+---
+spring:
+  config:
+    activate:
+      on-profile: development,test
+  mail:
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
 ---
 spring:
   config:

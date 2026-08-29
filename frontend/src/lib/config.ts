@@ -21,7 +21,7 @@ export const config = {
     defaultCurrency: process.env.NEXT_PUBLIC_CURRENCY || 'KES',
     locale: process.env.NEXT_PUBLIC_LOCALE || 'en-KE',
     freeShippingThreshold: Number(process.env.NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD) || 5000,
-    shippingCost: Number(process.env.NEXT_PUBLIC_SHIPPING_COST) || 200,
+    shippingCost: Number(process.env.NEXT_PUBLIC_SHIPPING_COST) || 10,
     taxRate: Number(process.env.NEXT_PUBLIC_TAX_RATE) || 0.16,
     minPasswordLength: Number(process.env.NEXT_PUBLIC_MIN_PASSWORD_LENGTH) || 8,
   },

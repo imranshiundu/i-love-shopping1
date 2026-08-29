@@ -24,6 +24,8 @@ public class CheckoutRequest {
 
     private String notes;
 
+    private String guestEmail;
+
     @Data
     @Builder
     @NoArgsConstructor

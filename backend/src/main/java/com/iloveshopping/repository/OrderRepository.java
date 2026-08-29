@@ -36,4 +36,24 @@ public interface OrderRepository extends JpaRepository<Order, String> {
     java.math.BigDecimal getTotalSpentByUser(@Param("userId") String userId);
 
     boolean existsByNumber(String number);
+
+    @Query("SELECT o FROM Order o WHERE o.status = 'PENDING' AND o.createdAt < :cutoff")
+    List<Order> findStalePendingOrders(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("SELECT o FROM Order o WHERE o.user.id = :userId "
+            + "AND (:hasStatus = false OR o.status = :status) "
+            + "AND (:hasFrom = false OR o.createdAt >= :from) "
+            + "AND (:hasTo = false OR o.createdAt <= :to)")
+    Page<Order> findByUserIdFiltered(
+            @Param("userId") String userId,
+            @Param("hasStatus") boolean hasStatus,
+            @Param("status") Order.OrderStatus status,
+            @Param("hasFrom") boolean hasFrom,
+            @Param("from") LocalDateTime from,
+            @Param("hasTo") boolean hasTo,
+            @Param("to") LocalDateTime to,
+            Pageable pageable);
+
+    @Query("SELECT o FROM Order o WHERE o.user IS NULL AND LOWER(o.guestEmail) = LOWER(:email)")
+    List<Order> findGuestOrdersByEmail(@Param("email") String email);
 }

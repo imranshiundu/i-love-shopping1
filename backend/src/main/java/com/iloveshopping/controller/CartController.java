@@ -1,5 +1,6 @@
 package com.iloveshopping.controller;
 
+import com.iloveshopping.config.AppProperties;
 import com.iloveshopping.dto.cart.AddToCartRequest;
 import com.iloveshopping.dto.cart.CartResponse;
 import com.iloveshopping.dto.cart.UpdateCartItemRequest;
@@ -21,76 +22,69 @@ import org.springframework.web.bind.annotation.*;
 public class CartController {
 
     private final CartService cartService;
-    private static final String GUEST_COOKIE = "cartSessionId";
+    private final AppProperties appProperties;
+    private static final String COOKIE = "cartSessionId";
 
     @GetMapping
-    @Operation(summary = "Get current user's cart")
+    @Operation(summary = "Get the current cart (user or guest)")
     public ResponseEntity<ApiResponse<CartResponse>> getCart(
-            @CookieValue(name = "cartSessionId", required = false) String sessionId) {
-        CartResponse cart = cartService.getCurrentUserCart(sessionId);
-        return ResponseEntity.ok(ApiResponse.success(cart));
-    }
-
-    @PostMapping
-    @Operation(summary = "Create or get cart (for anonymous users)")
-    public ResponseEntity<ApiResponse<CartResponse>> createCart(
-            @CookieValue(name = "cartSessionId", required = false) String sessionId,
+            @CookieValue(name = COOKIE, required = false) String sessionId,
             HttpServletResponse response) {
-
-        CartResponse cart = cartService.createOrGetCart(sessionId);
-        issueGuestCookieIfNew(sessionId, cart, response);
+        CartResponse cart = cartService.getOrCreateCart(sessionId);
+        setCookieIfNeeded(sessionId, cart, response);
         return ResponseEntity.ok(ApiResponse.success(cart));
     }
 
     @PostMapping("/items")
-    @Operation(summary = "Add item to cart")
-    public ResponseEntity<ApiResponse<CartResponse>> addItemToCart(
+    @Operation(summary = "Add an item to the cart")
+    public ResponseEntity<ApiResponse<CartResponse>> addItem(
             @Valid @RequestBody AddToCartRequest request,
-            @CookieValue(name = "cartSessionId", required = false) String sessionId,
+            @CookieValue(name = COOKIE, required = false) String sessionId,
             HttpServletResponse response) {
 
         CartResponse cart = cartService.addItem(sessionId, request);
-        issueGuestCookieIfNew(sessionId, cart, response);
+        setCookieIfNeeded(sessionId, cart, response);
         return ResponseEntity.ok(ApiResponse.success(cart));
     }
 
     @PatchMapping("/items/{itemId}")
     @Operation(summary = "Update cart item quantity")
-    public ResponseEntity<ApiResponse<CartResponse>> updateItemQuantity(
+    public ResponseEntity<ApiResponse<CartResponse>> updateItem(
             @PathVariable String itemId,
             @Valid @RequestBody UpdateCartItemRequest request) {
-
-        CartResponse cart = cartService.updateItem(itemId, request);
-        return ResponseEntity.ok(ApiResponse.success(cart));
+        return ResponseEntity.ok(ApiResponse.success(cartService.updateItem(itemId, request)));
     }
 
     @DeleteMapping("/items/{itemId}")
-    @Operation(summary = "Remove item from cart")
-    public ResponseEntity<ApiResponse<CartResponse>> removeItem(
-            @PathVariable String itemId) {
-
-        CartResponse cart = cartService.removeItem(itemId);
-        return ResponseEntity.ok(ApiResponse.success(cart));
+    @Operation(summary = "Remove an item from the cart")
+    public ResponseEntity<ApiResponse<CartResponse>> removeItem(@PathVariable String itemId) {
+        return ResponseEntity.ok(ApiResponse.success(cartService.removeItem(itemId)));
     }
 
     @DeleteMapping
-    @Operation(summary = "Clear cart")
-    public ResponseEntity<ApiResponse<CartResponse>> clearCart() {
-        CartResponse cart = cartService.clearCart();
-        return ResponseEntity.ok(ApiResponse.success(cart));
+    @Operation(summary = "Clear the current cart")
+    public ResponseEntity<ApiResponse<CartResponse>> clearCart(
+            @CookieValue(name = COOKIE, required = false) String sessionId) {
+        return ResponseEntity.ok(ApiResponse.success(cartService.clearCart(sessionId)));
     }
 
-    private void issueGuestCookieIfNew(String incomingSessionId, CartResponse cart, HttpServletResponse response) {
-        if (incomingSessionId != null && !incomingSessionId.isBlank()) {
-            return;
-        }
-        if (cart == null || cart.getSessionId() == null || cart.getSessionId().isBlank()) {
-            return;
-        }
-        ResponseCookie cookie = ResponseCookie.from(GUEST_COOKIE, cart.getSessionId())
+    @PostMapping("/merge")
+    @Operation(summary = "Merge guest cart into user cart on login")
+    public ResponseEntity<ApiResponse<CartResponse>> mergeCart(
+            @CookieValue(name = COOKIE, required = false) String sessionId) {
+        return ResponseEntity.ok(ApiResponse.success(cartService.mergeGuestCart(sessionId)));
+    }
+
+    private void setCookieIfNeeded(String incoming, CartResponse cart, HttpServletResponse response) {
+        if (incoming != null && !incoming.isBlank()) return;
+        if (cart == null || cart.getSessionId() == null || cart.getSessionId().isBlank()) return;
+
+        boolean isSecure = appProperties.getFrontendUrl() != null
+                && appProperties.getFrontendUrl().startsWith("https");
+        ResponseCookie cookie = ResponseCookie.from(COOKIE, cart.getSessionId())
                 .httpOnly(true)
-                .sameSite("None")
-                .secure(false)
+                .sameSite(isSecure ? "None" : "Lax")
+                .secure(isSecure)
                 .path("/")
                 .maxAge(7 * 24 * 3600)
                 .build();

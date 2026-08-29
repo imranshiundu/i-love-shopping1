@@ -11,6 +11,7 @@ import com.iloveshopping.entity.User;
 import com.iloveshopping.exception.AuthenticationException;
 import com.iloveshopping.exception.ResourceConflictException;
 import com.iloveshopping.exception.ResourceNotFoundException;
+import com.iloveshopping.repository.OrderRepository;
 import com.iloveshopping.repository.SessionRepository;
 import com.iloveshopping.repository.UserRepository;
 import com.iloveshopping.security.JwtService;
@@ -35,6 +36,7 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
+    private final OrderRepository orderRepository;
     private final JwtService jwtService;
     private final JwtProperties jwtProperties;
     private final PasswordEncoder passwordEncoder;
@@ -171,6 +173,9 @@ public class AuthService {
         String accessToken = jwtService.generateAccessToken(user, sessionId);
 
         log.info("User logged in successfully: {}", user.getEmail());
+
+        // Claim any guest orders made with this email
+        claimGuestOrders(user);
 
         return AuthResponse.builder()
                 .accessToken(accessToken)
@@ -403,5 +408,20 @@ public class AuthService {
 
     private boolean verifyTwoFactorCode(String secret, String code) {
         return TwoFactorAuthUtil.verifyCode(secret, code);
+    }
+
+    private void claimGuestOrders(User user) {
+        try {
+            var guestOrders = orderRepository.findGuestOrdersByEmail(user.getEmail());
+            if (guestOrders.isEmpty()) return;
+            for (var order : guestOrders) {
+                order.setUser(user);
+                order.setGuestEmail(null);
+            }
+            orderRepository.saveAll(guestOrders);
+            log.info("Claimed {} guest order(s) for user {}", guestOrders.size(), user.getEmail());
+        } catch (Exception e) {
+            log.warn("Failed to claim guest orders for {}: {}", user.getEmail(), e.getMessage());
+        }
     }
 }

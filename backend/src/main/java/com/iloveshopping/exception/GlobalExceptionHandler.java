@@ -48,6 +48,36 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                         .build());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
+        ApiResponse.ErrorResponse error = ApiResponse.ErrorResponse.builder()
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .error(HttpStatus.BAD_REQUEST.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.badRequest().body(ApiResponse.<Object>builder()
+                .success(false)
+                .error(error)
+                .timestamp(Instant.now())
+                .build());
+    }
+
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ApiResponse<Object>> handleIllegalStateException(IllegalStateException ex, WebRequest request) {
+        ApiResponse.ErrorResponse error = ApiResponse.ErrorResponse.builder()
+                .statusCode(HttpStatus.CONFLICT.value())
+                .error(HttpStatus.CONFLICT.getReasonPhrase())
+                .message(ex.getMessage())
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(ApiResponse.<Object>builder()
+                .success(false)
+                .error(error)
+                .timestamp(Instant.now())
+                .build());
+    }
+
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Object>> handleAuthenticationException(AuthenticationException ex, WebRequest request) {
         return handleApiException(ex, request);
@@ -118,12 +148,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleHttpMessageNotReadable(
             @NonNull HttpMessageNotReadableException ex,
             @NonNull HttpHeaders headers,
-            @NonNull HttpStatus status,
+            @NonNull org.springframework.http.HttpStatus status,
             @NonNull WebRequest request) {
 
         String message = "Invalid request body";
         if (ex.getCause() instanceof JsonMappingException jme) {
-            message = "Invalid value for field '" + jme.getPath().getLast().getFieldName() + "': " + jme.getMessage();
+            String fieldName = null;
+            if (jme.getPath() != null && !jme.getPath().isEmpty()) {
+                fieldName = jme.getPath().getLast().getFieldName();
+            }
+            if (fieldName != null) {
+                message = "Invalid value for field '" + fieldName + "': " + jme.getMessage();
+            } else {
+                message = "Invalid request body: " + jme.getMessage();
+            }
         } else if (ex.getCause() != null) {
             message = ex.getCause().getMessage();
         }

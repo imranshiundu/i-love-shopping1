@@ -29,7 +29,7 @@ public class Order {
     @Column(name = "id", updatable = false, nullable = false)
     private String id;
 
-    @Column(name = "number", unique = true, nullable = false, length = 20)
+    @Column(name = "number", unique = true, nullable = false, length = 30)
     private String number;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = true)
@@ -65,6 +65,12 @@ public class Order {
     @Column(name = "billing_address", columnDefinition = "jsonb", nullable = false)
     private String billingAddress;
 
+    @Column(name = "guest_email")
+    private String guestEmail;
+
+    @Column(name = "cart_session_id", length = 255)
+    private String cartSessionId;
+
     @Column(name = "notes")
     private String notes;
 
@@ -85,7 +91,7 @@ public class Order {
     private LocalDateTime updatedAt;
 
     public enum OrderStatus {
-        PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, REFUNDED
+        PENDING, CONFIRMED, PROCESSING, SHIPPED, DELIVERED, CANCELLED, EXPIRED, REFUNDED
     }
 
     public BigDecimal getTotalPaid() {

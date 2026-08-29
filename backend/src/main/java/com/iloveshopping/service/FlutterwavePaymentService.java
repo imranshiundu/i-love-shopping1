@@ -2,12 +2,14 @@ package com.iloveshopping.service;
 
 import com.iloveshopping.config.FlutterwaveProperties;
 import com.iloveshopping.entity.Order;
+import com.iloveshopping.entity.OrderItem;
 import com.iloveshopping.entity.Payment;
 import com.iloveshopping.exception.PaymentException;
 import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.messaging.OrderMessagePublisher;
 import com.iloveshopping.repository.OrderRepository;
 import com.iloveshopping.repository.PaymentRepository;
+import com.iloveshopping.repository.ProductRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -30,6 +32,7 @@ public class FlutterwavePaymentService {
     private final FlutterwaveProperties flutterwaveProperties;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
+    private final ProductRepository productRepository;
     private final ObjectMapper objectMapper;
     private final RestTemplate restTemplate;
     private final OrderMessagePublisher orderMessagePublisher;
@@ -42,13 +45,25 @@ public class FlutterwavePaymentService {
     }
 
     @Transactional
-    public Map<String, Object> initializeTransaction(String orderId, BigDecimal amount, String currency, String customerEmail, String customerName) {
+    public Map<String, Object> initializeTransaction(String orderId, BigDecimal clientAmount, String currency, String customerEmail, String customerName) {
         if (!isConfigured()) {
             throw new PaymentException("Flutterwave is not configured. Add FLUTTERWAVE_SECRET_KEY to your environment.");
         }
 
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
+
+        // Server is source of truth — validate client amount matches order total
+        BigDecimal amount = order.getTotal();
+        if (clientAmount != null && clientAmount.compareTo(amount) != 0) {
+            log.warn("Flutterwave amount mismatch for order {}: client={} server={}", order.getNumber(), clientAmount, amount);
+            throw new PaymentException("Payment amount does not match order total");
+        }
+
+        if (order.getStatus() != Order.OrderStatus.PENDING
+                && order.getStatus() != Order.OrderStatus.EXPIRED) {
+            throw new PaymentException("Order is not payable at status: " + order.getStatus());
+        }
 
         String txRef = "ILS-" + order.getNumber() + "-" + UUID.randomUUID().toString().substring(0, 8);
 
@@ -166,6 +181,17 @@ public class FlutterwavePaymentService {
 
             if (newStatus == Payment.PaymentStatus.SUCCEEDED) {
                 onPaymentSucceeded(payment);
+            } else if (newStatus == Payment.PaymentStatus.FAILED) {
+                Order order = payment.getOrder();
+                if (order.getStatus() == Order.OrderStatus.PENDING
+                        || order.getStatus() == Order.OrderStatus.EXPIRED) {
+                    for (OrderItem item : order.getItems()) {
+                        productRepository.incrementStock(item.getProduct().getId(), item.getQuantity());
+                    }
+                    order.setStatus(Order.OrderStatus.CANCELLED);
+                    orderRepository.save(order);
+                    notifyPaymentFailure(order, "flutterwave_" + flwStatus);
+                }
             }
 
             Map<String, Object> result = new HashMap<>();
@@ -197,10 +223,14 @@ public class FlutterwavePaymentService {
             } catch (Exception e) {
                 log.error("Failed to publish ORDER_PAID event for {}: {}", order.getNumber(), e.getMessage());
             }
-            if (order.getUser() != null && order.getUser().getEmail() != null) {
+            String email = null;
+            if (order.getUser() != null && order.getUser().getEmail() != null) email = order.getUser().getEmail();
+            else if (order.getGuestEmail() != null && !order.getGuestEmail().isBlank()) email = order.getGuestEmail();
+            if (email != null) {
+                String finalEmail = email;
                 try {
                     emailService.sendOrderConfirmation(
-                            order.getUser().getEmail(), order.getNumber(), order.getId().toString());
+                            finalEmail, order.getNumber(), order.getId().toString());
                 } catch (Exception e) {
                     log.error("Failed to send confirmation email for {}: {}", order.getNumber(), e.getMessage());
                 }
@@ -240,6 +270,24 @@ public class FlutterwavePaymentService {
             return objectMapper.writeValueAsString(data);
         } catch (Exception e) {
             return "{}";
+        }
+    }
+
+    private void notifyPaymentFailure(Order order, String reason) {
+        try {
+            orderMessagePublisher.publishOrderCancelled(order);
+        } catch (Exception e) {
+            log.error("Failed to publish ORDER_CANCELLED for {}: {}", order.getNumber(), e.getMessage());
+        }
+        String email = null;
+        if (order.getUser() != null && order.getUser().getEmail() != null) email = order.getUser().getEmail();
+        else if (order.getGuestEmail() != null && !order.getGuestEmail().isBlank()) email = order.getGuestEmail();
+        if (email != null) {
+            try {
+                emailService.sendPaymentFailed(email, order.getNumber(), order.getId().toString(), reason);
+            } catch (Exception e) {
+                log.error("Failed to send payment-failed email for {}: {}", order.getNumber(), e.getMessage());
+            }
         }
     }
 }

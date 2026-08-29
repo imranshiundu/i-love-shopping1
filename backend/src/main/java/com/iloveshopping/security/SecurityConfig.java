@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -74,8 +75,14 @@ public class SecurityConfig {
                         .requestMatchers("/orders/checkout").permitAll()
                         .requestMatchers("/orders/payments/mpesa/**").permitAll()
                         .requestMatchers("/payments/mpesa/**").permitAll()
+                        .requestMatchers("/payments/stripe/webhook").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/payments/stripe/create-intent").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/payments/stripe/confirm").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/payments/flutterwave/initialize").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/payments/flutterwave/verify").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/orders/*/cancel").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/orders/*").permitAll()
                         .requestMatchers("/orders/**").authenticated()
-                        .requestMatchers("/cart/**").authenticated()
                         .requestMatchers("/user/**").authenticated()
                         .requestMatchers("/addresses/**").authenticated()
                         .requestMatchers("/reviews/**").authenticated()

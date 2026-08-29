@@ -37,12 +37,18 @@ export default function AccountOrdersPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await ordersApi.list(0, 50);
+      const from = period === 'all' ? undefined : (() => {
+        const days = parseInt(period, 10);
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        return cutoff.toISOString();
+      })();
+      const res = await ordersApi.list(0, 50, filter === 'ALL' ? undefined : filter, from, undefined);
       const list: any[] = (res.data as any)?.orders || (Array.isArray(res.data) ? res.data : []);
       setOrders(list);
     } catch { setOrders([]); }
     setLoading(false);
-  }, []);
+  }, [filter, period]);
 
   useEffect(() => { load(); }, [load]);
 

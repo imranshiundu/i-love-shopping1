@@ -4,6 +4,7 @@ import com.iloveshopping.dto.payment.MpesaStkPushRequest;
 import com.iloveshopping.dto.payment.MpesaStkPushResponse;
 import com.iloveshopping.dto.payment.PaymentResponse;
 import com.iloveshopping.entity.Payment;
+import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,55 +13,56 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.stream.Collectors;
-
 @Service
 @RequiredArgsConstructor
 @Slf4j
-@Transactional(readOnly = true)
 public class PaymentService {
 
     private final MpesaService mpesaService;
     private final PaymentRepository paymentRepository;
 
     @Transactional
-    public MpesaStkPushResponse initiateStkPush(MpesaStkPushRequest request) {
+    public MpesaStkPushResponse initiateMpesaStkPush(MpesaStkPushRequest request) {
         return mpesaService.initiateStkPush(request);
     }
 
-    public void processMpesaCallback(String callbackBody) {
-        mpesaService.processMpesaCallback(callbackBody);
+    @Transactional
+    public void processMpesaCallback(String body) {
+        mpesaService.processMpesaCallback(body);
     }
 
-    public void processMpesaTimeout(String timeoutBody) {
-        mpesaService.processMpesaTimeout(timeoutBody);
+    @Transactional
+    public void processMpesaTimeout(String body) {
+        mpesaService.processMpesaTimeout(body);
     }
 
-    public MpesaStkPushResponse queryStkStatus(String checkoutRequestId) {
-        return mpesaService.queryStkPushStatus(checkoutRequestId);
+    public MpesaStkPushResponse queryMpesaStkStatus(String checkoutRequestId) {
+        return mpesaService.queryStkStatus(checkoutRequestId);
     }
 
+    @Transactional
+    public MpesaStkPushResponse retryMpesaPayment(String orderNumber, String phoneNumber) {
+        return mpesaService.retryPayment(orderNumber, phoneNumber);
+    }
+
+    @Transactional(readOnly = true)
     public PaymentResponse getPaymentByCheckoutRequestId(String checkoutRequestId) {
-        return mpesaService.getPaymentByCheckoutRequestId(checkoutRequestId);
+        Payment p = paymentRepository.findByProviderId(checkoutRequestId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + checkoutRequestId));
+        return PaymentResponse.from(p);
     }
 
-    public List<PaymentResponse> getOrderPayments(String orderNumber) {
-        return mpesaService.getOrderPayments(orderNumber);
-    }
-
-    public MpesaStkPushResponse retryPayment(String orderNumber) {
-        return mpesaService.retryPayment(orderNumber);
-    }
-
-    public Page<PaymentResponse> getUserPayments(int page, int size) {
-        return paymentRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size))
-                .map(PaymentResponse::from);
-    }
-
+    @Transactional(readOnly = true)
     public PaymentResponse getPaymentById(String paymentId) {
-        Payment payment = paymentRepository.findById(paymentId)
-                .orElseThrow(() -> new com.iloveshopping.exception.ResourceNotFoundException("Payment", "id", paymentId));
-        return PaymentResponse.from(payment);
+        Payment p = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new ResourceNotFoundException("Payment not found: " + paymentId));
+        return PaymentResponse.from(p);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<PaymentResponse> listPayments(int page, int size) {
+        return paymentRepository.findAllByOrderByCreatedAtDesc(
+                PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100)))
+                .map(PaymentResponse::from);
     }
 }

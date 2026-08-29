@@ -53,15 +53,74 @@ public class EmailService {
     public void sendOrderConfirmation(String email, String orderNumber, String orderId) {
         log.info("Sending order confirmation to: {}", email);
 
-        String orderUrl = appProperties.getFrontendUrl() + "/orders/" + orderId;
+        String orderUrl = appProperties.getFrontendUrl() + "/account/orders/" + orderId;
 
         Context context = new Context();
         context.setVariable("email", email);
         context.setVariable("orderNumber", orderNumber);
         context.setVariable("orderUrl", orderUrl);
         context.setVariable("appName", "i-love-shopping");
+        // Items and totals will be set by the caller via overloaded method
+        context.setVariable("items", java.util.Collections.emptyList());
+        context.setVariable("subtotal", "0.00");
+        context.setVariable("tax", "0.00");
+        context.setVariable("shipping", "0.00");
+        context.setVariable("total", "0.00");
+        context.setVariable("shippingAddress", "");
 
         sendEmail(email, "Order Confirmation - " + orderNumber, "email/order-confirmation", context);
+    }
+
+    public void sendOrderConfirmation(com.iloveshopping.entity.Order order) {
+        log.info("Sending order confirmation to: {}", order.getGuestEmail() != null ? order.getGuestEmail() : order.getUser().getEmail());
+
+        String email = order.getUser() != null ? order.getUser().getEmail() : order.getGuestEmail();
+        if (email == null || email.isBlank()) {
+            log.warn("No email for order {}, skipping confirmation", order.getNumber());
+            return;
+        }
+        String orderUrl = appProperties.getFrontendUrl() + "/account/orders/" + order.getId();
+
+        java.util.List<java.util.Map<String, Object>> items = new java.util.ArrayList<>();
+        for (var item : order.getItems()) {
+            java.util.Map<String, Object> map = new java.util.HashMap<>();
+            map.put("name", item.getName());
+            map.put("quantity", item.getQuantity());
+            map.put("price", item.getPrice());
+            items.add(map);
+        }
+
+        Context context = new Context();
+        context.setVariable("email", email);
+        context.setVariable("orderNumber", order.getNumber());
+        context.setVariable("orderUrl", orderUrl);
+        context.setVariable("appName", "i-love-shopping");
+        context.setVariable("items", items);
+        context.setVariable("subtotal", order.getSubtotal());
+        context.setVariable("tax", order.getTax());
+        context.setVariable("shipping", order.getShipping());
+        context.setVariable("total", order.getTotal());
+        context.setVariable("shippingAddress", order.getShippingAddress());
+
+        sendEmail(email, "Order Confirmation - " + order.getNumber(), "email/order-confirmation", context);
+    }
+
+    @Async
+    public void sendPaymentFailed(String email, String orderNumber, String orderId, String reason) {
+        log.info("Sending payment-failed email to: {} for order {}", email, orderNumber);
+
+        String orderUrl = appProperties.getFrontendUrl() + "/orders/" + orderId;
+        String retryUrl = appProperties.getFrontendUrl() + "/checkout/retry?order=" + orderNumber;
+
+        Context context = new Context();
+        context.setVariable("email", email);
+        context.setVariable("orderNumber", orderNumber);
+        context.setVariable("orderUrl", orderUrl);
+        context.setVariable("retryUrl", retryUrl);
+        context.setVariable("reason", reason == null ? "payment_failed" : reason);
+        context.setVariable("appName", "i-love-shopping");
+
+        sendEmail(email, "Payment Failed - " + orderNumber, "email/payment-failed", context);
     }
 
     @Async

@@ -1,5 +1,6 @@
 package com.iloveshopping.controller;
 
+import com.iloveshopping.config.AppProperties;
 import com.iloveshopping.dto.auth.*;
 import com.iloveshopping.dto.common.ApiResponse;
 import com.iloveshopping.entity.User;
@@ -28,6 +29,7 @@ public class AuthController {
 
     private final AuthService authService;
     private final com.iloveshopping.util.CaptchaUtil captchaUtil;
+    private final AppProperties appProperties;
 
     @PostMapping("/register")
     @Operation(summary = "Register new user account")
@@ -85,12 +87,14 @@ public class AuthController {
     }
 
     private void setAuthCookies(HttpServletResponse response, AuthResponse authResponse) {
+        boolean isSecure = appProperties.getFrontendUrl() != null
+                && appProperties.getFrontendUrl().startsWith("https");
         if (authResponse.getAccessToken() != null) {
             ResponseCookie accessCookie = ResponseCookie.from("accessToken", authResponse.getAccessToken())
                     .path("/api/v1")
                     .httpOnly(true)
-                    .secure(false) // set true in production
-                    .sameSite("None")
+                    .secure(isSecure)
+                    .sameSite(isSecure ? "None" : "Lax")
                     .maxAge(authResponse.getExpiresIn())
                     .build();
             response.addHeader("Set-Cookie", accessCookie.toString());
@@ -99,8 +103,8 @@ public class AuthController {
             ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", authResponse.getRefreshToken())
                     .path("/api/v1/auth")
                     .httpOnly(true)
-                    .secure(false) // set true in production
-                    .sameSite("None")
+                    .secure(isSecure)
+                    .sameSite(isSecure ? "None" : "Lax")
                     .maxAge(7L * 24 * 60 * 60) // 7 days
                     .build();
             response.addHeader("Set-Cookie", refreshCookie.toString());
@@ -108,10 +112,13 @@ public class AuthController {
     }
 
     private void clearAuthCookies(HttpServletResponse response) {
+        boolean isSecure = appProperties.getFrontendUrl() != null
+                && appProperties.getFrontendUrl().startsWith("https");
         ResponseCookie accessCookie = ResponseCookie.from("accessToken", "")
                 .path("/api/v1")
                 .httpOnly(true)
-                .sameSite("None")
+                .secure(isSecure)
+                .sameSite(isSecure ? "None" : "Lax")
                 .maxAge(0)
                 .build();
         response.addHeader("Set-Cookie", accessCookie.toString());
@@ -119,7 +126,8 @@ public class AuthController {
         ResponseCookie refreshCookie = ResponseCookie.from("refreshToken", "")
                 .path("/api/v1/auth")
                 .httpOnly(true)
-                .sameSite("None")
+                .secure(isSecure)
+                .sameSite(isSecure ? "None" : "Lax")
                 .maxAge(0)
                 .build();
         response.addHeader("Set-Cookie", refreshCookie.toString());

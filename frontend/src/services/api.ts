@@ -3,33 +3,22 @@ import { ApiResponse, AuthResponse, Product, ProductSearchResponse, Cart, Order,
 import { config } from '@/lib/config';
 const API_URL = config.api.baseUrl;
 
-const STORAGE_KEY_ACCESS = 'ils_access_token';
-const STORAGE_KEY_REFRESH = 'ils_refresh_token';
-
-let accessToken: string | null = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_ACCESS) : null;
-let refreshToken: string | null = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEY_REFRESH) : null;
+let accessToken: string | null = null;
+let refreshToken: string | null = null;
 
 export function setAccessToken(token: string | null) {
   accessToken = token;
-  if (typeof window !== 'undefined') {
-    if (token) localStorage.setItem(STORAGE_KEY_ACCESS, token);
-    else localStorage.removeItem(STORAGE_KEY_ACCESS);
-  }
 }
 export function getAccessToken() { return accessToken; }
 export function setRefreshToken(token: string | null) {
   refreshToken = token;
-  if (typeof window !== 'undefined') {
-    if (token) localStorage.setItem(STORAGE_KEY_REFRESH, token);
-    else localStorage.removeItem(STORAGE_KEY_REFRESH);
-  }
 }
 export function getRefreshToken() { return refreshToken; }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...((options.headers as Record<string, string>) || {}) };
-  // Include accessToken in header if available (backup for cookie)
-  if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+  // Access token is carried via the HttpOnly 'accessToken' cookie (set by /auth/login).
+  // Do not echo the token via Authorization header — the browser already attaches the cookie.
   const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
 
   let data: any = null;
@@ -54,7 +43,7 @@ export const auth = {
     request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, rememberMe, twoFactorCode }) }),
   refresh: () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (refreshToken) headers['X-Refresh-Token'] = refreshToken;
+    // Refresh token is carried via the HttpOnly 'refreshToken' cookie (set by /auth/login).
     return request<AuthResponse>('/auth/refresh', { method: 'POST', headers, credentials: 'include' });
   },
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
@@ -105,28 +94,36 @@ export const brands = {
 
 export const cart = {
   get: () => request<Cart>('/cart'),
-  create: () => request<Cart>('/cart', { method: 'POST' }),
   addItem: (productId: string, quantity: number, variantId?: string) =>
     request<Cart>('/cart/items', { method: 'POST', body: JSON.stringify({ productId, quantity, variantId }) }),
   updateItem: (itemId: string, quantity: number) =>
     request<Cart>(`/cart/items/${itemId}`, { method: 'PATCH', body: JSON.stringify({ quantity }) }),
   removeItem: (itemId: string) => request<Cart>(`/cart/items/${itemId}`, { method: 'DELETE' }),
   clear: () => request<void>('/cart', { method: 'DELETE' }),
+  merge: () => request<Cart>('/cart/merge', { method: 'POST' }),
 };
 
 export const orders = {
-  checkout: (data: { shippingAddress: Address; billingAddress?: Address; notes?: string }) =>
+  checkout: (data: { shippingAddress: Address; billingAddress?: Address; notes?: string; guestEmail?: string }) =>
     request<Order>('/orders/checkout', { method: 'POST', body: JSON.stringify(data) }),
-  list: (page = 0, size = 10) => request<{ orders: Order[]; pagination: any }>(`/orders?page=${page}&size=${size}`),
+  list: (page = 0, size = 10, status?: string, from?: string, to?: string) => {
+    const params = new URLSearchParams({ page: String(page), size: String(size) });
+    if (status) params.set('status', status);
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    return request<{ orders: Order[]; pagination: any }>(`/orders?${params.toString()}`);
+  },
   getByNumber: (number: string) => request<Order>(`/orders/${number}`),
   cancel: (number: string) => request<Order>(`/orders/${number}/cancel`, { method: 'POST' }),
   mpesaStkPush: (orderId: string, amount: string, phoneNumber: string) =>
     request<any>('/orders/payments/mpesa/stk-push', { method: 'POST', body: JSON.stringify({ orderId, amount, phoneNumber }) }),
+  mpesaStkQuery: (checkoutRequestId: string) =>
+    request<any>('/orders/payments/mpesa/stk-query', { method: 'POST', body: JSON.stringify({ checkoutRequestId }) }),
+  retryPayment: (orderNumber: string, phoneNumber: string) =>
+    request<any>(`/orders/${orderNumber}/retry-payment`, { method: 'POST', body: JSON.stringify({ phoneNumber }) }),
 };
 
 export const payments = {
-  mpesaStkQuery: (checkoutRequestId: string) =>
-    request<any>('/payments/mpesa/stk-query', { method: 'POST', body: JSON.stringify({ checkoutRequestId }) }),
   getPaymentByCheckoutRequestId: (checkoutRequestId: string) =>
     request<any>(`/payments/mpesa/${checkoutRequestId}`),
   getPaymentHistory: (page = 0, size = 20) =>

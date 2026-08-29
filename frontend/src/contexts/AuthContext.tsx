@@ -1,6 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { auth as authApi, cart as cartRest, setAccessToken, setRefreshToken, getAccessToken, getRefreshToken } from '@/services/api';
+import { auth as authApi, cart as cartRest, setAccessToken, setRefreshToken } from '@/services/api';
 import { User, Cart } from '@/types';
 
 interface AuthContextType {
@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await authApi.getProfile();
       if (res.data) setUser(res.data as unknown as User);
-    } catch { setUser(null); setAccessToken(null); }
+    } catch { setUser(null); setAccessToken(null); setRefreshToken(null); }
   }, []);
 
   useEffect(() => {
@@ -48,43 +48,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
 
     (async () => {
-      const storedAccess = getAccessToken();
-      const storedRefresh = getRefreshToken();
-
-      // 1. If we have a stored access token, try to fetch profile directly
-      if (storedAccess) {
-        try {
-          const profileRes = await authApi.getProfile();
-          if (profileRes.data) {
-            setUser(profileRes.data as unknown as User);
-            refreshCart();
-            return;
-          }
-        } catch {
-          // Access token expired or invalid — try refresh
+      try {
+        const profileRes = await authApi.getProfile();
+        if (profileRes.data) {
+          setUser(profileRes.data as unknown as User);
+          await refreshCart();
+          return;
         }
-      }
+      } catch { /* not signed in */ }
 
-      // 2. Try refresh with stored refresh token
-      if (storedRefresh) {
-        try {
-          const tokenRes = await authApi.refresh();
-          if (tokenRes.data?.accessToken) {
-            setAccessToken(tokenRes.data.accessToken);
-            if (tokenRes.data.refreshToken) setRefreshToken(tokenRes.data.refreshToken);
-            setUser(tokenRes.data.user);
-            refreshCart();
-            return;
-          }
-        } catch {
-          // Refresh token expired — not logged in
+      try {
+        const tokenRes = await authApi.refresh();
+        if (tokenRes.data?.accessToken) {
+          setAccessToken(tokenRes.data.accessToken);
+          if (tokenRes.data.refreshToken) setRefreshToken(tokenRes.data.refreshToken);
+          setUser(tokenRes.data.user);
+          await refreshCart();
+          return;
         }
-      }
+      } catch { /* refresh failed */ }
 
-      // 3. Not logged in — clear any stale tokens
       setAccessToken(null);
       setRefreshToken(null);
-      refreshCart();
+      await refreshCart();
     })();
   }, [refreshCart]);
 
@@ -94,6 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(res.data.accessToken);
       if (res.data.refreshToken) setRefreshToken(res.data.refreshToken);
       setUser(res.data.user);
+      try { await cartRest.merge(); } catch { /* guest cart may not exist */ }
       await refreshCart();
     }
   };
@@ -104,6 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(res.data.accessToken);
       if (res.data.refreshToken) setRefreshToken(res.data.refreshToken);
       setUser(res.data.user);
+      try { await cartRest.merge(); } catch { /* guest cart may not exist */ }
       await refreshCart();
     }
   };

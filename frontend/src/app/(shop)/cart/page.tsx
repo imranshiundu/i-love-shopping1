@@ -66,7 +66,7 @@ export default function CartPage() {
 
   const subtotal = cart.items.reduce((sum, item) => sum + item.priceSnapshot * item.quantity, 0);
   const shipping = subtotal >= config.commerce.freeShippingThreshold ? 0 : config.commerce.shippingCost;
-  const tax = Math.round(subtotal * config.commerce.taxRate);
+  const tax = Math.round(subtotal * config.commerce.taxRate * 100) / 100;
   const total = subtotal + shipping + tax;
   const progress = Math.min(100, Math.round((subtotal / config.commerce.freeShippingThreshold) * 100));
   const missingForFree = config.commerce.freeShippingThreshold - subtotal;

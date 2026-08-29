@@ -2,12 +2,14 @@ package com.iloveshopping.service;
 
 import com.iloveshopping.config.StripeProperties;
 import com.iloveshopping.entity.Order;
+import com.iloveshopping.entity.OrderItem;
 import com.iloveshopping.entity.Payment;
 import com.iloveshopping.exception.PaymentException;
 import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.messaging.OrderMessagePublisher;
 import com.iloveshopping.repository.OrderRepository;
 import com.iloveshopping.repository.PaymentRepository;
+import com.iloveshopping.repository.ProductRepository;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
@@ -31,6 +33,7 @@ public class StripePaymentService {
     private final StripeProperties stripeProperties;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
+    private final ProductRepository productRepository;
     private final OrderMessagePublisher orderMessagePublisher;
     private final EmailService emailService;
 
@@ -38,7 +41,7 @@ public class StripePaymentService {
     public void init() {
         if (stripeProperties.getSecretKey() != null && !stripeProperties.getSecretKey().isBlank()) {
             Stripe.apiKey = stripeProperties.getSecretKey();
-            log.info("Stripe API key configured (key={})", stripeProperties.getSecretKey().substring(0, Math.min(12, stripeProperties.getSecretKey().length())) + "...");
+            log.info("Stripe API key configured");
         } else {
             log.warn("Stripe secret key not configured — card payments will be unavailable");
         }
@@ -49,13 +52,25 @@ public class StripePaymentService {
     }
 
     @Transactional
-    public Map<String, Object> createPaymentIntent(String orderId, BigDecimal amount, String currency) {
+    public Map<String, Object> createPaymentIntent(String orderId, BigDecimal clientAmount, String currency) {
         if (!isConfigured()) {
             throw new PaymentException("Stripe is not configured. Add STRIPE_SECRET_KEY to your environment.");
         }
 
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "id", orderId));
+
+        // Server is source of truth — validate client amount matches order total
+        BigDecimal amount = order.getTotal();
+        if (clientAmount != null && clientAmount.compareTo(amount) != 0) {
+            log.warn("Stripe amount mismatch for order {}: client={} server={}", order.getNumber(), clientAmount, amount);
+            throw new PaymentException("Payment amount does not match order total");
+        }
+
+        if (order.getStatus() != Order.OrderStatus.PENDING
+                && order.getStatus() != Order.OrderStatus.EXPIRED) {
+            throw new PaymentException("Order is not payable at status: " + order.getStatus());
+        }
 
         log.info("Creating Stripe PaymentIntent for order {} amount {} {}", order.getNumber(), amount, currency);
 
@@ -137,18 +152,30 @@ public class StripePaymentService {
             payment.setStatus(Payment.PaymentStatus.FAILED);
             payment.setMetadata(buildMetadata(paymentIntentId, "failed: " + e.getMessage()));
             paymentRepository.save(payment);
+
+            Order order = payment.getOrder();
+            if (order.getStatus() == Order.OrderStatus.PENDING
+                    || order.getStatus() == Order.OrderStatus.EXPIRED) {
+                for (OrderItem item : order.getItems()) {
+                    productRepository.incrementStock(item.getProduct().getId(), item.getQuantity());
+                }
+                order.setStatus(Order.OrderStatus.CANCELLED);
+                orderRepository.save(order);
+                notifyPaymentFailure(order, "card_declined");
+            }
+
             throw new PaymentException("Failed to confirm Stripe payment: " + e.getMessage());
         }
     }
 
     @Transactional
-    public void processWebhook(String payload, String sigHeader) {
+    public void processWebhook(String payload, String sigHeader) throws com.stripe.exception.SignatureVerificationException {
         if (!isConfigured()) return;
 
-        try {
-            com.stripe.model.Event event = com.stripe.net.Webhook.constructEvent(
-                    payload, sigHeader, stripeProperties.getWebhookSecret());
+        com.stripe.model.Event event = com.stripe.net.Webhook.constructEvent(
+                payload, sigHeader, stripeProperties.getWebhookSecret());
 
+        try {
             String type = event.getType();
             PaymentIntent intent = (PaymentIntent) event.getDataObjectDeserializer()
                     .getObject().orElse(null);
@@ -185,7 +212,6 @@ public class StripePaymentService {
                 }
                 default -> log.debug("Unhandled Stripe webhook type: {}", type);
             }
-
         } catch (Exception e) {
             log.error("Stripe webhook processing failed: {}", e.getMessage(), e);
         }
@@ -212,10 +238,14 @@ public class StripePaymentService {
             } catch (Exception e) {
                 log.error("Failed to publish ORDER_PAID event for {}: {}", order.getNumber(), e.getMessage());
             }
-            if (order.getUser() != null && order.getUser().getEmail() != null) {
+            String email = null;
+            if (order.getUser() != null && order.getUser().getEmail() != null) email = order.getUser().getEmail();
+            else if (order.getGuestEmail() != null && !order.getGuestEmail().isBlank()) email = order.getGuestEmail();
+            if (email != null) {
+                String finalEmail = email;
                 try {
                     emailService.sendOrderConfirmation(
-                            order.getUser().getEmail(), order.getNumber(), order.getId().toString());
+                            finalEmail, order.getNumber(), order.getId().toString());
                 } catch (Exception e) {
                     log.error("Failed to send confirmation email for {}: {}", order.getNumber(), e.getMessage());
                 }
@@ -243,6 +273,24 @@ public class StripePaymentService {
             return mapper.writeValueAsString(data);
         } catch (Exception e) {
             return "{}";
+        }
+    }
+
+    private void notifyPaymentFailure(Order order, String reason) {
+        try {
+            orderMessagePublisher.publishOrderCancelled(order);
+        } catch (Exception e) {
+            log.error("Failed to publish ORDER_CANCELLED for {}: {}", order.getNumber(), e.getMessage());
+        }
+        String email = null;
+        if (order.getUser() != null && order.getUser().getEmail() != null) email = order.getUser().getEmail();
+        else if (order.getGuestEmail() != null && !order.getGuestEmail().isBlank()) email = order.getGuestEmail();
+        if (email != null) {
+            try {
+                emailService.sendPaymentFailed(email, order.getNumber(), order.getId().toString(), reason);
+            } catch (Exception e) {
+                log.error("Failed to send payment-failed email for {}: {}", order.getNumber(), e.getMessage());
+            }
         }
     }
 }

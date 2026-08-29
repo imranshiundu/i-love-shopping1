@@ -29,6 +29,7 @@ public class OrderResponse {
     private String currency;
     private AddressDto shippingAddress;
     private AddressDto billingAddress;
+    private String guestEmail;
     private String notes;
     private List<OrderItemResponse> items;
     private List<PaymentResponse> payments;
@@ -44,6 +45,7 @@ public class OrderResponse {
                 .id(order.getId())
                 .number(order.getNumber())
                 .userId(order.getUser() != null ? order.getUser().getId() : null)
+                .guestEmail(order.getGuestEmail())
                 .status(order.getStatus())
                 .subtotal(order.getSubtotal())
                 .tax(order.getTax())
@@ -52,6 +54,7 @@ public class OrderResponse {
                 .currency(order.getCurrency())
                 .shippingAddress(order.getShippingAddress() != null ? AddressDto.fromJson(order.getShippingAddress()) : null)
                 .billingAddress(order.getBillingAddress() != null ? AddressDto.fromJson(order.getBillingAddress()) : null)
+                .guestEmail(order.getGuestEmail())
                 .notes(order.getNotes())
                 .items(order.getItems() != null ? order.getItems().stream().map(OrderItemResponse::from).toList() : List.of())
                 .payments(order.getPayments() != null ? order.getPayments().stream().map(PaymentResponse::from).toList() : List.of())
