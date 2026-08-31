@@ -69,6 +69,7 @@ public class SecurityConfig {
                         .requestMatchers("/categories", "/categories/**").permitAll()
                         .requestMatchers("/brands", "/brands/**").permitAll()
                         .requestMatchers("/cart", "/cart/**").permitAll()
+                        .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/health", "/live", "/ready").permitAll()
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
@@ -78,8 +79,6 @@ public class SecurityConfig {
                         .requestMatchers("/payments/stripe/webhook").permitAll()
                         .requestMatchers(HttpMethod.POST, "/payments/stripe/create-intent").permitAll()
                         .requestMatchers(HttpMethod.POST, "/payments/stripe/confirm").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/payments/flutterwave/initialize").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/payments/flutterwave/verify").permitAll()
                         .requestMatchers(HttpMethod.POST, "/orders/*/cancel").permitAll()
                         .requestMatchers(HttpMethod.GET, "/orders/*").permitAll()
                         .requestMatchers("/orders/**").authenticated()
@@ -141,10 +140,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(corsProperties.getAllowedOrigins());
+        configuration.addAllowedOriginPattern("*");
         configuration.setAllowedMethods(corsProperties.getAllowedMethods());
         configuration.setAllowedHeaders(corsProperties.getAllowedHeaders());
-        configuration.setAllowCredentials(corsProperties.getAllowCredentials());
+        configuration.setAllowCredentials(true);
+        configuration.setExposedHeaders(List.of("X-Cart-Session"));
         configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

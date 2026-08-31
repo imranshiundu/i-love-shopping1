@@ -3,7 +3,6 @@ package com.iloveshopping.controller;
 import com.iloveshopping.config.StripeProperties;
 import com.iloveshopping.dto.common.ApiResponse;
 import com.iloveshopping.dto.payment.PaymentResponse;
-import com.iloveshopping.service.FlutterwavePaymentService;
 import com.iloveshopping.service.PaymentService;
 import com.iloveshopping.service.StripePaymentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,7 +26,6 @@ public class PaymentController {
 
     private final PaymentService paymentService;
     private final StripePaymentService stripePaymentService;
-    private final FlutterwavePaymentService flutterwavePaymentService;
     private final StripeProperties stripeProperties;
 
     @GetMapping
@@ -65,11 +63,20 @@ public class PaymentController {
     @PostMapping("/stripe/create-intent")
     @Operation(summary = "Create Stripe PaymentIntent for an order")
     public ResponseEntity<ApiResponse<Map<String, Object>>> createStripeIntent(@RequestBody Map<String, Object> body) {
-        String orderId = String.valueOf(body.get("orderId"));
+        String orderId = body.get("orderId") == null ? null : String.valueOf(body.get("orderId"));
+        if (orderId == null || orderId.isBlank() || "null".equals(orderId)) {
+            throw new com.iloveshopping.exception.ApiException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "orderId is required to create a payment", "VALIDATION_ERROR");
+        }
         Object amountRaw = body.get("amount");
-        BigDecimal amount = amountRaw instanceof Number n
-                ? new BigDecimal(n.toString())
-                : new BigDecimal(String.valueOf(amountRaw));
+        // Server is source of truth — a missing/blank amount falls back to order total.
+        BigDecimal amount = null;
+        if (amountRaw != null && !String.valueOf(amountRaw).isBlank() && !"null".equals(String.valueOf(amountRaw))) {
+            amount = amountRaw instanceof Number n
+                    ? new BigDecimal(n.toString())
+                    : new BigDecimal(String.valueOf(amountRaw));
+        }
         String currency = body.get("currency") == null ? "KES" : String.valueOf(body.get("currency"));
         return ResponseEntity.ok(ApiResponse.success(stripePaymentService.createPaymentIntent(orderId, amount, currency)));
     }
@@ -105,29 +112,5 @@ public class PaymentController {
             log.error("Stripe webhook error: {}", e.getMessage());
             return ResponseEntity.internalServerError().build();
         }
-    }
-
-    // ---- Flutterwave ----
-
-    @PostMapping("/flutterwave/initialize")
-    @Operation(summary = "Initialize Flutterwave transaction for an order")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> initFlutterwave(@RequestBody Map<String, Object> body) {
-        String orderId = String.valueOf(body.get("orderId"));
-        Object amountRaw = body.get("amount");
-        BigDecimal amount = amountRaw instanceof Number n
-                ? new BigDecimal(n.toString())
-                : new BigDecimal(String.valueOf(amountRaw));
-        String currency = body.get("currency") == null ? "KES" : String.valueOf(body.get("currency"));
-        String email = body.get("customerEmail") == null ? null : String.valueOf(body.get("customerEmail"));
-        String name = body.get("customerName") == null ? null : String.valueOf(body.get("customerName"));
-        return ResponseEntity.ok(ApiResponse.success(
-                flutterwavePaymentService.initializeTransaction(orderId, amount, currency, email, name)));
-    }
-
-    @PostMapping("/flutterwave/verify")
-    @Operation(summary = "Verify a Flutterwave transaction")
-    public ResponseEntity<ApiResponse<Map<String, Object>>> verifyFlutterwave(@RequestBody Map<String, String> body) {
-        return ResponseEntity.ok(ApiResponse.success(
-                flutterwavePaymentService.verifyTransaction(body.get("transactionRef"))));
     }
 }

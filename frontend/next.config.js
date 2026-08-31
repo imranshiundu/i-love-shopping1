@@ -5,6 +5,7 @@ const nextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: process.env.NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS?.split(',')[0] || 'picsum.photos' },
       { protocol: 'https', hostname: process.env.NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS?.split(',')[1] || 'images.unsplash.com' },
+      { protocol: 'https', hostname: 'placehold.co' },
     ],
   },
   async rewrites() {

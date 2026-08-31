@@ -12,6 +12,14 @@ public class AuthenticationException extends ApiException {
         return new AuthenticationException("Invalid email or password");
     }
 
+    public static AuthenticationException accountNotFound() {
+        return new AuthenticationException("No account found with this email. Please create an account.");
+    }
+
+    public static AuthenticationException incorrectPassword() {
+        return new AuthenticationException("Incorrect password. Please try again.");
+    }
+
     public static AuthenticationException tokenExpired() {
         return new AuthenticationException("Token has expired");
     }

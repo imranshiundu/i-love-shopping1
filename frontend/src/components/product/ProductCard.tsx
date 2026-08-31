@@ -35,18 +35,15 @@ export default function ProductCard({ product }: { product: Product }) {
       className="group card-lift flex flex-col overflow-hidden rounded-2xl border border-stone-200/80 bg-white"
     >
       <div className="relative aspect-[4/5] overflow-hidden bg-stone-100">
-        {image ? (
-          <img
-            src={image.url}
-            alt={image.alt || product.name}
-            loading="lazy"
-            className="img-zoom h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm text-stone-400">
-            No image
-          </div>
-        )}
+        <img
+          src={image?.url}
+          alt={image?.alt || product.name}
+          loading="lazy"
+          className="img-zoom h-full w-full object-cover"
+          onError={(e) => {
+            e.currentTarget.src = 'https://placehold.co/800x600/e7e5e4/78716c?text=No+Image';
+          }}
+        />
 
         <div className="absolute left-3 top-3 flex flex-col gap-1.5">
           {product.onSale && product.discountPercentage > 0 && (

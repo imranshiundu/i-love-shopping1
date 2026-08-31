@@ -51,6 +51,9 @@ spring:
           auth: ${MAIL_SMTP_AUTH:true}
           starttls:
             enable: ${MAIL_SMTP_STARTTLS:true}
+            required: ${MAIL_SMTP_STARTTLS:true}
+          ssl:
+            trust: ${MAIL_SMTP_HOST:smtp.gmail.com}
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
@@ -72,6 +75,7 @@ spring:
 
 server:
   port: ${SERVER_PORT:8080}
+  forward-headers-strategy: framework
   servlet:
     context-path: /api/v1
     session:
@@ -131,12 +135,7 @@ stripe:
   secret-key: ${STRIPE_SECRET_KEY:}
   publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
-
-flutterwave:
-  secret-key: ${FLUTTERWAVE_SECRET_KEY:}
-  public-key: ${FLUTTERWAVE_PUBLIC_KEY:}
-  encryption-key: ${FLUTTERWAVE_ENCRYPTION_KEY:}
-  redirect-url: ${FLUTTERWAVE_REDIRECT_URL:http://localhost:3000/checkout/success}
+  min-amount: ${STRIPE_MIN_AMOUNT:100}
 
 spring.rabbitmq:
   host: ${RABBITMQ_HOST:localhost}
@@ -168,6 +167,7 @@ logging:
   level:
     com.iloveshopping: DEBUG
     org.springframework.security: DEBUG
+    org.springframework.web.cors: DEBUG
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
   pattern:

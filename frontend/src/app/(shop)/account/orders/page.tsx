@@ -190,7 +190,7 @@ export default function AccountOrdersPage() {
                         }`}>
                         <FiXCircle /> {cancellingId === order.number ? 'Cancelling...' : 'Cancel'}
                       </button>
-                      <Link href={`/checkout/success?order=${order.number}`}
+                      <Link href={`/account/orders/${order.number}`}
                         className="flex items-center gap-1 rounded-lg border border-stone-200 px-3.5 py-2 text-xs font-semibold hover:bg-stone-50">
                         Details <FiChevronRight />
                       </Link>

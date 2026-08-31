@@ -28,7 +28,9 @@ public class OrderController {
     @Operation(summary = "Create order from current cart")
     public ResponseEntity<ApiResponse<OrderResponse>> checkout(
             @Valid @RequestBody CheckoutRequest request,
-            @CookieValue(name = "cartSessionId", required = false) String cartSessionId) {
+            @CookieValue(name = "cartSessionId", required = false) String cookieSessionId,
+            @RequestHeader(value = "X-Cart-Session", required = false) String headerSessionId) {
+        String cartSessionId = cookieSessionId != null && !cookieSessionId.isBlank() ? cookieSessionId : headerSessionId;
         return ResponseEntity.ok(ApiResponse.success(orderService.checkout(request, cartSessionId)));
     }
 
@@ -45,7 +47,9 @@ public class OrderController {
     @Operation(summary = "Get order by order number")
     public ResponseEntity<ApiResponse<OrderResponse>> get(
             @PathVariable String orderNumber,
-            @CookieValue(name = "cartSessionId", required = false) String cartSessionId) {
+            @CookieValue(name = "cartSessionId", required = false) String cookieSessionId,
+            @RequestHeader(value = "X-Cart-Session", required = false) String headerSessionId) {
+        String cartSessionId = cookieSessionId != null && !cookieSessionId.isBlank() ? cookieSessionId : headerSessionId;
         return ResponseEntity.ok(ApiResponse.success(orderService.getOrderByNumber(orderNumber, cartSessionId)));
     }
 
@@ -53,7 +57,9 @@ public class OrderController {
     @Operation(summary = "Cancel an order and restore stock + cart")
     public ResponseEntity<ApiResponse<OrderResponse>> cancel(
             @PathVariable String orderNumber,
-            @CookieValue(name = "cartSessionId", required = false) String cartSessionId) {
+            @CookieValue(name = "cartSessionId", required = false) String cookieSessionId,
+            @RequestHeader(value = "X-Cart-Session", required = false) String headerSessionId) {
+        String cartSessionId = cookieSessionId != null && !cookieSessionId.isBlank() ? cookieSessionId : headerSessionId;
         return ResponseEntity.ok(ApiResponse.success(orderService.cancelOrder(orderNumber, cartSessionId)));
     }
 

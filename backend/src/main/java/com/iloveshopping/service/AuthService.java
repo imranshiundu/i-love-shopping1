@@ -111,14 +111,14 @@ public class AuthService {
 
         Optional<User> userOpt = userRepository.findByEmailIgnoreCase(request.getEmail());
         if (userOpt.isEmpty()) {
-            throw AuthenticationException.invalidCredentials();
+            throw AuthenticationException.accountNotFound();
         }
 
         User user = userOpt.get();
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             log.warn("Failed login attempt for email: {}", request.getEmail());
-            throw AuthenticationException.invalidCredentials();
+            throw AuthenticationException.incorrectPassword();
         }
 
         // In dev mode, skip email verification check

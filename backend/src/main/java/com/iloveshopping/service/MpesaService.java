@@ -9,6 +9,7 @@ import com.iloveshopping.dto.payment.MpesaStkPushResponse;
 import com.iloveshopping.entity.Order;
 import com.iloveshopping.entity.OrderItem;
 import com.iloveshopping.entity.Payment;
+import com.iloveshopping.entity.Product;
 import com.iloveshopping.exception.PaymentException;
 import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.messaging.OrderMessagePublisher;
@@ -350,6 +351,7 @@ public class MpesaService {
         }
     }
 
+    @Transactional
     public MpesaStkPushResponse queryStkStatus(String checkoutRequestId) {
         // First check local payment record — callback may have already processed it
         Optional<Payment> localPayment = paymentRepository.findByProviderId(checkoutRequestId);
@@ -397,11 +399,53 @@ public class MpesaService {
             JsonNode n = resp.getBody();
             if (n == null) throw new PaymentException("Empty STK query response");
 
+            // ResultCode is the authoritative indicator from Daraja.
+            //  0   = success
+            //  1032 = cancelled by user (terminal)
+            //  1037 = timeout / still in-flight — NOT terminal; user may still be paying
+            //  2001 = wrong PIN (declined)
+            //  1    = insufficient funds / declined
+            String resultCode = textOrNull(n, "ResultCode");
+            String resultDesc = textOrNull(n, "ResultDesc");
+            if (resultCode != null) {
+                if (resultCode.equals("0") && localPayment.isPresent()) {
+                    markQuerySucceeded(localPayment.get());
+                    return MpesaStkPushResponse.builder()
+                            .checkoutRequestId(checkoutRequestId)
+                            .responseCode("0")
+                            .responseDescription("The service request is processed successfully.")
+                            .customerMessage("Payment completed successfully.")
+                            .build();
+                }
+                // 1037 = in-flight/timeout — do NOT mark failed or cancel the order.
+                // The customer may still be entering their PIN. Return an in-progress
+                // indicator so the frontend keeps polling.
+                if (resultCode.equals("1037")) {
+                    return MpesaStkPushResponse.builder()
+                            .checkoutRequestId(checkoutRequestId)
+                            .responseCode("1037")
+                            .responseDescription("The push request is still being processed or has not been completed.")
+                            .customerMessage("Waiting for payment confirmation...")
+                            .build();
+                }
+                // Genuinely terminal failures
+                if (localPayment.isPresent() && isTerminalFailureCode(parseIntSafe(resultCode))) {
+                    markQueryFailed(localPayment.get(), describeResultCode(parseIntSafe(resultCode)));
+                    return MpesaStkPushResponse.builder()
+                            .checkoutRequestId(checkoutRequestId)
+                            .responseCode("1")
+                            .responseDescription(resultDesc != null ? resultDesc : "The transaction failed.")
+                            .customerMessage(resultDesc != null ? resultDesc : "Payment failed.")
+                            .build();
+                }
+            }
+
+            // Still in flight — return the raw query response for the frontend to keep polling
             return MpesaStkPushResponse.builder()
                     .checkoutRequestId(checkoutRequestId)
                     .responseCode(textOrNull(n, "ResponseCode"))
                     .responseDescription(textOrNull(n, "ResponseDescription"))
-                    .customerMessage(textOrNull(n, "ResultDesc"))
+                    .customerMessage(resultDesc != null ? resultDesc : textOrNull(n, "ResponseDescription"))
                     .build();
         } catch (PaymentException e) {
             throw e;
@@ -412,12 +456,66 @@ public class MpesaService {
     }
 
     @Transactional
+    protected void markQuerySucceeded(Payment payment) {
+        if (payment.getStatus() == Payment.PaymentStatus.SUCCEEDED) return;
+        payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
+        paymentRepository.save(payment);
+
+        Order order = payment.getOrder();
+        if (order.getStatus() != Order.OrderStatus.CONFIRMED) {
+            order.setStatus(Order.OrderStatus.CONFIRMED);
+            orderRepository.save(order);
+        }
+        final Order finalOrder = order;
+        runAfterCommit(() -> {
+            try { orderMessagePublisher.publishOrderPaid(finalOrder); }
+            catch (Exception e) { log.error("publishOrderPaid failed: {}", e.getMessage()); }
+            String email = recipientEmail(finalOrder);
+            if (email != null) {
+                try { emailService.sendOrderConfirmation(finalOrder); }
+                catch (Exception e) { log.error("sendOrderConfirmation failed: {}", e.getMessage()); }
+            }
+        });
+        log.info("M-Pesa STK query: payment SUCCESS checkout={}", payment.getProviderId());
+    }
+
+    @Transactional
+    protected void markQueryFailed(Payment payment, String reason) {
+        markPaymentFailed(payment, payment.getOrder(), reason);
+        log.warn("M-Pesa STK query: payment FAILED checkout={} reason={}", payment.getProviderId(), reason);
+    }
+
+    private int parseIntSafe(String s) {
+        try { return Integer.parseInt(s); } catch (Exception e) { return -1; }
+    }
+
+    private boolean isTerminalFailureCode(int code) {
+        return switch (code) {
+            case 1032, 2001, 1, 2007, 2026, 2002, 2005, 2006 -> true;
+            default -> false;
+        };
+    }
+
+    @Transactional
     public MpesaStkPushResponse retryPayment(String orderNumber, String phoneNumber) {
         Order order = orderRepository.findByNumber(orderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
 
-        // Allow retry on PENDING or EXPIRED
-        if (order.getStatus() != Order.OrderStatus.PENDING
+        // Allow retry on PENDING, EXPIRED, or CANCELLED (re-open a cancelled order)
+        if (order.getStatus() == Order.OrderStatus.CANCELLED) {
+            // Re-check stock and re-decrement before re-opening
+            for (OrderItem item : order.getItems()) {
+                Product product = item.getProduct();
+                if (product.getStock() < item.getQuantity()) {
+                    throw new PaymentException("Some items are no longer available. Please place a new order.");
+                }
+            }
+            for (OrderItem item : order.getItems()) {
+                productRepository.decrementStock(item.getProduct().getId(), item.getQuantity());
+            }
+            order.setStatus(Order.OrderStatus.PENDING);
+            orderRepository.save(order);
+        } else if (order.getStatus() != Order.OrderStatus.PENDING
                 && order.getStatus() != Order.OrderStatus.EXPIRED) {
             throw new PaymentException("Order is not payable at status: " + order.getStatus());
         }
@@ -448,7 +546,10 @@ public class MpesaService {
             log.info("markPaymentFailed: order {} already in terminal state {}, skipping", order.getNumber(), order.getStatus());
             return;
         }
-        payment.setStatus(Payment.PaymentStatus.FAILED);
+        Payment.PaymentStatus payStatus = reason != null && reason.toLowerCase().contains("cancel")
+                ? Payment.PaymentStatus.CANCELLED
+                : Payment.PaymentStatus.FAILED;
+        payment.setStatus(payStatus);
         paymentRepository.save(payment);
         for (OrderItem item : order.getItems()) {
             productRepository.incrementStock(item.getProduct().getId(), item.getQuantity());
@@ -463,11 +564,6 @@ public class MpesaService {
         runAfterCommit(() -> {
             try { orderMessagePublisher.publishOrderCancelled(finalOrder); }
             catch (Exception e) { log.error("publishOrderCancelled failed: {}", e.getMessage()); }
-            String email = recipientEmail(finalOrder);
-            if (email != null) {
-                try { emailService.sendPaymentFailed(email, finalOrder.getNumber(), finalOrder.getId(), reason); }
-                catch (Exception e) { log.error("sendPaymentFailed email: {}", e.getMessage()); }
-            }
         });
     }
 

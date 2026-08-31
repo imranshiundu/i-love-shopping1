@@ -72,6 +72,15 @@ public class StripePaymentService {
             throw new PaymentException("Order is not payable at status: " + order.getStatus());
         }
 
+        // Stripe rejects charges below its per-currency minimum (≈ $0.50 equivalent).
+        // Surface a clear, actionable message so the user knows the order is too small for a card.
+        BigDecimal min = stripeProperties.getMinAmount() != null ? stripeProperties.getMinAmount() : new BigDecimal("100");
+        if (amount.compareTo(min) < 0) {
+            throw new PaymentException(
+                    "Card payments require a minimum of " + min.toPlainString() + " " + (currency != null ? currency : "KES")
+                            + ". Your order total is " + amount.toPlainString() + ". Please add more items or use M-Pesa.");
+        }
+
         log.info("Creating Stripe PaymentIntent for order {} amount {} {}", order.getNumber(), amount, currency);
 
         try {
@@ -129,6 +138,22 @@ public class StripePaymentService {
 
         try {
             PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
+
+            // If the intent was already confirmed client-side (status=succeeded),
+            // re-confirming throws. Detect that and just finalize.
+            if ("succeeded".equals(intent.getStatus())) {
+                payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
+                payment.setMetadata(buildMetadata(paymentIntentId, "succeeded"));
+                paymentRepository.save(payment);
+                onPaymentSucceeded(payment);
+                Map<String, Object> ok = new HashMap<>();
+                ok.put("paymentIntentId", paymentIntentId);
+                ok.put("status", intent.getStatus());
+                ok.put("orderId", payment.getOrder().getId());
+                ok.put("paymentId", payment.getId());
+                return ok;
+            }
+
             intent = intent.confirm();
 
             payment.setStatus(mapStripeStatus(intent.getStatus()));
@@ -149,19 +174,38 @@ public class StripePaymentService {
 
         } catch (StripeException e) {
             log.error("Stripe payment confirmation failed: {}", e.getMessage(), e);
-            payment.setStatus(Payment.PaymentStatus.FAILED);
-            payment.setMetadata(buildMetadata(paymentIntentId, "failed: " + e.getMessage()));
-            paymentRepository.save(payment);
 
-            Order order = payment.getOrder();
-            if (order.getStatus() == Order.OrderStatus.PENDING
-                    || order.getStatus() == Order.OrderStatus.EXPIRED) {
-                for (OrderItem item : order.getItems()) {
-                    productRepository.incrementStock(item.getProduct().getId(), item.getQuantity());
+            // Only mark the payment failed / cancel the order when the intent is in a
+            // terminal failure state. If it's still payable (e.g. requires_payment_method),
+            // keep the order open so the customer can retry.
+            boolean terminalFailure = false;
+            try {
+                PaymentIntent current = PaymentIntent.retrieve(paymentIntentId);
+                String st = current.getStatus();
+                terminalFailure = "canceled".equals(st) || "failed".equals(st);
+            } catch (StripeException retrieveEx) {
+                log.warn("Could not re-retrieve intent {} to classify failure: {}", paymentIntentId, retrieveEx.getMessage());
+                terminalFailure = true;
+            }
+
+            if (terminalFailure) {
+                Payment.PaymentStatus payStatus = "canceled".equals(extractStripeStatus(e))
+                        ? Payment.PaymentStatus.CANCELLED
+                        : Payment.PaymentStatus.FAILED;
+                payment.setStatus(payStatus);
+                payment.setMetadata(buildMetadata(paymentIntentId, "failed: " + e.getMessage()));
+                paymentRepository.save(payment);
+
+                Order order = payment.getOrder();
+                if (order.getStatus() == Order.OrderStatus.PENDING
+                        || order.getStatus() == Order.OrderStatus.EXPIRED) {
+                    for (OrderItem item : order.getItems()) {
+                        productRepository.incrementStock(item.getProduct().getId(), item.getQuantity());
+                    }
+                    order.setStatus(Order.OrderStatus.CANCELLED);
+                    orderRepository.save(order);
+                    notifyPaymentFailure(order, "card_declined");
                 }
-                order.setStatus(Order.OrderStatus.CANCELLED);
-                orderRepository.save(order);
-                notifyPaymentFailure(order, "card_declined");
             }
 
             throw new PaymentException("Failed to confirm Stripe payment: " + e.getMessage());
@@ -276,21 +320,17 @@ public class StripePaymentService {
         }
     }
 
+    private String extractStripeStatus(StripeException e) {
+        String msg = e.getMessage();
+        if (msg != null && msg.toLowerCase().contains("canceled")) return "canceled";
+        return "failed";
+    }
+
     private void notifyPaymentFailure(Order order, String reason) {
         try {
             orderMessagePublisher.publishOrderCancelled(order);
         } catch (Exception e) {
             log.error("Failed to publish ORDER_CANCELLED for {}: {}", order.getNumber(), e.getMessage());
-        }
-        String email = null;
-        if (order.getUser() != null && order.getUser().getEmail() != null) email = order.getUser().getEmail();
-        else if (order.getGuestEmail() != null && !order.getGuestEmail().isBlank()) email = order.getGuestEmail();
-        if (email != null) {
-            try {
-                emailService.sendPaymentFailed(email, order.getNumber(), order.getId().toString(), reason);
-            } catch (Exception e) {
-                log.error("Failed to send payment-failed email for {}: {}", order.getNumber(), e.getMessage());
-            }
         }
     }
 }

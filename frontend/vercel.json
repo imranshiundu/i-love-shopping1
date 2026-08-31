@@ -1,0 +1,8 @@
+{
+  "buildCommand": "next build",
+  "outputDirectory": ".next",
+  "framework": "nextjs",
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://api.orb21.com/api/:path*" }
+  ]
+}

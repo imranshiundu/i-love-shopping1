@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { auth } from '@/services/api';
 import { config } from '@/lib/config';
 import { Address } from '@/types';
+import PhoneInput from '@/components/ui/PhoneInput';
 import toast from 'react-hot-toast';
 import { FiEdit2, FiTrash2, FiCheck } from 'react-icons/fi';
 
@@ -26,6 +27,7 @@ export default function AddressesPage() {
     if (!form.state?.trim()) { toast.error('State/County is required'); return false; }
     if (!form.postalCode?.trim()) { toast.error('Postal code is required'); return false; }
     if (!form.country?.trim()) { toast.error('Country is required'); return false; }
+    if (form.phone && (form.phone || '').replace(/\D/g, '').length < 9) { toast.error('Enter a valid phone number'); return false; }
     return true;
   };
 
@@ -94,7 +96,6 @@ export default function AddressesPage() {
             {[
               { label: 'Name', key: 'name' }, { label: 'Address Line 1', key: 'line1' }, { label: 'Address Line 2', key: 'line2' },
               { label: 'City', key: 'city' }, { label: 'State/County', key: 'state' }, { label: 'Postal Code', key: 'postalCode' },
-              { label: 'Phone', key: 'phone' },
             ].map(f => (
               <div key={f.key}>
                 <label className="block text-sm font-medium mb-1">{f.label}</label>
@@ -102,6 +103,10 @@ export default function AddressesPage() {
                   className="w-full border rounded-lg px-3 py-2 text-sm" />
               </div>
             ))}
+            <div>
+              <label className="block text-sm font-medium mb-1">Phone</label>
+              <PhoneInput value={(form as any).phone || ''} onChange={v => setForm({ ...form, phone: v })} placeholder="0712345678" />
+            </div>
             <div className="flex gap-2">
               <button onClick={handleSave} className="bg-primary-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-primary-700 flex items-center gap-1">
                 <FiCheck /> {editing ? 'Update' : 'Add'} Address

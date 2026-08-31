@@ -106,24 +106,6 @@ public class EmailService {
     }
 
     @Async
-    public void sendPaymentFailed(String email, String orderNumber, String orderId, String reason) {
-        log.info("Sending payment-failed email to: {} for order {}", email, orderNumber);
-
-        String orderUrl = appProperties.getFrontendUrl() + "/orders/" + orderId;
-        String retryUrl = appProperties.getFrontendUrl() + "/checkout/retry?order=" + orderNumber;
-
-        Context context = new Context();
-        context.setVariable("email", email);
-        context.setVariable("orderNumber", orderNumber);
-        context.setVariable("orderUrl", orderUrl);
-        context.setVariable("retryUrl", retryUrl);
-        context.setVariable("reason", reason == null ? "payment_failed" : reason);
-        context.setVariable("appName", "i-love-shopping");
-
-        sendEmail(email, "Payment Failed - " + orderNumber, "email/payment-failed", context);
-    }
-
-    @Async
     public void send2FASecret(String email, String code) {
         log.info("Sending 2FA code to: {}", email);
 

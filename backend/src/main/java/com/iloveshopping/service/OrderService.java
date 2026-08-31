@@ -51,6 +51,7 @@ public class OrderService {
     private final ObjectMapper objectMapper;
     private final OrderMessagePublisher orderMessagePublisher;
     private final CartService cartService;
+    private final com.iloveshopping.validation.AddressValidator addressValidator;
 
     @Transactional
     public OrderResponse checkout(CheckoutRequest request, String sessionId) {
@@ -72,6 +73,10 @@ public class OrderService {
         if (!EMAIL_PATTERN.matcher(email).matches() || email.length() > 255) {
             throw new IllegalArgumentException("Invalid email address");
         }
+
+        // Verify shipping/billing addresses are plausible (reject gibberish)
+        addressValidator.validate(request.getShippingAddress(), "Shipping");
+        addressValidator.validate(request.getBillingAddress(), "Billing");
 
         // Calculate from current cart state (server is source of truth)
         List<CartItem> items = cartItemRepository.findByCartId(cart.getId());

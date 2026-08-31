@@ -128,19 +128,19 @@ function Hero() {
             className="animate-float absolute right-4 top-2 w-64 overflow-hidden rounded-3xl border border-white/10 shadow-2xl shadow-black/50 xl:w-72"
             style={{ '--float-rot': '3deg', animationDelay: '0s' } as React.CSSProperties}
           >
-            <img src="https://picsum.photos/seed/iloveshopping-hero1/600/720" alt="" className="aspect-[5/6] w-full object-cover" />
+            <img src="https://placehold.co/600x720/264653/faf0e6?text=Shop+Local" alt="" className="aspect-[5/6] w-full object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/600x720/e7e5e4/78716c?text=i-love-shopping'; }} />
           </div>
           <div
             className="animate-float absolute left-0 top-40 w-52 overflow-hidden rounded-3xl border border-white/10 shadow-2xl shadow-black/50 xl:w-60"
             style={{ '--float-rot': '-5deg', animationDelay: '1.4s' } as React.CSSProperties}
           >
-            <img src="https://picsum.photos/seed/iloveshopping-hero2/520/640" alt="" className="aspect-[5/6] w-full object-cover" />
+            <img src="https://placehold.co/520x640/fca311/14213d?text=Kenyan+Crafts" alt="" className="aspect-[5/6] w-full object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/520x640/e7e5e4/78716c?text=i-love-shopping'; }} />
           </div>
           <div
             className="animate-float absolute bottom-0 right-16 w-44 overflow-hidden rounded-3xl border border-white/10 shadow-2xl shadow-black/50 xl:w-52"
             style={{ '--float-rot': '-2deg', animationDelay: '2.6s' } as React.CSSProperties}
           >
-            <img src="https://picsum.photos/seed/iloveshopping-hero3/480/480" alt="" className="aspect-square w-full object-cover" />
+            <img src="https://placehold.co/480x480/dda15e/264653?text=Handmade" alt="" className="aspect-square w-full object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/480x480/e7e5e4/78716c?text=i-love-shopping'; }} />
           </div>
 
           <div
@@ -225,10 +225,11 @@ function CategoriesSection({ categories, loading }: { categories: Category[]; lo
                 }`}
               >
                 <img
-                  src={`https://picsum.photos/seed/${cat.slug}-${i}/800/${i === 0 ? '900' : '480'}`}
+                  src={`https://placehold.co/800/${i === 0 ? '900' : '480'}/264653/faf0e6?text=${encodeURIComponent(cat.name || 'Category')}`}
                   alt=""
                   loading="lazy"
                   className="img-zoom absolute inset-0 h-full w-full object-cover"
+                  onError={(e) => { e.currentTarget.src = 'https://placehold.co/800/480/e7e5e4/78716c?text=Category'; }}
                 />
                 <div aria-hidden className="absolute inset-0 bg-gradient-to-t from-stone-950/85 via-stone-950/25 to-transparent transition-opacity duration-500 group-hover:from-stone-950/95" />
                 <div className="relative p-5">

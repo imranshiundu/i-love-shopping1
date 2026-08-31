@@ -6,23 +6,67 @@ const API_URL = config.api.baseUrl;
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 
+const ACCESS_TOKEN_KEY = 'iloveshopping_access_token';
+const REFRESH_TOKEN_KEY = 'iloveshopping_refresh_token';
+
 export function setAccessToken(token: string | null) {
   accessToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
+    else localStorage.removeItem(ACCESS_TOKEN_KEY);
+  }
 }
-export function getAccessToken() { return accessToken; }
+export function getAccessToken() {
+  if (accessToken) return accessToken;
+  if (typeof window !== 'undefined') return localStorage.getItem(ACCESS_TOKEN_KEY);
+  return null;
+}
 export function setRefreshToken(token: string | null) {
   refreshToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) localStorage.setItem(REFRESH_TOKEN_KEY, token);
+    else localStorage.removeItem(REFRESH_TOKEN_KEY);
+  }
 }
-export function getRefreshToken() { return refreshToken; }
+export function getRefreshToken() {
+  if (refreshToken) return refreshToken;
+  if (typeof window !== 'undefined') return localStorage.getItem(REFRESH_TOKEN_KEY);
+  return null;
+}
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
+async function request<T>(path: string, options: RequestInit & { _retried?: boolean } = {}): Promise<ApiResponse<T>> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...((options.headers as Record<string, string>) || {}) };
-  // Access token is carried via the HttpOnly 'accessToken' cookie (set by /auth/login).
-  // Do not echo the token via Authorization header — the browser already attaches the cookie.
+  // Tokens persist in localStorage and are sent via Authorization header for
+  // cross-origin reliability (cloudflared rewrites SameSite=None cookies to
+  // SameSite=Lax, so cookie-based auth breaks across origins on refresh).
+  const token = getAccessToken();
+  if (token && !headers['Authorization']) headers['Authorization'] = `Bearer ${token}`;
+  // Cart session ID is sent via X-Cart-Session header for cross-origin reliability
+  // (some proxies like cloudflared strip/replace cookies with SameSite=None).
+  if (typeof window !== 'undefined' && !headers['X-Cart-Session']) {
+    const sessionId = localStorage.getItem('cartSessionId');
+    if (sessionId) headers['X-Cart-Session'] = sessionId;
+  }
   const res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: 'include' });
+
+  // Capture cart session ID from response header
+  const cartSessionId = res.headers.get('X-Cart-Session');
+  if (cartSessionId && typeof window !== 'undefined') {
+    localStorage.setItem('cartSessionId', cartSessionId);
+  }
 
   let data: any = null;
   try { data = await res.json(); } catch { /* empty body */ }
+
+  // If access token expired, attempt one silent refresh then retry
+  if (res.status === 401 && !options._retried) {
+    try {
+      const refreshed = await authRefreshInternal();
+      if (refreshed) {
+        return await request<T>(path, { ...options, _retried: true });
+      }
+    } catch { /* fall through */ }
+  }
 
   if (!res.ok) {
     const message =
@@ -36,6 +80,36 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<ApiR
   return data;
 }
 
+async function authRefreshInternal(): Promise<boolean> {
+  // Single-flight: concurrent 401s share ONE refresh call. The backend rotates
+  // the refresh token on each refresh (revoking the previous one), so parallel
+  // refreshes would race and the loser would be logged out.
+  if (refreshPromise) return refreshPromise;
+  refreshPromise = (async () => {
+    try {
+      const rt = getRefreshToken();
+      if (!rt) return false;
+      const res = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Refresh-Token': rt },
+        credentials: 'include',
+      });
+      const body: any = await res.json().catch(() => null);
+      if (!res.ok || !body?.data?.accessToken) return false;
+      setAccessToken(body.data.accessToken);
+      if (body.data.refreshToken) setRefreshToken(body.data.refreshToken);
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+  return refreshPromise;
+}
+
+let refreshPromise: Promise<boolean> | null = null;
+
 export const auth = {
   register: (email: string, password: string, name: string, captchaToken: string) =>
     request<AuthResponse>('/auth/register', { method: 'POST', body: JSON.stringify({ email, password, name, captchaToken }) }),
@@ -43,7 +117,10 @@ export const auth = {
     request<AuthResponse>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password, rememberMe, twoFactorCode }) }),
   refresh: () => {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    // Refresh token is carried via the HttpOnly 'refreshToken' cookie (set by /auth/login).
+    // Refresh token persisted in localStorage and sent via header (cloudflared
+    // rewrites SameSite=None cookies, so cross-origin cookie refresh is unreliable).
+    const rt = getRefreshToken();
+    if (rt) headers['X-Refresh-Token'] = rt;
     return request<AuthResponse>('/auth/refresh', { method: 'POST', headers, credentials: 'include' });
   },
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
@@ -124,22 +201,12 @@ export const orders = {
 };
 
 export const payments = {
-  getPaymentByCheckoutRequestId: (checkoutRequestId: string) =>
-    request<any>(`/payments/mpesa/${checkoutRequestId}`),
   getPaymentHistory: (page = 0, size = 20) =>
     request<any[]>(`/payments?page=${page}&size=${size}`),
-  getPaymentById: (paymentId: string) =>
-    request<any>(`/payments/${paymentId}`),
   stripeCreateIntent: (orderId: string, amount: number, currency = 'KES') =>
     request<any>('/payments/stripe/create-intent', { method: 'POST', body: JSON.stringify({ orderId, amount, currency }) }),
   stripeConfirm: (paymentIntentId: string) =>
     request<any>('/payments/stripe/confirm', { method: 'POST', body: JSON.stringify({ paymentIntentId }) }),
-  stripeConfig: () =>
-    request<any>('/payments/stripe/config'),
-  flutterwaveInit: (orderId: string, amount: number, currency = 'KES', customerEmail?: string, customerName?: string) =>
-    request<any>('/payments/flutterwave/initialize', { method: 'POST', body: JSON.stringify({ orderId, amount, currency, customerEmail, customerName }) }),
-  flutterwaveVerify: (transactionRef: string) =>
-    request<any>('/payments/flutterwave/verify', { method: 'POST', body: JSON.stringify({ transactionRef }) }),
 };
 
 export const admin = {

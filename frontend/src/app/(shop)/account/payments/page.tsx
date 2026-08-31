@@ -35,7 +35,6 @@ const PROVIDER_CONFIG: Record<string, { label: string; icon: any; color: string 
   MPESA: { label: 'M-Pesa', icon: FiSmartphone, color: 'text-emerald-600 bg-emerald-100' },
   STRIPE: { label: 'Stripe', icon: FiCreditCard, color: 'text-indigo-600 bg-indigo-100' },
   PAYPAL: { label: 'PayPal', icon: FiCreditCard, color: 'text-blue-600 bg-blue-100' },
-  FLUTTERWAVE: { label: 'Flutterwave', icon: FiCreditCard, color: 'text-orange-600 bg-orange-100' },
   AIRTEL_MONEY: { label: 'Airtel Money', icon: FiSmartphone, color: 'text-rose-600 bg-rose-100' },
 };
 

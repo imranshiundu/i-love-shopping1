@@ -3,13 +3,21 @@ import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, CardElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import {
+  Elements,
+  CardNumberElement,
+  CardExpiryElement,
+  CardCvcElement,
+  useElements,
+  useStripe,
+} from '@stripe/react-stripe-js';
 import { useAuth } from '@/contexts/AuthContext';
 import { orders, payments as paymentsApi, auth } from '@/services/api';
 import { config } from '@/lib/config';
-import { useCurrency } from '@/lib/currency';
 import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
+import AuthModal from '@/components/checkout/AuthModal';
+import PhoneInput from '@/components/ui/PhoneInput';
 import { Address } from '@/types';
 import {
   FiCheck, FiArrowRight, FiShoppingBag, FiX,
@@ -17,7 +25,7 @@ import {
 } from 'react-icons/fi';
 import toast from 'react-hot-toast';
 
-type PayMethod = 'mpesa' | 'stripe' | 'flutterwave';
+type PayMethod = 'mpesa' | 'stripe';
 type StkStatus = 'idle' | 'sending' | 'waiting_pin' | 'polling' | 'success' | 'failed' | 'cancelled';
 
 const STK_POLL_MS = 3000;
@@ -27,42 +35,77 @@ const stripePromise = config.stripe.publishableKey
   ? loadStripe(config.stripe.publishableKey)
   : null;
 
-const CARD_OPTIONS = {
-  hidePostalCode: true,
-  style: {
-    base: { fontSize: '15px', color: '#1c1917', '::placeholder': { color: '#a8a29e' }, fontFamily: 'system-ui, sans-serif' },
-    invalid: { color: '#e11d48' },
-  },
+const FIELD_STYLE = {
+  base: { fontSize: '15px', color: '#1c1917', '::placeholder': { color: '#a8a29e' }, fontFamily: 'system-ui, sans-serif' },
+  invalid: { color: '#e11d48' },
 };
 
 const PAY_METHODS: { id: PayMethod; label: string; desc: string; icon: typeof FiSmartphone; accent: string }[] = [
   { id: 'mpesa', label: 'M-Pesa', desc: 'STK push to your Safaricom line', icon: FiSmartphone, accent: 'text-emerald-600 bg-emerald-100' },
-  { id: 'stripe', label: 'Card — Stripe', desc: 'Visa, Mastercard, Amex', icon: FiCreditCard, accent: 'text-indigo-600 bg-indigo-100' },
-  { id: 'flutterwave', label: 'Card — Flutterwave', desc: 'Cards and mobile wallets across Africa', icon: FiLock, accent: 'text-orange-600 bg-orange-100' },
+  { id: 'stripe', label: 'Card — Visa & Mastercard', desc: 'Secure card payment via Stripe', icon: FiCreditCard, accent: 'text-indigo-600 bg-indigo-100' },
 ];
+
+function CardBrands() {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="rounded-md bg-blue-700 px-1.5 py-0.5 text-[11px] font-extrabold italic tracking-tight text-white">VISA</span>
+      <span className="rounded-md bg-stone-900 px-1.5 py-0.5 text-[11px] font-bold text-white">Mastercard</span>
+      <span className="rounded-md bg-amber-400 px-1.5 py-0.5 text-[11px] font-extrabold text-white">AMEX</span>
+    </div>
+  );
+}
 
 function StripePaymentForm({ orderId, total, onResult }: { orderId: string; total: number; onResult: (ok: boolean, msg: string) => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [complete, setComplete] = useState({ number: false, expiry: false, cvc: false });
+  const [fieldError, setFieldError] = useState<{ number?: string; expiry?: string; cvc?: string }>({});
 
   const handlePay = async (ev: React.FormEvent) => {
     ev.preventDefault();
     if (!stripe || !elements) return;
-    const cardEl = elements.getElement(CardElement);
-    if (!cardEl) return;
+    const numberEl = elements.getElement(CardNumberElement);
+    const expiryEl = elements.getElement(CardExpiryElement);
+    const cvcEl = elements.getElement(CardCvcElement);
+    if (!numberEl || !expiryEl || !cvcEl) return;
+    // Surface the specific invalid field, not a generic message
+    if (!complete.number || fieldError.number) {
+      setError(fieldError.number || 'Please enter a valid card number');
+      return;
+    }
+    if (!complete.expiry || fieldError.expiry) {
+      setError(fieldError.expiry || 'Please enter a valid expiry date');
+      return;
+    }
+    if (!complete.cvc || fieldError.cvc) {
+      setError(fieldError.cvc || 'Please enter a valid CVC');
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
+      if (total < config.stripe.minAmount) {
+        throw new Error(
+          `Card payments require a minimum of ${formatKES(config.stripe.minAmount)}. Your total is ${formatKES(total)} — please add more items or use M-Pesa.`
+        );
+      }
       const intentRes = await paymentsApi.stripeCreateIntent(orderId, total);
       const clientSecret = intentRes.data?.clientSecret;
       if (!clientSecret) throw new Error('Failed to initialize card payment');
-      const result = await stripe.confirmCardPayment(clientSecret, { payment_method: { card: cardEl } });
+      const result = await stripe.confirmCardPayment(clientSecret, {
+        payment_method: { card: numberEl },
+      });
       if (result.error) {
-        setError(result.error.message || 'Card declined');
-        onResult(false, result.error.message || 'Card declined');
+        const msg = mapStripeError(result.error);
+        setError(msg);
+        onResult(false, msg);
       } else if (result.paymentIntent?.status === 'succeeded') {
+        // Mark the order as paid in the backend (webhook may be delayed/unconfigured)
+        try {
+          await paymentsApi.stripeConfirm(result.paymentIntent.id);
+        } catch { /* order already confirmed via webhook */ }
         onResult(true, 'Card payment successful');
       } else {
         setError('Payment requires further action');
@@ -76,13 +119,73 @@ function StripePaymentForm({ orderId, total, onResult }: { orderId: string; tota
     }
   };
 
+  const mapStripeError = (err: any): string => {
+    const code = err?.code;
+    const msg = err?.message || 'Card declined';
+    switch (code) {
+      case 'card_declined': return 'Your card was declined. Please try another card.';
+      case 'expired_card': return 'Your card has expired. Please use a valid card.';
+      case 'incorrect_cvc': return 'The CVC you entered is incorrect.';
+      case 'incorrect_number': return 'The card number is incorrect.';
+      case 'processing_error': return 'There was an error processing your card. Please try again.';
+      case 'insufficient_funds': return 'Your card has insufficient funds.';
+      case 'invalid_expiry_month': return 'The expiry month is invalid.';
+      case 'invalid_expiry_year': return 'The expiry year is invalid.';
+      default: return msg;
+    }
+  };
+
+  const inputWrap = 'rounded-xl border border-stone-300 bg-white px-3.5 py-3 transition-colors focus-within:border-primary-500 focus-within:ring-2 focus-within:ring-primary-100';
+
   return (
     <form onSubmit={handlePay}>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-stone-400">Card details</p>
-      <div className="rounded-xl border border-stone-300 bg-white px-3.5 py-3">
-        <CardElement options={CARD_OPTIONS} />
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-widest text-stone-400">Card details</p>
+        <CardBrands />
       </div>
-      <p className="mt-2 text-xs text-stone-500">Test card: 4242 4242 4242 4242 · any future expiry · any CVC.</p>
+      <div className="space-y-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-stone-400">Card number</label>
+          <div className={inputWrap}>
+            <CardNumberElement
+              options={{ style: FIELD_STYLE, placeholder: 'Card number' }}
+              onChange={e => {
+                setComplete(prev => ({ ...prev, number: e.complete }));
+                setFieldError(prev => ({ ...prev, number: e.error?.message }));
+                if (e.error?.message) setError(e.error.message);
+              }}
+            />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-stone-400">Expiry</label>
+            <div className={inputWrap}>
+              <CardExpiryElement
+                options={{ style: FIELD_STYLE, placeholder: 'MM / YY' }}
+                onChange={e => {
+                  setComplete(prev => ({ ...prev, expiry: e.complete }));
+                  setFieldError(prev => ({ ...prev, expiry: e.error?.message }));
+                  if (e.error?.message) setError(e.error.message);
+                }}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-stone-400">CVC</label>
+            <div className={inputWrap}>
+              <CardCvcElement
+                options={{ style: FIELD_STYLE, placeholder: '123' }}
+                onChange={e => {
+                  setComplete(prev => ({ ...prev, cvc: e.complete }));
+                  setFieldError(prev => ({ ...prev, cvc: e.error?.message }));
+                  if (e.error?.message) setError(e.error.message);
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
       {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
       <button type="submit" disabled={!stripe || submitting}
         className="mt-4 w-full rounded-xl bg-primary-600 py-3 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-50">
@@ -97,7 +200,6 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const retryOrderNumber = searchParams.get('retry');
   const { cart, cartLoading, refreshCart, user } = useAuth();
-  const { currency } = useCurrency();
 
   const [paymentMethod, setPaymentMethod] = useState<PayMethod>('mpesa');
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -108,7 +210,12 @@ function CheckoutContent() {
   const checkoutRequestIdRef = useRef<string | null>(null);
   const orderNumberRef = useRef<string | null>(null);
   const capturedTotalRef = useRef<number>(0);
+  const [payTotal, setPayTotal] = useState(0);
   const [orderForPayment, setOrderForPayment] = useState<{ id: string; number: string } | null>(null);
+
+  // Auth gate: user must sign in/register before paying
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [proceedAfterAuth, setProceedAfterAuth] = useState(false);
 
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [selectedShippingId, setSelectedShippingId] = useState<string>('');
@@ -148,6 +255,7 @@ function CheckoutContent() {
           setPendingOrder(list[0]);
           orderNumberRef.current = list[0].number;
           capturedTotalRef.current = list[0].total;
+          setPayTotal(list[0].total);
         }
       } catch { /* ignore */ }
     })();
@@ -163,6 +271,7 @@ function CheckoutContent() {
         if (order) {
           orderNumberRef.current = order.number;
           capturedTotalRef.current = order.total;
+          setPayTotal(order.total);
         }
       } catch { /* ignore */ }
     })();
@@ -216,12 +325,6 @@ function CheckoutContent() {
     if ((shipping.phone || '').replace(/\D/g, '').length < 9) {
       toast.error('Enter a valid phone number'); return false;
     }
-    if (!user) {
-      const email = ((shipping as any).email || '').trim();
-      if (!email || !email.includes('@')) {
-        toast.error('Enter a valid email for your receipt'); return false;
-      }
-    }
     if (!sameAsShipping) {
       for (const { key, label } of REQUIRED.filter(f => f.key !== 'phone')) {
         if (!String(billing[key as keyof Address] || '').trim()) {
@@ -243,6 +346,14 @@ function CheckoutContent() {
     return true;
   };
 
+  const handlePaidSuccess = useCallback(() => {
+    setStkStatus('success');
+    setStkMessage('Payment confirmed!');
+    toast.success('Payment confirmed');
+    const orderNum = orderNumberRef.current;
+    setTimeout(() => router.push(`/checkout/success?order=${orderNum || ''}`), 600);
+  }, [router]);
+
   const startMpesaPolling = useCallback((checkoutRequestId: string) => {
     pollCountRef.current = 0;
     checkoutRequestIdRef.current = checkoutRequestId;
@@ -260,27 +371,29 @@ function CheckoutContent() {
         return;
       }
       try {
-        // Also check order status — callback may have updated it even if STK query is slow
-        if (orderNumberRef.current && pollCountRef.current % 3 === 0) {
+        // Always check order status first — the callback/query updates it to CONFIRMED
+        if (orderNumberRef.current) {
           try {
             const orderRes = await orders.getByNumber(orderNumberRef.current);
             const orderStatus = (orderRes.data as any)?.status;
-            if (orderStatus === 'CONFIRMED' || orderStatus === 'PROCESSING' || orderStatus === 'SHIPPED' || orderStatus === 'DELIVERED') {
+            if (['CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'].includes(orderStatus)) {
               if (pollRef.current) clearInterval(pollRef.current);
-              setStkStatus('success'); setStkMessage('Payment confirmed!');
-              toast.success('M-Pesa payment confirmed');
-              setTimeout(() => router.push(`/checkout/success?order=${orderNumberRef.current}`), 600);
+              handlePaidSuccess();
               return;
             }
           } catch { /* fall through to STK query */ }
         }
         const result = await orders.mpesaStkQuery(checkoutRequestId);
+        const code = (result.data?.responseCode || '') as string;
         const desc = ((result.data?.responseDescription || result.data?.customerMessage || '') as string).toLowerCase();
-        if (desc.includes('successfully') || desc.includes('completed')) {
+        if (code === '0' || desc.includes('successfully') || desc.includes('completed')) {
           if (pollRef.current) clearInterval(pollRef.current);
-          setStkStatus('success'); setStkMessage('Payment confirmed!');
-          toast.success('M-Pesa payment confirmed');
-          setTimeout(() => router.push(`/checkout/success?order=${orderNumberRef.current}`), 600);
+          handlePaidSuccess();
+          return;
+        }
+        // 1037 = still in-flight (user may be entering PIN) — keep polling
+        if (code === '1037' || desc.includes('waiting for payment')) {
+          setStkMessage(`Waiting for M-Pesa confirmation... (${pollCountRef.current}/${STK_POLL_MAX})`);
           return;
         }
         if (desc.includes('cancelled')) {
@@ -289,10 +402,10 @@ function CheckoutContent() {
           toast.error('Payment cancelled');
           return;
         }
-        if (desc.includes('timeout') || desc.includes('expired')) {
+        if (code !== '0' && code !== '' && (desc.includes('failed') || desc.includes('declined') || desc.includes('insufficient') || desc.includes('expired') || desc.includes('timeout'))) {
           if (pollRef.current) clearInterval(pollRef.current);
-          setStkStatus('failed'); setStkMessage('Payment expired.');
-          toast.error('Payment expired');
+          setStkStatus('failed'); setStkMessage('Payment was not completed.');
+          toast.error('Payment not completed');
           return;
         }
         setStkMessage(`Checking status... (${pollCountRef.current}/${STK_POLL_MAX})`);
@@ -301,10 +414,27 @@ function CheckoutContent() {
         if (pollCountRef.current >= 3) console.warn('STK query error:', e?.message);
       }
     }, STK_POLL_MS);
-  }, [router]);
+  }, [handlePaidSuccess, router]);
 
   const handlePlaceOrder = async () => {
     if (!validateAddress()) return;
+    // Require authentication before payment — user must sign in / register
+    if (!user) {
+      setShowAuthModal(true);
+      setProceedAfterAuth(true);
+      return;
+    }
+    setPayTotal(total);
+    setShowPaymentModal(true);
+    setStkStatus('idle');
+    setStkMessage('');
+  };
+
+  const handleAuthSuccess = async () => {
+    setShowAuthModal(false);
+    if (!proceedAfterAuth) return;
+    setProceedAfterAuth(false);
+    await refreshCart();
     setShowPaymentModal(true);
     setStkStatus('idle');
     setStkMessage('');
@@ -317,24 +447,48 @@ function CheckoutContent() {
     setStkMessage('Creating your order...');
 
     try {
-      const res = await orders.checkout({
-        shippingAddress: { ...shipping, type: 'SHIPPING' },
-        billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : { ...billing, type: 'BILLING' },
-        notes,
-        guestEmail: user?.email || (shipping as any).email || undefined,
-      });
-      const order = res.data as any;
-      if (!order) throw new Error('Checkout failed');
-      const orderId = order.id;
-      const orderNum = order.number;
-      orderNumberRef.current = orderNum;
-      capturedTotalRef.current = total;
-      await refreshCart();
+      let orderId = '';
+      let orderNum = '';
+      let orderTotal = payTotal || total;
+
+      // If an order was already created (e.g. a failed Stripe attempt or a resumed
+      // pending order), reuse it rather than re-checking-out an empty cart.
+      if (orderNumberRef.current) {
+        orderNum = orderNumberRef.current;
+        orderTotal = capturedTotalRef.current || orderTotal;
+        try {
+          const existing = await orders.getByNumber(orderNum);
+          const st = (existing.data as any)?.status;
+          if (existing.data && ['PENDING', 'EXPIRED', 'CANCELLED'].includes(st)) {
+            orderId = (existing.data as any).id;
+            orderTotal = Number((existing.data as any).total) || orderTotal;
+            setPayTotal(orderTotal);
+          }
+        } catch { /* fall through to fresh checkout */ }
+      }
+
+      if (!orderId) {
+        const res = await orders.checkout({
+          shippingAddress: { ...shipping, type: 'SHIPPING' },
+          billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : { ...billing, type: 'BILLING' },
+          notes,
+          guestEmail: user?.email || undefined,
+        });
+        const order = res.data as any;
+        if (!order) throw new Error('Checkout failed');
+        orderId = order.id;
+        orderNum = order.number;
+        orderTotal = Number(order.total) || total;
+        orderNumberRef.current = orderNum;
+        capturedTotalRef.current = orderTotal;
+        setPayTotal(orderTotal);
+        await refreshCart();
+      }
 
       if (paymentMethod === 'mpesa') {
         setStkStatus('waiting_pin');
         setStkMessage('Enter your M-Pesa PIN on your phone...');
-        const pushRes = await orders.mpesaStkPush(orderId, String(total), phoneNumber);
+        const pushRes = await orders.mpesaStkPush(orderId, String(orderTotal), phoneNumber);
         const data = pushRes.data as any;
         const checkoutRequestId = data?.checkoutRequestId;
         if (!checkoutRequestId) {
@@ -349,17 +503,6 @@ function CheckoutContent() {
         setStkStatus('sending');
         setStkMessage('Enter your card details and click Pay…');
         setOrderForPayment({ id: orderId, number: orderNum });
-      } else if (paymentMethod === 'flutterwave') {
-        setStkMessage('Redirecting to card payment...');
-        const fwRes = await paymentsApi.flutterwaveInit(orderId, total, 'KES', user?.email, user?.name);
-        const url = (fwRes.data as any)?.checkoutUrl;
-        if (url) {
-          window.location.href = url;
-        } else {
-          try { await orders.cancel(orderNum); } catch {}
-          await refreshCart();
-          throw new Error('Failed to initialize card payment');
-        }
       }
     } catch (e: any) {
       const msg = e?.message || 'Checkout failed';
@@ -368,6 +511,8 @@ function CheckoutContent() {
         await refreshCart();
       } else if (msg.includes('401')) {
         toast.error('Please sign in to complete your order');
+        setShowAuthModal(true);
+        setProceedAfterAuth(true);
       } else {
         toast.error(msg);
       }
@@ -378,9 +523,7 @@ function CheckoutContent() {
 
   const onStripeResult = (ok: boolean, msg: string) => {
     if (ok) {
-      setStkStatus('success');
-      toast.success(msg);
-      setTimeout(() => router.push(`/checkout/success?order=${orderForPayment?.number || ''}`), 600);
+      handlePaidSuccess();
     } else {
       setStkStatus('failed');
       setStkMessage(msg);
@@ -412,7 +555,7 @@ function CheckoutContent() {
 
   // While payment is in progress, the cart is empty by design — keep the form mounted.
   const isInPaymentFlow = stkStatus !== 'idle' || orderForPayment !== null;
-  if (!cart || (cart.items.length === 0 && !isInPaymentFlow && !showPaymentModal)) {
+  if (!cart || (cart.items.length === 0 && !isInPaymentFlow && !showPaymentModal && !showAuthModal)) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-24 text-center">
         <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-stone-100">
@@ -433,6 +576,19 @@ function CheckoutContent() {
         <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Checkout</h1>
         <p className="mt-1 text-sm text-stone-500">Complete your delivery details to proceed to payment.</p>
       </div>
+
+      {!user && (
+        <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-primary-200 bg-primary-50 p-4">
+          <div>
+            <p className="font-semibold text-primary-900">Sign in for a smoother checkout</p>
+            <p className="text-sm text-primary-800">You&apos;ll need an account to complete payment — your order history is kept here.</p>
+          </div>
+          <button onClick={() => setShowAuthModal(true)}
+            className="shrink-0 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary-700">
+            Sign in / Register
+          </button>
+        </div>
+      )}
 
       {pendingOrder && (
         <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -474,16 +630,6 @@ function CheckoutContent() {
                   </div>
                 </div>
               )}
-              {!user && (
-                <div className="mt-4">
-                  <label className="mb-1 block text-sm font-medium text-stone-700">Email for order confirmation<span className="text-rose-500"> *</span></label>
-                  <input type="email" value={(shipping as any).email || ''}
-                    onChange={e => setShipping({ ...shipping, email: e.target.value } as any)}
-                    placeholder="you@example.com"
-                    className="w-full rounded-xl border border-stone-300 px-3.5 py-2.5 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100" />
-                  <p className="mt-1 text-xs text-stone-500">We&apos;ll send your receipt here. No account needed.</p>
-                </div>
-              )}
               <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {([
                   { label: 'Full name', key: 'name', span: true }, { label: 'Address line 1', key: 'line1', span: true },
@@ -493,10 +639,18 @@ function CheckoutContent() {
                 ]).map(field => (
                   <div key={field.key} className={field.span ? 'sm:col-span-2' : ''}>
                     <label className="mb-1 block text-sm font-medium text-stone-700">{field.label}<span className="text-rose-500"> *</span></label>
-                    <input type="text" value={(shipping as any)[field.key] || ''}
-                      onChange={e => { setShipping({ ...shipping, [field.key]: e.target.value }); setSelectedShippingId(''); if (fieldErrors[field.key]) setFieldErrors(prev => ({ ...prev, [field.key]: false })); }}
-                      placeholder={field.key === 'phone' ? '0712345678 or 254712345678' : ''}
-                      className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${fieldErrors[field.key] ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100' : 'border-stone-300 focus:border-primary-500 focus:ring-primary-100'}`} />
+                    {field.key === 'phone' ? (
+                      <PhoneInput
+                        value={(shipping as any).phone || ''}
+                        onChange={v => { setShipping({ ...shipping, phone: v }); setSelectedShippingId(''); if (fieldErrors.phone) setFieldErrors(prev => ({ ...prev, phone: false })); }}
+                        placeholder="0712345678 or 254712345678"
+                        className={fieldErrors.phone ? 'border-rose-400 bg-rose-50/40' : 'border-stone-300'}
+                      />
+                    ) : (
+                      <input type="text" value={(shipping as any)[field.key] || ''}
+                        onChange={e => { setShipping({ ...shipping, [field.key]: e.target.value }); setSelectedShippingId(''); if (fieldErrors[field.key]) setFieldErrors(prev => ({ ...prev, [field.key]: false })); }}
+                        className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${fieldErrors[field.key] ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100' : 'border-stone-300 focus:border-primary-500 focus:ring-primary-100'}`} />
+                    )}
                   </div>
                 ))}
               </div>
@@ -557,7 +711,7 @@ function CheckoutContent() {
               </dl>
               <button onClick={handlePlaceOrder}
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700">
-                Pay {formatKES(total)} <FiArrowRight />
+                {user ? <>Pay {formatKES(total)} <FiArrowRight /></> : <>Continue to payment <FiArrowRight /></>}
               </button>
               <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-stone-400">
                 <FiLock className="h-3 w-3" /> Secure — encrypted end to end
@@ -576,13 +730,32 @@ function CheckoutContent() {
             </button>
 
             <h2 className="text-xl font-bold">Choose payment method</h2>
-            <p className="mt-1 text-sm text-stone-500">Total to pay: <span className="font-semibold text-stone-800">{formatKES(total)}</span></p>
+            <p className="mt-1 text-sm text-stone-500">Total to pay: <span className="font-semibold text-stone-800">{formatKES(payTotal || total)}</span></p>
+
+            {paymentMethod === 'stripe' && (payTotal || total) < config.stripe.minAmount && (
+              <div className="mt-4 flex items-start gap-3 rounded-xl bg-amber-50 p-4 ring-1 ring-amber-200">
+                <FiAlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                <div className="text-sm text-amber-900">
+                  <p className="font-semibold">Card payments need a minimum of {formatKES(config.stripe.minAmount)}</p>
+                  <p className="mt-0.5 text-amber-800">
+                    Your order is {formatKES(payTotal || total)}. Please add more items to your cart, or use <strong>M-Pesa</strong> for this amount.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="mt-5 grid gap-3">
               {PAY_METHODS.map(m => (
                 <label key={m.id}>
                   <input type="radio" name="payment" value={m.id} checked={paymentMethod === m.id}
-                    onChange={() => { setPaymentMethod(m.id); setOrderForPayment(null); }}
+                    onChange={() => {
+                      setPaymentMethod(m.id);
+                      setOrderForPayment(null);
+                      // Reset any failure/pending state so the Confirm button returns
+                      if (pollRef.current) clearInterval(pollRef.current);
+                      setStkStatus('idle');
+                      setStkMessage('');
+                    }}
                     className="peer sr-only" />
                   <div className={`flex cursor-pointer items-center gap-4 rounded-xl border-2 p-4 transition-all ${paymentMethod === m.id ? 'border-primary-600 bg-primary-50/50 shadow-sm' : 'border-stone-200 hover:border-stone-300'}`}>
                     <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${m.accent}`}>
@@ -603,33 +776,33 @@ function CheckoutContent() {
             {paymentMethod === 'mpesa' && (
               <div className="mt-5 rounded-xl bg-emerald-50 p-4 ring-1 ring-emerald-200">
                 <label className="mb-1 block text-sm font-medium text-emerald-900">M-Pesa phone number</label>
-                <input type="tel" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)}
+                <PhoneInput
+                  value={phoneNumber}
+                  onChange={setPhoneNumber}
                   placeholder="0712345678 or 254712345678"
-                  className="w-full rounded-xl border border-emerald-300 px-3.5 py-2.5 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-100" />
+                  className="border-emerald-300"
+                />
                 <p className="mt-2 text-xs text-emerald-700">Accepts 07xx, 01xx, or 254xx formats. You will receive a PIN prompt to approve the payment.</p>
               </div>
             )}
 
-            {paymentMethod === 'stripe' && orderForPayment && stripePromise && (
+            {paymentMethod === 'stripe' && stripePromise && orderForPayment && (
               <div className="mt-5">
                 <Elements stripe={stripePromise} options={{ appearance: { theme: 'stripe' } }}>
                   <StripePaymentForm
                     orderId={orderForPayment.id}
-                    total={capturedTotalRef.current || total}
+                    total={payTotal || capturedTotalRef.current || total}
                     onResult={onStripeResult}
                   />
                 </Elements>
               </div>
             )}
-            {paymentMethod === 'stripe' && !orderForPayment && (
-              <p className="mt-5 rounded-xl bg-stone-50 p-4 text-sm text-stone-500 ring-1 ring-stone-200">
-                Click <strong>Confirm &amp; Pay</strong> below to load the secure card form.
-              </p>
-            )}
-
-            {paymentMethod === 'flutterwave' && (
+            {paymentMethod === 'stripe' && (!orderForPayment || !stripePromise) && (
               <div className="mt-5 rounded-xl bg-stone-50 p-4 ring-1 ring-stone-200">
-                <p className="text-sm text-stone-600">After confirming you will be redirected to the secure Flutterwave checkout.</p>
+                <div className="mb-3"><CardBrands /></div>
+                <p className="text-sm text-stone-600">
+                  Secure card payments via Stripe. Click <strong>Confirm &amp; Pay</strong> below, then enter your card details to complete the purchase.
+                </p>
               </div>
             )}
 
@@ -689,10 +862,10 @@ function CheckoutContent() {
               </div>
             )}
 
-            {paymentMethod !== 'stripe' && stkStatus === 'idle' && (
+            {stkStatus === 'idle' && !(paymentMethod === 'stripe' && orderForPayment) && (
               <button onClick={handleConfirmPayment}
                 className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60">
-                <FiLock className="h-4 w-4" /> Confirm &amp; Pay {formatKES(total)}
+                <FiLock className="h-4 w-4" /> Confirm &amp; Pay {formatKES(payTotal || total)}
               </button>
             )}
 
@@ -701,6 +874,10 @@ function CheckoutContent() {
             </p>
           </div>
         </div>
+      )}
+
+      {showAuthModal && (
+        <AuthModal onSuccess={handleAuthSuccess} onClose={() => { setShowAuthModal(false); setProceedAfterAuth(false); }} />
       )}
     </div>
   );

@@ -8,6 +8,7 @@ export const config = {
   },
   stripe: {
     publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
+    minAmount: Number(process.env.NEXT_PUBLIC_STRIPE_MIN_AMOUNT) || 100,
   },
   app: {
     name: process.env.NEXT_PUBLIC_APP_NAME || 'i-love-shopping',

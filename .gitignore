@@ -61,3 +61,8 @@ description2.txt
 # Reusable standalone admin console template (local only, do not push)
 admin-console/
 email.txt
+app password.txt
+server.txt
+issues.txt
+=
+frontend/.env.production

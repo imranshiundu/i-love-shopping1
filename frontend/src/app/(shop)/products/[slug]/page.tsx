@@ -224,7 +224,7 @@ function Gallery({ product, selected, onSelect }: { product: Product; selected: 
     <div>
       <div className="relative aspect-square overflow-hidden rounded-3xl border border-stone-200/80 bg-stone-100">
         {images[selected] ? (
-          <img src={images[selected].url} alt={images[selected].alt || product.name} className="h-full w-full object-cover" />
+          <img src={images[selected].url} alt={images[selected].alt || product.name} className="h-full w-full object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/800x800/e7e5e4/78716c?text=No+Image'; }} />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-stone-400">No image</div>
         )}
@@ -245,7 +245,7 @@ function Gallery({ product, selected, onSelect }: { product: Product; selected: 
                 i === selected ? 'border-primary-600 ring-2 ring-primary-100' : 'border-transparent opacity-70 hover:opacity-100'
               }`}
             >
-              <img src={img.url} alt={img.alt || ''} className="h-full w-full object-cover" />
+              <img src={img.url} alt={img.alt || ''} className="h-full w-full object-cover" onError={(e) => { e.currentTarget.src = 'https://placehold.co/200x200/e7e5e4/78716c?text=No+Image'; }} />
             </button>
           ))}
         </div>
