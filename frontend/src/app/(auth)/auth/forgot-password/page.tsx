@@ -36,7 +36,7 @@ export default function ForgotPasswordPage() {
               <h1 className="mt-5 text-xl font-bold tracking-tight">Check your inbox</h1>
               <p className="mt-2 leading-relaxed text-stone-500">
                 If an account exists for <strong>{email}</strong>, a reset link is on its way.
-                It expires in 30 minutes.
+                It expires in 1 hour.
               </p>
               <button onClick={() => setSent(false)}
                 className="mt-6 text-sm font-semibold text-primary-600 hover:text-primary-700">

@@ -1,6 +1,8 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { orders as ordersApi } from '@/services/api';
 import { formatKES, formatDate } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
@@ -18,6 +20,7 @@ const STATUS_META: Record<string, { label: string; icon: any; color: string; pil
   SHIPPED: { label: 'Shipped', icon: FiTruck, color: 'text-indigo-600', pill: 'bg-indigo-100 text-indigo-700' },
   DELIVERED: { label: 'Delivered', icon: FiCheckCircle, color: 'text-emerald-600', pill: 'bg-emerald-100 text-emerald-700' },
   CANCELLED: { label: 'Cancelled', icon: FiXCircle, color: 'text-rose-600', pill: 'bg-rose-100 text-rose-700' },
+  EXPIRED: { label: 'Payment expired', icon: FiClock, color: 'text-amber-600', pill: 'bg-amber-100 text-amber-700' },
   REFUNDED: { label: 'Refunded', icon: FiRefreshCw, color: 'text-purple-600', pill: 'bg-purple-100 text-purple-700' },
 };
 
@@ -28,9 +31,46 @@ const PROVIDER_ICON: Record<string, any> = {
 
 function OrderDetailContent({ orderNumber }: { orderNumber: string }) {
   const { user, loading } = useAuth();
+  const router = useRouter();
   const [order, setOrder] = useState<any | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [acting, setActing] = useState<'cancel' | 'delete' | null>(null);
+
+  const reload = async () => {
+    try {
+      const res = await ordersApi.getByNumber(orderNumber);
+      setOrder(res.data as any);
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not refresh order');
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!confirm('Cancel this order? Reserved stock returns to the catalogue and your cart is restored.')) return;
+    setActing('cancel');
+    try {
+      await ordersApi.cancel(orderNumber);
+      toast.success('Order cancelled');
+      await reload();
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not cancel order');
+    }
+    setActing(null);
+  };
+
+  const handleDelete = async () => {
+    if (!confirm('Permanently delete this unpaid order? This cannot be undone.')) return;
+    setActing('delete');
+    try {
+      await ordersApi.deleteUnpaid(orderNumber);
+      toast.success('Order deleted');
+      router.push('/account/orders');
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not delete order');
+      setActing(null);
+    }
+  };
 
   useEffect(() => {
     if (!orderNumber) return;
@@ -111,19 +151,43 @@ function OrderDetailContent({ orderNumber }: { orderNumber: string }) {
         </Reveal>
       )}
 
-      {order.status === 'PENDING' && (
+      {(order.status === 'PENDING' || order.status === 'EXPIRED') && (
         <Reveal delay={60}>
           <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200">
             <div className="flex items-start gap-3">
               <FiClock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
               <div className="text-sm text-amber-900">
-                <p className="font-semibold">This order is awaiting payment</p>
-                <p className="mt-0.5 text-amber-800">Complete payment to confirm your order.</p>
+                <p className="font-semibold">
+                  {order.status === 'PENDING' ? 'This order is awaiting payment' : 'The payment session expired'}
+                </p>
+                <p className="mt-0.5 text-amber-800">
+                  {order.status === 'PENDING'
+                    ? 'Complete payment to confirm your order — we also emailed you a payable invoice.'
+                    : 'No money left your account. Pay again below — no need to start over.'}
+                </p>
               </div>
             </div>
             <Link href={`/checkout?retry=${order.number}`}
               className="shrink-0 rounded-xl bg-amber-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-amber-700">
               Pay now
+            </Link>
+          </div>
+        </Reveal>
+      )}
+
+      {order.status === 'CANCELLED' && (
+        <Reveal delay={60}>
+          <div className="mt-6 flex items-center justify-between gap-4 rounded-2xl bg-stone-100 p-4 ring-1 ring-stone-200">
+            <div className="flex items-start gap-3">
+              <FiRefreshCw className="mt-0.5 h-5 w-5 shrink-0 text-stone-500" />
+              <div className="text-sm text-stone-700">
+                <p className="font-semibold">Payment didn&apos;t go through</p>
+                <p className="mt-0.5 text-stone-500">Your items are still available — pay again or delete this order.</p>
+              </div>
+            </div>
+            <Link href={`/checkout?retry=${order.number}`}
+              className="shrink-0 rounded-xl bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-stone-700">
+              Pay again
             </Link>
           </div>
         </Reveal>
@@ -205,11 +269,23 @@ function OrderDetailContent({ orderNumber }: { orderNumber: string }) {
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-600 px-6 py-3 font-semibold text-white shadow-lg shadow-primary-600/25 hover:bg-primary-700">
             Continue shopping <FiArrowRight />
           </Link>
-          {order.status === 'PENDING' && user && (
+          {(order.status === 'PENDING' || order.status === 'EXPIRED' || order.status === 'CANCELLED') && user && (
             <Link href={`/checkout?retry=${order.number}`}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-300 px-6 py-3 font-semibold text-stone-700 hover:bg-stone-50">
               Retry payment
             </Link>
+          )}
+          {order.status === 'PENDING' && (
+            <button onClick={handleCancel} disabled={acting !== null}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 px-6 py-3 font-semibold text-rose-600 hover:bg-rose-50 disabled:opacity-60">
+              {acting === 'cancel' ? <FiLoader className="animate-spin" /> : <FiXCircle />} Cancel order
+            </button>
+          )}
+          {(order.status === 'PENDING' || order.status === 'EXPIRED' || order.status === 'CANCELLED') && (
+            <button onClick={handleDelete} disabled={!!acting}
+              className="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-stone-400 hover:text-rose-600 disabled:opacity-60">
+              {acting === 'delete' ? <FiLoader className="animate-spin" /> : null} Delete this order
+            </button>
           )}
         </div>
       </Reveal>

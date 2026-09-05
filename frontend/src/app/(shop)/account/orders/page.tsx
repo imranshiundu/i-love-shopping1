@@ -15,6 +15,7 @@ const STATUS_ICON: Record<string, any> = {
   SHIPPED: FiTruck,
   DELIVERED: FiCheckCircle,
   CANCELLED: FiXCircle,
+  EXPIRED: FiClock,
   REFUNDED: FiRefreshCw,
 };
 
@@ -181,6 +182,12 @@ export default function AccountOrdersPage() {
                     )}
 
                     <div className="ml-auto flex items-center gap-2">
+                      {['PENDING', 'EXPIRED', 'CANCELLED'].includes(order.status) && (
+                        <Link href={`/checkout?retry=${order.number}`}
+                          className="flex items-center gap-1 rounded-lg bg-amber-500 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-600">
+                          Pay now
+                        </Link>
+                      )}
                       <button onClick={() => cancelOrder(order.number)} disabled={!cancellable || cancellingId === order.number}
                         title={cancellable ? 'Cancel this order' : 'This order can no longer be cancelled'}
                         className={`flex items-center gap-1 rounded-lg px-3.5 py-2 text-xs font-semibold transition-colors ${

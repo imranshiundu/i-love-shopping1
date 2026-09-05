@@ -125,8 +125,9 @@ export const auth = {
   },
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
   forgotPassword: (email: string) => request<void>('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
-  resetPassword: (token: string, newPassword: string) => request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
+  resetPassword: (token: string, password: string) => request<void>('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
   verifyEmail: (token: string) => request<void>(`/auth/verify-email?token=${token}`),
+  resendVerification: (email: string) => request<void>('/auth/resend-verification', { method: 'POST', body: JSON.stringify({ email }) }),
   getProfile: () => request<User>('/user/profile'),
   updateProfile: (data: { name?: string; email?: string; avatar?: string }) =>
     request<User>('/user/profile', { method: 'PUT', body: JSON.stringify(data) }),
@@ -192,6 +193,7 @@ export const orders = {
   },
   getByNumber: (number: string) => request<Order>(`/orders/${number}`),
   cancel: (number: string) => request<Order>(`/orders/${number}/cancel`, { method: 'POST' }),
+  deleteUnpaid: (number: string) => request<void>(`/orders/${number}`, { method: 'DELETE' }),
   mpesaStkPush: (orderId: string, amount: string, phoneNumber: string) =>
     request<any>('/orders/payments/mpesa/stk-push', { method: 'POST', body: JSON.stringify({ orderId, amount, phoneNumber }) }),
   mpesaStkQuery: (checkoutRequestId: string) =>
