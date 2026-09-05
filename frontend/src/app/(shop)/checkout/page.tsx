@@ -16,7 +16,7 @@ import { orders, payments as paymentsApi, auth } from '@/services/api';
 import { config } from '@/lib/config';
 import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
-import AuthModal from '@/components/checkout/AuthModal';
+import AuthModal from '@/components/auth/AuthModal';
 import PhoneInput from '@/components/ui/PhoneInput';
 import { Address } from '@/types';
 import {

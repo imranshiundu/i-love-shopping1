@@ -457,11 +457,45 @@ The project needs **Docker** for the database, cache, queue and mail services. O
 ### External Services (Required for Full Functionality)
 - **M-Pesa Daraja API** credentials (Consumer Key, Secret, Shortcode, Passkey)
 - **Google reCAPTCHA** (Site Key, Secret Key)
-- **Google OAuth2** (Client ID, Secret) - OAuth2 login stays disabled when unset
-- **GitHub OAuth2** (Client ID, Secret) - OAuth2 login stays disabled when unset
-- **SMTP Server** for emails (Mailhog for development)
+- **Google OAuth2** (Client ID, Secret) - OAuth2 login stays disabled when unset (see below)
+- **GitHub OAuth2** (Client ID, Secret) - OAuth2 login stays disabled when unset (see below)
+- **SMTP Server** for emails (Mailhog for development, Gmail or Brevo for real mail — see below)
 
 > Payment providers are optional. The app starts without any payment keys — configure one or more in your `.env` file as needed. See `docs/setup/PAYMENT-SETUP-GUIDE.md` for setup instructions.
+
+### Bring Your Own Tokens: OAuth, Email & CAPTCHA
+
+You must create your own third-party tokens and paste them into `.env` (backend) and the frontend env (`frontend/.env.production` in production). Nothing ships with working keys.
+
+**Google login**
+1. Go to https://console.cloud.google.com → APIs & Services → Credentials → Create Credentials → OAuth client ID (Web application).
+2. Authorized redirect URI: `https://YOUR-API-HOST/api/v1/auth/oauth2/code/google` (local dev: `http://localhost:8080/api/v1/auth/oauth2/code/google`).
+3. Paste into `.env`: `GOOGLE_CLIENT_ID=...` and `GOOGLE_CLIENT_SECRET=...`.
+4. Show the button: set `NEXT_PUBLIC_GOOGLE_ENABLED=true` in the frontend env and redeploy the frontend.
+
+**GitHub login**
+1. Go to https://github.com/settings/developers → OAuth Apps → New OAuth App.
+2. Authorization callback URL: `https://YOUR-API-HOST/api/v1/auth/oauth2/code/github`.
+3. Paste into `.env`: `GITHUB_CLIENT_ID=...` and `GITHUB_CLIENT_SECRET=...`.
+4. Show the button: set `NEXT_PUBLIC_GITHUB_ENABLED=true` in the frontend env and redeploy the frontend.
+
+**Email — Gmail app password (simplest)**
+1. Google Account → Security → 2-Step Verification (must be on) → App passwords → create one for Mail.
+2. Paste into `.env` (use the 16-letter code **without spaces** as the password):
+   `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USERNAME=you@gmail.com`, `MAIL_PASSWORD=xxxx xxxx xxxx xxxx` → without spaces, `MAIL_SMTP_AUTH=true`, `MAIL_SMTP_STARTTLS=true`, `MAIL_FROM=you@gmail.com`.
+3. The sender address always follows `MAIL_FROM`, so set it to the same Gmail account.
+
+**Email — Brevo (or any SMTP service)**
+1. Sign up at https://www.brevo.com → get an SMTP key (any provider works: Brevo, SendGrid, SES, Mailgun...).
+2. Paste into `.env`: `MAIL_HOST` (e.g. `smtp-relay.brevo.com`), `MAIL_PORT=587`, `MAIL_USERNAME`, `MAIL_PASSWORD` (the SMTP key), `MAIL_SMTP_AUTH=true`, `MAIL_SMTP_STARTTLS=true`, `MAIL_FROM` (a verified sender on that service).
+
+**Email — local dev only (MailHog, nothing is sent)**
+`MAIL_HOST=localhost`, `MAIL_PORT=1025`, `MAIL_SMTP_AUTH=false`, `MAIL_SMTP_STARTTLS=false` — read everything at `http://localhost:8025`.
+
+**reCAPTCHA v3 (registration bot protection)**
+1. https://www.google.com/recaptcha/admin → register the site (v3) → get Site Key + Secret Key.
+2. Backend `.env`: `RECAPTCHA_SECRET_KEY=<secret>`; frontend env: `NEXT_PUBLIC_RECAPTCHA_SITE_KEY=<site key>` and `NEXT_PUBLIC_RECAPTCHA_ENABLED=true`.
+3. Leave the dev defaults (`dev-test-secret` + disabled flag) and verification is bypassed for local work.
 
 ## Getting Started (Development)
 
@@ -773,6 +807,7 @@ Every value in the frontend is configurable - no hardcoded URLs, prices or ident
 | `NEXT_PUBLIC_ORDERS_PAGE_SIZE` | `10` | Orders per account page |
 | `NEXT_PUBLIC_ADMIN_PAGE_SIZE` | `20` | Rows per admin table |
 | `NEXT_PUBLIC_RECAPTCHA_SITE_KEY` / `_ENABLED` | dev bypass | reCAPTCHA integration |
+| `NEXT_PUBLIC_GOOGLE_ENABLED` / `NEXT_PUBLIC_GITHUB_ENABLED` | `false` | Show OAuth buttons (needs matching backend secrets) |
 | `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | (empty) | Stripe publishable key (test or live) |
 | `NEXT_PUBLIC_CURRENCY_RATES` | `USD=0.0077,EUR=0.0071,...` | Display-currency conversion rates from KES |
 

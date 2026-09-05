@@ -7,7 +7,8 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string, captchaToken?: string) => Promise<void>;
+  loginWithTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
   cart: Cart | null;
@@ -15,6 +16,9 @@ interface AuthContextType {
   refreshCart: () => Promise<void>;
   addToCart: (productId: string, quantity: number) => Promise<void>;
   cartCount: number;
+  authModal: { mode: 'login' | 'register'; next: string } | null;
+  openAuthModal: (mode?: 'login' | 'register', next?: string) => void;
+  closeAuthModal: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,7 +28,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState<Cart | null>(null);
   const [cartLoading, setCartLoading] = useState(true);
+  const [authModal, setAuthModal] = useState<{ mode: 'login' | 'register'; next: string } | null>(null);
   const hydrated = useRef(false);
+
+  const openAuthModal = useCallback((mode: 'login' | 'register' = 'login', next = '/') => {
+    setAuthModal({ mode, next });
+  }, []);
+
+  const closeAuthModal = useCallback(() => setAuthModal(null), []);
 
   const refreshCart = useCallback(async () => {
     try {
@@ -85,8 +96,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
-    const res = await authApi.register(email, password, name, 'dev-bypass-token');
+  const register = async (email: string, password: string, name: string, captchaToken = 'dev-bypass-token') => {
+    const res = await authApi.register(email, password, name, captchaToken);
     if (res.data?.accessToken) {
       setAccessToken(res.data.accessToken);
       if (res.data.refreshToken) setRefreshToken(res.data.refreshToken);
@@ -94,6 +105,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try { await cartRest.merge(); } catch { /* guest cart may not exist */ }
       await refreshCart();
     }
+  };
+
+  const loginWithTokens = async (accessToken: string, refreshToken: string) => {
+    setAccessToken(accessToken);
+    setRefreshToken(refreshToken);
+    await refreshUser();
+    try { await cartRest.merge(); } catch { /* guest cart may not exist */ }
+    await refreshCart();
   };
 
   const logout = async () => {
@@ -110,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshCart]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, refreshUser, cart, cartLoading, refreshCart, addToCart, cartCount: cart?.totalItems || 0 }}>
+    <AuthContext.Provider value={{ user, loading, login, register, loginWithTokens, logout, refreshUser, cart, cartLoading, refreshCart, addToCart, cartCount: cart?.totalItems || 0, authModal, openAuthModal, closeAuthModal }}>
       {children}
     </AuthContext.Provider>
   );

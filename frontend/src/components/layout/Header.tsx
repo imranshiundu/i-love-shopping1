@@ -9,7 +9,7 @@ import { formatKES } from '@/lib/utils';
 import { FiShoppingCart, FiUser, FiSearch, FiMenu, FiX, FiTruck, FiGlobe, FiCheck } from 'react-icons/fi';
 
 export default function Header() {
-  const { user, logout, cartCount } = useAuth();
+  const { user, logout, cartCount, openAuthModal } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -159,12 +159,12 @@ export default function Header() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Link href="/auth/login" className="rounded-full px-3.5 py-2 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-100">
+                  <button onClick={() => openAuthModal('login')} className="rounded-full px-3.5 py-2 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-100">
                     Sign in
-                  </Link>
-                  <Link href="/auth/register" className="hidden rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-stone-800 sm:block">
+                  </button>
+                  <button onClick={() => openAuthModal('register')} className="hidden rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-stone-800 sm:block">
                     Create account
-                  </Link>
+                  </button>
                 </div>
               )}
 

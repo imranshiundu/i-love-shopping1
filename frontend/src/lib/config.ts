@@ -6,6 +6,10 @@ export const config = {
     siteKey: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '',
     enabled: process.env.NEXT_PUBLIC_RECAPTCHA_ENABLED !== 'false',
   },
+  oauth: {
+    google: process.env.NEXT_PUBLIC_GOOGLE_ENABLED === 'true',
+    github: process.env.NEXT_PUBLIC_GITHUB_ENABLED === 'true',
+  },
   stripe: {
     publishableKey: process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '',
     minAmount: Number(process.env.NEXT_PUBLIC_STRIPE_MIN_AMOUNT) || 100,

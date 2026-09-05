@@ -24,7 +24,7 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push('/auth/login?redirect=' + encodeURIComponent(pathname));
+      router.push('/?auth=login&next=' + encodeURIComponent(pathname));
     }
   }, [user, loading, router, pathname]);
 

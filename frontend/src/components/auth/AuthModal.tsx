@@ -3,10 +3,12 @@ import { useState, FormEvent } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { config } from '@/lib/config';
+import { getRegisterCaptchaToken } from '@/lib/captcha';
 import toast from 'react-hot-toast';
 import { FiX, FiUser, FiMail, FiLock, FiArrowRight, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FaGoogle, FaGithub } from 'react-icons/fa';
 
-type Mode = 'login' | 'register';
+export type AuthMode = 'login' | 'register';
 
 const fieldCls =
   'w-full rounded-xl border border-stone-300 bg-stone-50/50 py-2.5 pl-10 pr-4 text-sm transition-all placeholder:text-stone-400 focus:border-primary-500 focus:bg-white focus:outline-none focus:ring-4 focus:ring-primary-100';
@@ -24,9 +26,47 @@ function Field({ icon: Icon, label, hint, children }: { icon: any; label: string
   );
 }
 
-export default function AuthModal({ onSuccess, onClose }: { onSuccess: () => void; onClose: () => void }) {
+function OAuthButtons() {
+  const showGoogle = config.oauth.google;
+  const showGithub = config.oauth.github;
+  if (!showGoogle && !showGithub) return null;
+  const start = (provider: 'google' | 'github') => {
+    window.location.href = `${config.api.baseUrl}/oauth2/authorization/${provider}`;
+  };
+  return (
+    <div className="mt-5">
+      <div className="flex items-center gap-3 text-xs text-stone-400">
+        <span className="h-px flex-1 bg-stone-200" /> or continue with <span className="h-px flex-1 bg-stone-200" />
+      </div>
+      <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
+        {showGoogle && (
+          <button type="button" onClick={() => start('google')}
+            className="flex items-center justify-center gap-2 rounded-xl border border-stone-300 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50">
+            <FaGoogle className="text-[#DB4437]" /> Google
+          </button>
+        )}
+        {showGithub && (
+          <button type="button" onClick={() => start('github')}
+            className="flex items-center justify-center gap-2 rounded-xl border border-stone-300 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50">
+            <FaGithub /> GitHub
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default function AuthModal({
+  initialMode = 'login',
+  onSuccess,
+  onClose,
+}: {
+  initialMode?: AuthMode;
+  onSuccess: () => void;
+  onClose: () => void;
+}) {
   const { login, register } = useAuth();
-  const [mode, setMode] = useState<Mode>('login');
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -35,7 +75,7 @@ export default function AuthModal({ onSuccess, onClose }: { onSuccess: () => voi
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
-  const switchMode = (m: Mode) => {
+  const switchMode = (m: AuthMode) => {
     setMode(m);
     setPassword('');
     setConfirmPassword('');
@@ -54,7 +94,8 @@ export default function AuthModal({ onSuccess, onClose }: { onSuccess: () => voi
           toast.error(`Password must be at least ${config.commerce.minPasswordLength} characters`); return;
         }
         if (!name.trim()) { toast.error('Please enter your full name'); return; }
-        await register(email, password, name);
+        const captchaToken = await getRegisterCaptchaToken();
+        await register(email, password, name, captchaToken);
         toast.success('Account created. Welcome!');
       }
       onSuccess();
@@ -68,7 +109,7 @@ export default function AuthModal({ onSuccess, onClose }: { onSuccess: () => voi
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
+      <div className="relative z-10 max-h-[90dvh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
         <button
           onClick={onClose}
           className="absolute right-4 top-4 rounded-full p-1 text-stone-400 transition-colors hover:bg-stone-100 hover:text-stone-600"
@@ -77,12 +118,14 @@ export default function AuthModal({ onSuccess, onClose }: { onSuccess: () => voi
           <FiX className="h-5 w-5" />
         </button>
 
-        <h2 className="text-xl font-bold">{mode === 'login' ? 'Sign in to continue' : 'Create your account'}</h2>
+        <h2 className="text-xl font-bold">{mode === 'login' ? 'Sign in' : 'Create your account'}</h2>
         <p className="mt-1 text-sm text-stone-500">
           {mode === 'login'
-            ? 'Sign in to complete your order. Your cart is saved and will carry over.'
-            : 'Join to complete your order. Your cart is saved and will carry over.'}
+            ? 'Good to see you again. Your cart carries over.'
+            : 'Join for faster checkout, order tracking and offers.'}
         </p>
+
+        <OAuthButtons />
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           {mode === 'register' && (
@@ -95,7 +138,7 @@ export default function AuthModal({ onSuccess, onClose }: { onSuccess: () => voi
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
               placeholder="you@example.com" autoComplete="email" className={fieldCls} />
           </Field>
-          <Field icon={FiLock} label="Password">
+          <Field icon={FiLock} label="Password" hint={mode === 'register' ? `At least ${config.commerce.minPasswordLength} characters` : undefined}>
             <div className="relative">
               <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                 required minLength={config.commerce.minPasswordLength} autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
