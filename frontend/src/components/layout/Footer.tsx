@@ -63,7 +63,7 @@ export default function Footer() {
         <div className="flex flex-col items-center justify-between gap-5 border-b border-white/5 py-7 sm:flex-row">
           <p className="text-xs uppercase tracking-[0.18em] text-stone-500">Secure checkout with</p>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            {['M-PESA', 'Airtel Money', 'VISA', 'Mastercard', 'Stripe'].map(method => (
+            {['M-PESA', 'VISA', 'Mastercard', 'Stripe'].map(method => (
               <span key={method} className="rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-[11px] font-semibold tracking-wide text-stone-300">
                 {method}
               </span>

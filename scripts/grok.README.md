@@ -1,7 +1,7 @@
 # Grok — End-to-End Test Harness
 
 The `grok` is the canonical test harness for i-love-shopping. It exercises the
-cart, checkout, payment (M-Pesa, Stripe, Flutterwave), and order flows
+cart, checkout, payment (M-Pesa, Stripe), and order flows
 against a live backend, then runs the full `description2.txt` mandatory test
 battery.
 
@@ -21,7 +21,6 @@ fakes it). See `SETUP-PAYMENTS.md` for the full setup.
 | `grok.sh` | Top-level runner. Orchestrates the other suites and prints a summary. |
 | `grok-mpesa.sh` | Real M-Pesa STK push + callback polling. Also covers callback envelope, malformed-JSON safety, and amount-mismatch logic. |
 | `grok-stripe.sh` | Real Stripe PaymentIntent creation + test-card confirmation. Webhook permitAll + signature-rejection. |
-| `grok-flutterwave.sh` | Real Flutterwave v3 API call (fee quote + transaction init). |
 | `grok-description2.sh` | The `description2.txt` mandatory test battery — 32 checks, all live. |
 | `grok-tunnel.sh` | ngrok helper. Starts/stops a tunnel to `:8080` so Daraja/Stripe can call back. |
 
@@ -36,7 +35,6 @@ fakes it). See `SETUP-PAYMENTS.md` for the full setup.
 ./scripts/grok.sh checkout
 ./scripts/grok.sh mpesa
 ./scripts/grok.sh stripe
-./scripts/grok.sh flutterwave
 ./scripts/grok.sh orders
 ./scripts/grok.sh description2
 

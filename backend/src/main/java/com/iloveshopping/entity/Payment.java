@@ -65,7 +65,10 @@ public class Payment {
     private LocalDateTime updatedAt;
 
     public enum PaymentProvider {
-        MPESA, STRIPE, PAYPAL, FLUTTERWAVE, AIRTEL_MONEY, BANK_TRANSFER
+        // Card payments are handled exclusively by Stripe; M-Pesa Daraja
+        // covers mobile money. (Flutterwave/Airtel were removed — enum-only
+        // entries with no implementation. See README.)
+        MPESA, STRIPE
     }
 
     public enum PaymentStatus {

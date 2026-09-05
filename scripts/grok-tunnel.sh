@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# ngrok tunnel for M-Pesa/Stripe/Flutterwave callbacks.
+# ngrok tunnel for M-Pesa/Stripe callbacks.
 #
 # Usage:
 #   ./scripts/grok-tunnel.sh start    # Start ngrok tunnel to :8080

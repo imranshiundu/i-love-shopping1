@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # ─── I Love Shopping — Test Grok ──────────────────────────────────────────────
 # End-to-end test harness for cart, checkout, payments (M-Pesa, Stripe,
-# Flutterwave), orders, and the description2.txt mandatory test battery.
+# Stripe), orders, and the description2.txt mandatory test battery.
 #
 # Usage:
 #   ./scripts/grok.sh                  Run all suites
 #   ./scripts/grok.sh mpesa            M-Pesa only (callback simulation)
 #   ./scripts/grok.sh stripe           Stripe only (intent + simulated webhook)
-#   ./scripts/grok.sh flutterwave      Flutterwave only
 #   ./scripts/grok.sh cart             Cart only
 #   ./scripts/grok.sh checkout         Checkout only
 #   ./scripts/grok.sh orders           Order filtering / cancellation
@@ -31,7 +30,7 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --json) JSON_MODE=true; shift ;;
     --no-color) NO_COLOR=true; shift ;;
-    mpesa|stripe|flutterwave|cart|checkout|orders|description2|all) SUITE="$1"; shift ;;
+    mpesa|stripe|cart|checkout|orders|description2|all) SUITE="$1"; shift ;;
     *) shift ;;
   esac
 done
@@ -249,12 +248,6 @@ suite_stripe() {
   bash "$REPO_DIR/scripts/grok-stripe.sh" || true
 }
 
-# ── Flutterwave suite ───────────────────────────────────────────────────────
-suite_flutterwave() {
-  section "Flutterwave suite"
-  bash "$REPO_DIR/scripts/grok-flutterwave.sh" || true
-}
-
 # ── Orders suite ─────────────────────────────────────────────────────────────
 suite_orders() {
   section "Orders suite"
@@ -310,7 +303,6 @@ case "$SUITE" in
     suite_checkout
     suite_mpesa
     suite_stripe
-    suite_flutterwave
     suite_orders
     suite_description2
     ;;
@@ -318,7 +310,6 @@ case "$SUITE" in
   checkout) suite_checkout ;;
   mpesa) suite_mpesa ;;
   stripe) suite_stripe ;;
-  flutterwave) suite_flutterwave ;;
   orders) suite_orders ;;
   description2) suite_description2 ;;
 esac

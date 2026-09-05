@@ -3,7 +3,7 @@
 #
 # Strategy: test everything that can be tested with the live backend.
 # For payment provider-specific tests, use the REAL provider APIs (M-Pesa
-# sandbox, Stripe, Flutterwave). If a provider isn't configured, SKIP
+# sandbox, Stripe). If a provider isn't configured, SKIP
 # the test (don't fake it).
 
 set -uo pipefail
@@ -31,8 +31,6 @@ MPESA_OK=false
 [[ -n "${MPESA_CONSUMER_KEY:-}" && -n "${MPESA_CONSUMER_SECRET:-}" && -n "${MPESA_SHORTCODE:-}" ]] && MPESA_OK=true
 STRIPE_OK=false
 [[ -n "${STRIPE_SECRET_KEY:-}" ]] && STRIPE_OK=true
-FW_OK=false
-[[ -n "${FLUTTERWAVE_SECRET_KEY:-}" ]] && FW_OK=true
 
 # ── Section 1: Schema & README ──────────────────────────────────────────────
 section "1. README updated (overview, ERD, setup, usage)"
@@ -229,7 +227,7 @@ fi
 
 # ── Section 15: Payment providers in DB ───────────────────────────────────
 section "15. Payment integration with sandbox"
-for PROVIDER in MPESA STRIPE FLUTTERWAVE; do
+for PROVIDER in MPESA STRIPE; do
   if PSQL -c "SELECT 1 FROM pg_constraint WHERE conname='payments_provider_check';" > /dev/null 2>&1; then
     grep -q "$PROVIDER" <(PSQL -c "SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conname='payments_provider_check';") && \
       record 1 "Payment provider $PROVIDER registered in DB constraint" || record 0 "$PROVIDER not in providers"

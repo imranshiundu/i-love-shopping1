@@ -34,6 +34,23 @@ services:
       timeout: 10s
       retries: 3
 
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: iloveshopping-rabbitmq-prod
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - iloveshopping-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
   api:
     build:
       context: ..
@@ -64,7 +81,14 @@ services:
       - MAIL_PORT=${MAIL_PORT}
       - MAIL_USERNAME=${MAIL_USERNAME}
       - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH:-true}
+      - MAIL_SMTP_STARTTLS=${MAIL_SMTP_STARTTLS:-true}
       - MAIL_FROM=${MAIL_FROM}
+      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY}
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
       - MPESA_CONSUMER_KEY=${MPESA_CONSUMER_KEY}
       - MPESA_CONSUMER_SECRET=${MPESA_CONSUMER_SECRET}
       - MPESA_SHORTCODE=${MPESA_SHORTCODE}
@@ -72,12 +96,19 @@ services:
       - MPESA_CALLBACK_URL=${MPESA_CALLBACK_URL}
       - MPESA_TIMEOUT_URL=${MPESA_TIMEOUT_URL}
       - MPESA_BASE_URL=${MPESA_BASE_URL}
+      - MPESA_STK_TIMEOUT_SECONDS=${MPESA_STK_TIMEOUT_SECONDS:-120}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - STRIPE_MIN_AMOUNT=${STRIPE_MIN_AMOUNT:-100}
     ports:
       - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     networks:
       - iloveshopping-network
@@ -107,6 +138,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  rabbitmq_data:
 
 networks:
   iloveshopping-network:
