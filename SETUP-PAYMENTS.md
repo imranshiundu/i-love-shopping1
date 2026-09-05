@@ -1,6 +1,6 @@
 # Setting up real payments — no fakes, no stubs
 
-This system is wired for **three real payment providers**. No mocks, no
+This system is wired for **two real payment providers** (M-Pesa, Stripe). No mocks, no
 DB-seeded payment rows, no forged callbacks. When you provide real
 sandbox credentials, the tests drive the actual APIs end-to-end.
 
@@ -12,7 +12,6 @@ sandbox credentials, the tests drive the actual APIs end-to-end.
 - **Stripe PaymentIntent** is created via the real `https://api.stripe.com/v1/payment_intents` endpoint.
 - **Stripe webhook** is verified with real `Stripe-Signature` HMAC.
 - **Stripe Elements** (`<CardElement>`) is mounted client-side — the backend never sees the card.
-- **Flutterwave** calls the real `https://api.flutterwave.com/v3/payments` and `/v3/transactions/verify` endpoints.
 - **Email** is sent via the real `JavaMailSender` (MailHog in dev, real SMTP in prod via `MAIL_HOST`).
 - **Tax rate** (16% — Kenya VAT) and **shipping cost** (200 KES) are configurable via `app.tax-rate` and `app.shipping-cost` in `application.yml`, overridable by env.
 
@@ -20,7 +19,6 @@ sandbox credentials, the tests drive the actual APIs end-to-end.
 
 - `scripts/grok-mpesa.sh` makes a **real OAuth call** to Daraja when `MPESA_CONSUMER_KEY` is configured.
 - `scripts/grok-stripe.sh` creates a **real PaymentIntent** via the Stripe API.
-- `scripts/grok-flutterwave.sh` calls the **real Flutterwave v3 API** for a fee quote.
 - `scripts/grok-description2.sh` creates a **real order** and fires a **real STK push** for the M-Pesa tests.
 
 Tests **skip** (not fake) when credentials are missing. You can see `~` instead of `✓`/`✗` in the output.
@@ -65,15 +63,7 @@ The Daraja sandbox does send real callbacks to your ngrok URL within a few secon
    - `STRIPE_WEBHOOK_SECRET=whsec_...`
 4. Test card: `4242 4242 4242 4242`, any future expiry, any CVC.
 
-### 3. Flutterwave test mode
-
-1. Go to https://dashboard.flutterwave.com/ → Settings → API → copy test keys
-2. Set in `.env`:
-   - `FLUTTERWAVE_SECRET_KEY=FLWSECK_TEST-...`
-   - `FLUTTERWAVE_PUBLIC_KEY=FLWPUBK_TEST-...`
-3. For webhooks (optional): set `FLW_WEBHOOK_URL` via the dashboard
-
-### 4. Email (MailHog in dev, real SMTP in prod)
+### 3. Email (MailHog in dev, real SMTP in prod)
 
 - Dev: `MAIL_HOST=localhost MAIL_PORT=1025` (MailHog) — all captured at `http://localhost:8025`
 - Prod: set `MAIL_HOST=smtp.sendgrid.net` (or SES, Mailgun, etc) + `MAIL_USERNAME` + `MAIL_PASSWORD`
@@ -108,7 +98,6 @@ The output is written to `.grok-results/grok-YYYYMMDD-HHMMSS.log` with a
 | `checkout` | Guest email required, empty cart rejected, success path, encryption at rest, stock, M-Pesa init, cancel+restore |
 | `mpesa` | Callback envelope, malformed-JSON safety, amount-mismatch, success, duplicate, cancel, timeout, late callback, order.paid queue, confirmation email |
 | `stripe` | create-intent, confirm reachability, webhook permitAll, signature rejection, real API call when keys configured |
-| `flutterwave` | init/verify reachability, DB constraint, real fee-quote when key configured |
 | `orders` | List, filter, ownership, cancel |
 | `description2` | Every mandatory check from the spec |
 
@@ -132,7 +121,7 @@ You can wire this into a test by calling the simulator directly before the callb
 │   Next.js (3000) │    │ Spring Boot (8080)│    │   Daraja sandbox │
 │                  │    │                  │    │                  │
 │  Stripe Elements │───▶│  M-Pesa service  │───▶│   /oauth/v1/...  │
-│  Flutterwave     │    │  Stripe service  │    │   /stkpush/...   │
+│  Stripe Elements   │    │  Stripe service  │    │   /stkpush/...   │
 │  Inline          │    │  FW service      │    │                  │
 │                  │    │                  │◀───│  /callback       │
 │                  │    │  JPA + Hibernate │    │  (via ngrok)     │
@@ -150,7 +139,7 @@ You can wire this into a test by calling the simulator directly before the callb
 The full payment flow:
 1. User clicks "Place Order" → frontend calls `POST /api/v1/orders/checkout`
 2. Backend creates order (status=PENDING, stock decremented, cart cleared)
-3. Frontend calls `POST /api/v1/orders/payments/mpesa/stk-push` (or stripe / flutterwave equivalent)
+3. Frontend calls `POST /api/v1/orders/payments/mpesa/stk-push` (or the Stripe equivalent)
 4. Backend calls the real provider API
 5. Provider sends callback to the configured `*_CALLBACK_URL` (must be publicly reachable)
 6. Backend processes callback, updates payment + order state, publishes to RabbitMQ
@@ -159,7 +148,7 @@ The full payment flow:
 ## Honest limitations
 
 1. **Tax/shipping rates** are configurable constants. For production, consider a TaxJar/Avalara integration or a `tax_rates` table per region.
-2. **No real fraud detection** (no Stripe Radar, no Flutterwave fraud rules).
+2. **No real fraud detection** (no Stripe Radar).
 3. **No webhook signature secret rotation** — secrets are static.
 4. **No retries on transient provider failures** (e.g., Daraja 5xx) — the `RestTemplate` will throw and the order stays in PENDING until the auto-expire job runs.
 5. **The `auto-expire` job** runs every 5 minutes. For production, shorten to 1 minute and add a re-try queue.

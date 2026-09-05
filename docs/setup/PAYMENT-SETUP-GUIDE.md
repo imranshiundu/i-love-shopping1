@@ -8,7 +8,6 @@ This guide covers how to set up and test all payment methods in the i-Love-Shopp
 |--------|------------|--------------|-----------|
 | **M-Pesa** | Kenya (Safaricom) | STK push to phone, enter PIN | Daraja sandbox |
 | **Stripe Card** | Estonia, worldwide | Enter card details in checkout | Stripe test mode |
-| **Flutterwave Card** | Africa-wide | Redirect to Flutterwave checkout | Flutterwave test mode |
 
 ---
 
@@ -63,52 +62,7 @@ Then restart the backend — it picks up values from `.env` automatically.
 
 ---
 
-### Option B: Flutterwave
-
-Flutterwave redirects to their hosted checkout page. Supports cards, mobile money, and bank transfers across Africa.
-
-#### Step 1: Get Flutterwave Test Keys
-
-1. Go to https://app.flutterwave.com/register and create a free account
-2. Go to Settings → API Keys (make sure you're in **Test Mode**)
-3. Copy your **Test** keys:
-   - **Public Key** (starts with `FLWPUBK_TEST-...`)
-   - **Secret Key** (starts with `FLWSECK_TEST-...`)
-   - **Encryption Key** (from the same page)
-
-#### Step 2: Set Environment Variables
-
-Add your keys to the `.env` file in the project root:
-
-```bash
-FLUTTERWAVE_SECRET_KEY=FLWSECK_TEST-your_key_here
-FLUTTERWAVE_PUBLIC_KEY=FLWPUBK_TEST-your_key_here
-FLUTTERWAVE_ENCRYPTION_KEY=your_encryption_key_here
-```
-
-Then restart the backend.
-
-#### Step 3: Test with Flutterwave Test Cards
-
-| Card Number | Result |
-|-------------|--------|
-| `4187427415564246` | Success (Visa) |
-| `4000000000000002` | Success (Mastercard) |
-| `4000000000000069` | Declined |
-| `4000000000000127` | Insufficient funds |
-
-- **Expiry**: Any future date
-- **CVV**: Any 3 digits
-
-#### Step 4: Test the Flow
-
-1. Add products to cart
-2. Go to checkout
-3. Select **Card — Flutterwave**
-4. Click "Pay" — you'll be redirected to Flutterwave's checkout page
-5. Enter test card details on the Flutterwave page
-6. Complete payment
-7. Redirected back to success page
+> **Flutterwave was removed.** Card payments are handled exclusively by Stripe (Option A above), which covers Visa/Mastercard worldwide including Kenya. The Flutterwave/Airtel provider entries were enum-only placeholders with no implementation.
 
 ---
 
@@ -170,7 +124,7 @@ Then restart the backend. See `docs/setup/M-PESA-DARAJA-SETUP.md` for full detai
 
 ## Local Callback Setup (ngrok)
 
-All payment providers (M-Pesa, Stripe, Flutterwave) may send webhooks/callbacks to your server. For local development:
+All payment providers (M-Pesa, Stripe) may send webhooks/callbacks to your server. For local development:
 
 ### 1. Install ngrok
 
@@ -208,9 +162,6 @@ Go to https://dashboard.stripe.com/test/webhooks → Add endpoint:
 - URL: `https://YOUR_NGROK_URL/api/v1/payments/stripe/webhook`
 - Events: `payment_intent.succeeded`, `payment_intent.payment_failed`
 
-**Flutterwave:**
-Go to https://app.flutterwave.com/test → Settings → Webhooks:
-- URL: `https://YOUR_NGROK_URL/api/v1/payments/flutterwave/callback`
 
 ---
 
@@ -241,10 +192,6 @@ STRIPE_SECRET_KEY=
 STRIPE_PUBLISHABLE_KEY=
 STRIPE_WEBHOOK_SECRET=
 
-# Flutterwave (Africa-wide cards)
-FLUTTERWAVE_SECRET_KEY=
-FLUTTERWAVE_PUBLIC_KEY=
-FLUTTERWAVE_ENCRYPTION_KEY=
 ```
 
 > **Tip**: Only configure the providers you need. The app starts without any payment keys — unconfigured methods show a clear error message at checkout.
@@ -256,7 +203,6 @@ FLUTTERWAVE_ENCRYPTION_KEY=
 | Problem | Solution |
 |---------|----------|
 | "Stripe is not configured" | Add `STRIPE_SECRET_KEY` to your `.env` file |
-| "Flutterwave is not configured" | Add `FLUTTERWAVE_SECRET_KEY` to your `.env` file |
 | "M-Pesa is not configured" | Add `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_SHORTCODE`, `MPESA_PASSKEY` to `.env` |
 | M-Pesa callback not received | Start ngrok, add `MPESA_CALLBACK_URL` to `.env` |
 | Card payment fails immediately | Check test card number and expiry |

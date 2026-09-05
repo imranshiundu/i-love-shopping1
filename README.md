@@ -1,6 +1,6 @@
 # i-love-shopping
 
-B2C E-commerce Platform for the Kenyan market, built with a **Next.js 14 storefront**, a **Spring Boot 3 API**, PostgreSQL, Redis, RabbitMQ, M-Pesa Daraja, Stripe, and Flutterwave integrations.
+B2C E-commerce Platform for the Kenyan market, built with a **Next.js 14 storefront**, a **Spring Boot 3 API**, PostgreSQL, Redis, RabbitMQ, M-Pesa Daraja and Stripe integrations.
 
 ## Table of Contents
 
@@ -57,7 +57,7 @@ The application follows a modular monolith architecture with clean separation of
                                               │                   │
                                      ┌────────▼────────┐  ┌───────▼──────────┐
                                      │ M-Pesa Daraja   │  │ Stripe           │
-                                     │ (sandbox)       │  │ & Flutterwave    │
+                                      │ (sandbox)       │  │ Stripe cards     │
                                      └─────────────────┘  └──────────────────┘
 ```
 
@@ -288,7 +288,7 @@ erDiagram
 - **JJWT (0.12.5)** - JWT Token handling
 - **M-Pesa Daraja API** - Mobile payments (sandbox/production)
 - **Stripe** - Card payments (test/live mode)
-- **Flutterwave** - Card payments across Africa (test/live mode)
+- **Stripe** - Card payments (test/live mode)
 - **Google reCAPTCHA** - Bot protection
 - **Lombok** - Boilerplate reduction
 
@@ -363,11 +363,10 @@ erDiagram
 - ✅ Retry failed payments
 - ✅ Payment metadata storage
 
-### Card Payments (Stripe / Flutterwave)
+### Card Payments (Stripe)
 - ✅ Stripe PaymentIntent create + confirm (test/live mode)
 - ✅ Stripe webhook handling (`payment_intent.succeeded`, `payment_intent.payment_failed`)
-- ✅ Flutterwave Standard Checkout — redirect to hosted page, verify on return
-- ✅ Test cards: Stripe `4242 4242 4242 4242`, Flutterwave `4187427415564246`
+- ✅ Test card: Stripe `4242 4242 4242 4242`
 - ✅ No card data ever touches the server - PCI-friendly tokenized flow
 - ✅ Failure scenarios: declined cards, gateway errors, invalid payment IDs
 
@@ -382,7 +381,7 @@ erDiagram
 - ✅ Product listing with faceted filters (category, brand, price, stock, sale), sorting and pagination
 - ✅ Product detail page with image gallery, similar products and reviews
 - ✅ Cart page with real-time totals, quantity updates and free-shipping threshold
-- ✅ Single-page checkout: address form + payment method selection (M-Pesa, Stripe card, Flutterwave card)
+- ✅ Single-page checkout: address form + payment method selection (M-Pesa, Stripe card)
 - ✅ Order success page and order history
 - ✅ Auth pages: login, register, forgot password
 - ✅ Account area: profile, addresses book, password change
@@ -410,14 +409,28 @@ erDiagram
 These go beyond the core requirements - added for real-world polish:
 
 ### Payments
-- **Four payment rails at checkout** - M-Pesa, Airtel Money, Card via Stripe and Card via Flutterwave. The brief asked for one gateway; we ship four, all selectable in a single payment step.
+- **Two payment rails at checkout** - M-Pesa Daraja (mobile money) and card via Stripe, both selectable in a single payment step. (Flutterwave/Airtel entries were removed: enum-only placeholders with no implementation. Stripe covers Visa/Mastercard worldwide including Kenya; M-Pesa covers mobile money.)
 - **Real M-Pesa Daraja** - STK push via Safaricom sandbox/production. Configure keys in `.env`. Callback polling fallback for local dev.
+- **STK expiry watchdog** - Safaricom phone prompts last ~60–120s. A scheduled job (`MPESA_STK_TIMEOUT_SECONDS`, default 120) auto-marks unanswered STK sessions FAILED so orders never get stuck.
+- **Pay-later invoices** - every unpaid order triggers a payable invoice email (`/checkout?retry=ORDER-NUMBER`); fresh invoices are re-sent on every failed/expired payment. Customers can leave mid-payment and resume anytime.
+- **Unpaid order self-service** - customers can retry payment (PENDING/EXPIRED/CANCELLED with stock re-check), cancel (restores stock + cart), or permanently delete unpaid orders from their account.
 - **Client-side card validation** - Luhn check, expiry and CVV validation happen in the browser before any request; card data is never sent to or stored on our servers.
 
 ### Security & reliability
 - **Encryption at rest** - order shipping/billing addresses and payment metadata/callback records are encrypted with AES-256-GCM (`DATA_ENCRYPTION_KEY`). Raw database rows are ciphertext; authorised API readers receive transparently decrypted values.
 - **Dead-letter queue** - RabbitMQ order queues dead-letter to `order.dead-letter` after exhausted retries, so failed messages are never silently dropped.
 - **Per-IP rate limiting** on authentication and API traffic.
+- **CORS lockdown** - the API echoes only explicitly configured origins (`CORS_ALLOWED_ORIGINS`); no wildcard-with-credentials.
+- **JWT aligned to spec** - 15-minute access tokens, 7-day refresh tokens with single-use rotation and reuse detection.
+
+### Auth & email extras (not in the brief)
+- **Working email verification** - persisted single-use tokens (24h), `GET /auth/verify-email`, plus `POST /auth/resend-verification` which reuses a still-valid link.
+- **Working password reset** - persisted single-use tokens (1h), session invalidation on reset, no account enumeration.
+- **Real Gmail sender** - transactional mail goes through Gmail SMTP (`MAIL_*` in `.env`); MailHog remains a one-block dev toggle.
+- **Payable invoice emails** - itemised invoice with a Pay-now link on every unpaid order and every failed/expired payment.
+- **Paid confirmation with payment details** - provider, amount paid and a formatted delivery address (never raw JSON or ciphertext).
+- **2FA that actually verifies** - setup persists the QR secret; enable checks the code against it.
+- **API slice tests** - MockMvc coverage for auth routing/validation alongside the unit suite.
 
 ### Storefront & admin experience
 - **Multi-currency display** - KES base with USD, EUR, GBP, TZS, UGX and ZAR via a header switcher; rates are env-configurable (`NEXT_PUBLIC_CURRENCY_RATES`) and payments always settle in KES, stated clearly at checkout.
@@ -780,7 +793,7 @@ their browser and every price on the site converts instantly.
 
 - Rates are display-only estimates set through
   `NEXT_PUBLIC_CURRENCY_RATES=CODE=RATE,CODE=RATE` - plug in live FX rates here.
-- **Payments always settle in KES** (M-Pesa, Airtel Money and the card gateways
+- **Payments always settle in KES** (M-Pesa and the card gateway
   are Kenyan-shilling rails). Checkout states this clearly whenever a
   non-KES currency is selected, so there is no surprise at the PIN prompt.
 
@@ -823,8 +836,6 @@ Swagger UI is available at: `http://localhost:8080/api/v1/docs`
 | `POST` | `/payments/stripe/create-intent` | Create Stripe PaymentIntent | Yes |
 | `POST` | `/payments/stripe/confirm` | Confirm Stripe payment | Yes |
 | `POST` | `/payments/stripe/webhook` | Stripe webhook handler | No |
-| `POST` | `/payments/flutterwave/initialize` | Initialize Flutterwave transaction | Yes |
-| `POST` | `/payments/flutterwave/verify` | Verify Flutterwave transaction | Yes |
 | `GET` | `/products/{slug}/reviews` | List product reviews | No |
 | `GET` | `/user/profile` | Get user profile | Yes |
 | `PUT` | `/user/profile` | Update profile | Yes |
@@ -936,7 +947,7 @@ curl -X POST http://localhost:8080/api/v1/payments/stripe/confirm \
   -d '{"paymentIntentId": "pi_sim_xxxxxxxxxxxxxxxx"}'
 ```
 
-> The payment is processed via the configured provider (Stripe or Flutterwave). Set up webhooks for real-time status updates.
+> The payment is processed via the configured provider (Stripe). Set up webhooks for real-time status updates.
 
 ## Testing
 
@@ -1033,6 +1044,8 @@ start target\site\jacoco\index.html
 |------------|----------|-------------|
 | `JwtServiceTest` | Unit | JWT token generation, validation, expiry |
 | `AuthValidationTest` | Unit | Input validation for auth DTOs |
+| `AuthControllerTest` | API integration | Auth endpoint routing, validation, service delegation |
+| `DataEncryptionServiceTest` | Unit | AES-GCM round-trip, idempotency, legacy plaintext compat |
 | `ProductTest` | Unit | Product entity business logic |
 | `SecurityTest` | Unit | SQL injection, XSS, path traversal detection |
 | `HealthCheckTest` | Unit | Health check response structure |
