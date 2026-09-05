@@ -287,6 +287,16 @@ function OrderDetailContent({ orderNumber }: { orderNumber: string }) {
               {acting === 'delete' ? <FiLoader className="animate-spin" /> : null} Delete this order
             </button>
           )}
+          <Link href={`/account/orders/${order.number}/invoice`}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-stone-300 px-6 py-3 font-semibold text-stone-700 hover:bg-stone-50">
+            Invoice
+          </Link>
+          {order.fullyPaid && (
+            <Link href={`/account/orders/${order.number}/receipt`}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 px-6 py-3 font-semibold text-emerald-700 hover:bg-emerald-50">
+              Receipt
+            </Link>
+          )}
         </div>
       </Reveal>
     </div>

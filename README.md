@@ -428,6 +428,7 @@ These go beyond the core requirements - added for real-world polish:
 - **Working password reset** - persisted single-use tokens (1h), session invalidation on reset, no account enumeration.
 - **Real Gmail sender** - transactional mail goes through Gmail SMTP (`MAIL_*` in `.env`); MailHog remains a one-block dev toggle.
 - **Payable invoice emails** - itemised invoice with a Pay-now link on every unpaid order and every failed/expired payment.
+- **Printable invoice & receipt documents** - every order has a print-optimised invoice (`/account/orders/NUMBER/invoice`, with amount due and pay instructions); paid orders additionally get a receipt (`/account/orders/NUMBER/receipt`) with a PAID stamp and full payment details (provider, amount, reference, date). Both print to PDF straight from the browser.
 - **Paid confirmation with payment details** - provider, amount paid and a formatted delivery address (never raw JSON or ciphertext).
 - **2FA that actually verifies** - setup persists the QR secret; enable checks the code against it.
 - **API slice tests** - MockMvc coverage for auth routing/validation alongside the unit suite.

@@ -45,7 +45,7 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50">
+    <header className="sticky top-0 z-50 print:hidden">
       <div className="bg-stone-950 py-2 text-center text-[13px] font-medium text-stone-200">
         <span className="inline-flex items-center gap-2">
           <FiTruck className="h-3.5 w-3.5 text-primary-300" />
