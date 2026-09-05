@@ -63,7 +63,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",
                                 "/auth/logout-all", "/auth/forgot-password", "/auth/reset-password",
-                                "/auth/verify-email", "/auth/verify-captcha").permitAll()
+                                "/auth/verify-email", "/auth/resend-verification", "/auth/verify-captcha").permitAll()
                         .requestMatchers("/auth/2fa/**").authenticated()
                         .requestMatchers("/products", "/products/**").permitAll()
                         .requestMatchers("/categories", "/categories/**").permitAll()
@@ -81,6 +81,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/payments/stripe/confirm").permitAll()
                         .requestMatchers(HttpMethod.POST, "/orders/*/cancel").permitAll()
                         .requestMatchers(HttpMethod.GET, "/orders/*").permitAll()
+                        .requestMatchers(HttpMethod.DELETE, "/orders/*").permitAll()
                         .requestMatchers("/orders/**").authenticated()
                         .requestMatchers("/user/**").authenticated()
                         .requestMatchers("/addresses/**").authenticated()
@@ -140,10 +141,10 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.addAllowedOriginPattern("*");
+        configuration.setAllowedOrigins(corsProperties.getAllowedOrigins());
         configuration.setAllowedMethods(corsProperties.getAllowedMethods());
         configuration.setAllowedHeaders(corsProperties.getAllowedHeaders());
-        configuration.setAllowCredentials(true);
+        configuration.setAllowCredentials(corsProperties.getAllowCredentials());
         configuration.setExposedHeaders(List.of("X-Cart-Session"));
         configuration.setMaxAge(3600L);
 
