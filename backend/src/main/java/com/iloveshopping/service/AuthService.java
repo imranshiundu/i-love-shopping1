@@ -72,11 +72,16 @@ public class AuthService {
                 .roles(Set.of(User.Role.USER))
                 .build();
 
+        // Persist a verification token so GET /auth/verify-email can complete
+        // the flow (24h expiry, single-use). In dev mode the address is
+        // auto-verified for convenience but the token still works idempotently.
+        user.setEmailVerificationToken(UUID.randomUUID().toString());
+        user.setEmailVerificationExpiresAt(LocalDateTime.now().plusHours(24));
+
         userRepository.save(user);
 
         if (!devMode) {
-            String verificationToken = UUID.randomUUID().toString();
-            emailService.sendVerificationEmail(user.getEmail(), verificationToken);
+            emailService.sendVerificationEmail(user.getEmail(), user.getEmailVerificationToken());
         }
 
         log.info("User registered successfully: {} (emailVerified={})", user.getEmail(), emailVerified != null);
@@ -270,20 +275,88 @@ public class AuthService {
     public void forgotPassword(ForgotPasswordRequest request) {
         log.info("Password reset requested for: {}", request.getEmail());
 
+        // Never reveal whether the address exists (prevents account enumeration).
         userRepository.findByEmailIgnoreCase(request.getEmail()).ifPresent(user -> {
-            String resetToken = UUID.randomUUID().toString();
-            emailService.sendPasswordResetEmail(user.getEmail(), resetToken);
+            user.setPasswordResetToken(UUID.randomUUID().toString());
+            user.setPasswordResetExpiresAt(LocalDateTime.now().plusHours(1));
+            userRepository.save(user);
+            emailService.sendPasswordResetEmail(user.getEmail(), user.getPasswordResetToken());
         });
     }
 
     @Transactional
     public void resetPassword(ResetPasswordRequest request) {
         log.info("Password reset with token");
+
+        if (request.getToken() == null || request.getToken().isBlank()) {
+            throw AuthenticationException.invalidToken();
+        }
+
+        User user = userRepository.findByPasswordResetToken(request.getToken())
+                .orElseThrow(AuthenticationException::invalidToken);
+
+        if (user.getPasswordResetExpiresAt() == null
+                || user.getPasswordResetExpiresAt().isBefore(LocalDateTime.now())) {
+            throw AuthenticationException.tokenExpired();
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        // Single-use: clear token so it cannot be replayed.
+        user.setPasswordResetToken(null);
+        user.setPasswordResetExpiresAt(null);
+        userRepository.save(user);
+
+        // Invalidate all sessions — stolen-session protection after a reset.
+        sessionRepository.revokeAllUserSessions(user.getId(), LocalDateTime.now());
+
+        log.info("Password reset successfully for: {}", user.getEmail());
     }
 
     @Transactional
     public void verifyEmail(String token) {
         log.info("Email verification attempt");
+
+        if (token == null || token.isBlank()) {
+            throw AuthenticationException.invalidToken();
+        }
+
+        User user = userRepository.findByEmailVerificationToken(token)
+                .orElseThrow(AuthenticationException::invalidToken);
+
+        if (user.getEmailVerificationExpiresAt() == null
+                || user.getEmailVerificationExpiresAt().isBefore(LocalDateTime.now())) {
+            throw AuthenticationException.tokenExpired();
+        }
+
+        user.setEmailVerified(LocalDateTime.now());
+        // Single-use: clear token so the link cannot be reused.
+        user.setEmailVerificationToken(null);
+        user.setEmailVerificationExpiresAt(null);
+        userRepository.save(user);
+
+        log.info("Email verified for: {}", user.getEmail());
+    }
+
+    @Transactional
+    public void resendVerificationEmail(ForgotPasswordRequest request) {
+        log.info("Verification email re-requested");
+
+        // Never reveal whether the address exists or is already verified.
+        userRepository.findByEmailIgnoreCase(request.getEmail()).ifPresent(user -> {
+            if (user.getEmailVerified() != null) {
+                return;
+            }
+            // Reuse a still-valid token so rapid re-requests don't invalidate
+            // the link already sitting in the user's inbox.
+            if (user.getEmailVerificationToken() == null
+                    || user.getEmailVerificationExpiresAt() == null
+                    || user.getEmailVerificationExpiresAt().isBefore(LocalDateTime.now())) {
+                user.setEmailVerificationToken(UUID.randomUUID().toString());
+                user.setEmailVerificationExpiresAt(LocalDateTime.now().plusHours(24));
+                userRepository.save(user);
+            }
+            emailService.sendVerificationEmail(user.getEmail(), user.getEmailVerificationToken());
+        });
     }
 
     @Transactional
@@ -293,7 +366,11 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
+        // Persist the pending secret so enable2FA can verify against the same
+        // secret shown in the QR code. Stays disabled until verified.
         String secret = generateTotpSecret();
+        user.setTwoFactorSecret(secret);
+        userRepository.save(user);
 
         return TwoFASetupResponse.builder()
                 .secret(secret)
@@ -309,14 +386,17 @@ public class AuthService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User", "id", userId));
 
-        String secret = generateTotpSecret();
+        // Verify against the secret issued at setup time (not a fresh one).
+        String secret = user.getTwoFactorSecret();
+        if (secret == null || secret.isBlank()) {
+            throw AuthenticationException.invalidTwoFactorCode();
+        }
 
         if (!verifyTwoFactorCode(secret, request.getCode())) {
             throw AuthenticationException.invalidTwoFactorCode();
         }
 
         user.setTwoFactorEnabled(true);
-        user.setTwoFactorSecret(secret);
         userRepository.save(user);
 
         log.info("2FA enabled for user: {}", user.getEmail());

@@ -20,6 +20,10 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     boolean existsByEmailIgnoreCase(String email);
 
+    Optional<User> findByEmailVerificationToken(String token);
+
+    Optional<User> findByPasswordResetToken(String token);
+
     @Query("SELECT u FROM User u WHERE :role MEMBER OF u.roles")
     List<User> findByRole(User.Role role);
 

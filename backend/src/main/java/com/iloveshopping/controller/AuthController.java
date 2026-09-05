@@ -168,6 +168,15 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
+    @PostMapping("/resend-verification")
+    @Operation(summary = "Resend verification email")
+    public ResponseEntity<ApiResponse<Void>> resendVerification(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+
+        authService.resendVerificationEmail(request);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
     @GetMapping("/verify-captcha")
     @Operation(summary = "Get CAPTCHA site key for frontend")
     public ResponseEntity<ApiResponse<String>> getCaptchaSiteKey() {
