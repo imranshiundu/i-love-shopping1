@@ -63,6 +63,17 @@ public class OrderController {
         return ResponseEntity.ok(ApiResponse.success(orderService.cancelOrder(orderNumber, cartSessionId)));
     }
 
+    @DeleteMapping("/{orderNumber}")
+    @Operation(summary = "Permanently delete an unpaid order (PENDING/EXPIRED/CANCELLED)")
+    public ResponseEntity<ApiResponse<Void>> deleteUnpaid(
+            @PathVariable String orderNumber,
+            @CookieValue(name = "cartSessionId", required = false) String cookieSessionId,
+            @RequestHeader(value = "X-Cart-Session", required = false) String headerSessionId) {
+        String cartSessionId = cookieSessionId != null && !cookieSessionId.isBlank() ? cookieSessionId : headerSessionId;
+        orderService.deleteUnpaidOrder(orderNumber, cartSessionId);
+        return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
     // ---- M-Pesa endpoints exposed here so paths stay under /orders/.../mpesa/... ----
 
     @PostMapping("/payments/mpesa/stk-push")

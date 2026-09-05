@@ -229,7 +229,7 @@ public class MpesaService {
                 return;
             }
 
-            payment.setCallbackData(callbackBody);
+            payment.setCallbackData(DataEncryptionService.encryptForJson(callbackBody));
 
             if (resultCode == 0) {
                 BigDecimal amount = null;
@@ -338,7 +338,7 @@ public class MpesaService {
             if (payment.getStatus() == Payment.PaymentStatus.SUCCEEDED) return;
 
             payment.setStatus(Payment.PaymentStatus.FAILED);
-            payment.setCallbackData(timeoutBody);
+            payment.setCallbackData(DataEncryptionService.encryptForJson(timeoutBody));
             paymentRepository.save(payment);
 
             Order order = payment.getOrder();
@@ -501,8 +501,10 @@ public class MpesaService {
         Order order = orderRepository.findByNumber(orderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order not found: " + orderNumber));
 
-        // Allow retry on PENDING, EXPIRED, or CANCELLED (re-open a cancelled order)
-        if (order.getStatus() == Order.OrderStatus.CANCELLED) {
+        // Re-open a CANCELLED or EXPIRED order: stock was returned when it
+        // was closed, so re-check availability and re-reserve before paying.
+        if (order.getStatus() == Order.OrderStatus.CANCELLED
+                || order.getStatus() == Order.OrderStatus.EXPIRED) {
             // Re-check stock and re-decrement before re-opening
             for (OrderItem item : order.getItems()) {
                 Product product = item.getProduct();
@@ -515,8 +517,7 @@ public class MpesaService {
             }
             order.setStatus(Order.OrderStatus.PENDING);
             orderRepository.save(order);
-        } else if (order.getStatus() != Order.OrderStatus.PENDING
-                && order.getStatus() != Order.OrderStatus.EXPIRED) {
+        } else if (order.getStatus() != Order.OrderStatus.PENDING) {
             throw new PaymentException("Order is not payable at status: " + order.getStatus());
         }
 
@@ -564,7 +565,58 @@ public class MpesaService {
         runAfterCommit(() -> {
             try { orderMessagePublisher.publishOrderCancelled(finalOrder); }
             catch (Exception e) { log.error("publishOrderCancelled failed: {}", e.getMessage()); }
+            try { emailService.sendPaymentInvoice(finalOrder, friendlyReason(reason)); }
+            catch (Exception e) { log.error("sendPaymentInvoice failed: {}", e.getMessage()); }
         });
+    }
+
+    private String friendlyReason(String reason) {
+        if (reason == null) return "Your payment attempt did not go through.";
+        return switch (reason.toLowerCase()) {
+            case String s when s.contains("cancel") ->
+                    "You cancelled the M-Pesa prompt on your phone — no money left your account.";
+            case String s when s.contains("timeout") || s.contains("expir") ->
+                    "The M-Pesa prompt expired before you entered your PIN — no money left your account.";
+            case String s when s.contains("insufficient") ->
+                    "The payment failed due to insufficient M-Pesa balance.";
+            case String s when s.contains("pin") ->
+                    "The payment failed — the PIN entered was not correct.";
+            default -> "Your payment attempt did not go through (" + reason + ").";
+        };
+    }
+
+    /**
+     * STK push watchdog: Safaricom phone prompts last ~60-120s. A PENDING
+     * payment with no terminal callback inside {@code stk-timeout-seconds}
+     * is auto-marked FAILED so the customer gets a payable invoice email
+     * instead of a stuck order. Late callbacks stay authoritative via the
+     * idempotency guards in markPaymentFailed.
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedRate = 60_000)
+    @Transactional
+    public void expireStaleStkSessions() {
+        int timeoutSeconds = mpesaProperties.getStkTimeoutSeconds() > 0
+                ? mpesaProperties.getStkTimeoutSeconds() : 120;
+        java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minusSeconds(timeoutSeconds);
+        var stale = paymentRepository.findStalePendingPayments(
+                Payment.PaymentProvider.MPESA, Payment.PaymentStatus.PENDING, cutoff);
+        for (Payment payment : stale) {
+            try {
+                Order order = payment.getOrder();
+                if (order == null || order.getStatus() != Order.OrderStatus.PENDING) {
+                    continue;
+                }
+                log.warn("STK session expired: checkoutRequestId={} order={}",
+                        payment.getProviderId(), order.getNumber());
+                markPaymentFailed(payment, order, "timeout_or_expired");
+            } catch (Exception e) {
+                log.error("expireStaleStkSessions failed for payment {}: {}",
+                        payment.getId(), e.getMessage());
+            }
+        }
+        if (!stale.isEmpty()) {
+            log.info("Expired {} stale STK sessions", stale.size());
+        }
     }
 
     private String recipientEmail(Order order) {

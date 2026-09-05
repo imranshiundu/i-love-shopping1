@@ -25,7 +25,7 @@ public class EmailService {
     public void sendVerificationEmail(String email, String token) {
         log.info("Sending verification email to: {}", email);
 
-        String verificationUrl = appProperties.getFrontendUrl() + "/verify-email?token=" + token;
+        String verificationUrl = appProperties.getFrontendUrl() + "/auth/verify-email?token=" + token;
 
         Context context = new Context();
         context.setVariable("email", email);
@@ -39,7 +39,7 @@ public class EmailService {
     public void sendPasswordResetEmail(String email, String token) {
         log.info("Sending password reset email to: {}", email);
 
-        String resetUrl = appProperties.getFrontendUrl() + "/reset-password?token=" + token;
+        String resetUrl = appProperties.getFrontendUrl() + "/auth/reset-password?token=" + token;
 
         Context context = new Context();
         context.setVariable("email", email);
@@ -79,6 +79,34 @@ public class EmailService {
             log.warn("No email for order {}, skipping confirmation", order.getNumber());
             return;
         }
+        Context context = orderContext(order, email);
+        context.setVariable("paymentProvider", paidVia(order));
+        context.setVariable("amountPaid", order.getTotalPaid());
+
+        sendEmail(email, "Order Confirmation - " + order.getNumber(), "email/order-confirmation", context);
+    }
+
+    /**
+     * Payable invoice for an unpaid order: sent right after checkout and
+     * re-sent whenever a payment attempt fails or the STK prompt expires,
+     * so the customer can pay later instead of starting over.
+     */
+    @Async
+    public void sendPaymentInvoice(com.iloveshopping.entity.Order order, String reasonLine) {
+        String email = order.getUser() != null ? order.getUser().getEmail() : order.getGuestEmail();
+        if (email == null || email.isBlank()) {
+            log.warn("No email for order {}, skipping invoice", order.getNumber());
+            return;
+        }
+        Context context = orderContext(order, email);
+        context.setVariable("payUrl", appProperties.getFrontendUrl() + "/checkout?retry=" + order.getNumber());
+        context.setVariable("reasonLine", reasonLine != null ? reasonLine
+                : "Your order is awaiting payment.");
+
+        sendEmail(email, "Invoice - pay for order " + order.getNumber(), "email/payment-invoice", context);
+    }
+
+    private Context orderContext(com.iloveshopping.entity.Order order, String email) {
         String orderUrl = appProperties.getFrontendUrl() + "/account/orders/" + order.getId();
 
         java.util.List<java.util.Map<String, Object>> items = new java.util.ArrayList<>();
@@ -100,9 +128,50 @@ public class EmailService {
         context.setVariable("tax", order.getTax());
         context.setVariable("shipping", order.getShipping());
         context.setVariable("total", order.getTotal());
-        context.setVariable("shippingAddress", order.getShippingAddress());
+        context.setVariable("shippingAddress", formatAddress(order.getShippingAddress()));
+        return context;
+    }
 
-        sendEmail(email, "Order Confirmation - " + order.getNumber(), "email/order-confirmation", context);
+    private String paidVia(com.iloveshopping.entity.Order order) {
+        return order.getPayments().stream()
+                .filter(p -> p.getStatus() == com.iloveshopping.entity.Payment.PaymentStatus.SUCCEEDED)
+                .reduce((first, second) -> second)
+                .map(p -> p.getProvider().name())
+                .orElse("—");
+    }
+
+    private String formatAddress(String stored) {
+        try {
+            String json = DataEncryptionService.decryptStatic(stored);
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            var node = mapper.readTree(json);
+            java.util.List<String> lines = new java.util.ArrayList<>();
+            addIfPresent(lines, node, "name");
+            addIfPresent(lines, node, "line1");
+            addIfPresent(lines, node, "line2");
+            String city = textOrNull(node, "city");
+            String state = textOrNull(node, "state");
+            String postal = textOrNull(node, "postalCode");
+            String cityLine = java.util.stream.Stream.of(city, state, postal)
+                    .filter(s -> s != null && !s.isBlank())
+                    .reduce((a, b) -> a + ", " + b).orElse(null);
+            if (cityLine != null) lines.add(cityLine);
+            addIfPresent(lines, node, "country");
+            addIfPresent(lines, node, "phone");
+            return lines.isEmpty() ? stored : String.join("<br/>", lines);
+        } catch (Exception e) {
+            return stored;
+        }
+    }
+
+    private void addIfPresent(java.util.List<String> lines, com.fasterxml.jackson.databind.JsonNode node, String field) {
+        String v = textOrNull(node, field);
+        if (v != null && !v.isBlank()) lines.add(v);
+    }
+
+    private String textOrNull(com.fasterxml.jackson.databind.JsonNode node, String field) {
+        var v = node.get(field);
+        return (v == null || v.isNull()) ? null : v.asText();
     }
 
     @Async

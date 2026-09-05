@@ -22,6 +22,12 @@ public interface PaymentRepository extends JpaRepository<Payment, String> {
 
     List<Payment> findByProviderAndStatus(Payment.PaymentProvider provider, Payment.PaymentStatus status);
 
+    @Query("SELECT p FROM Payment p WHERE p.provider = :provider AND p.status = :status AND p.createdAt < :cutoff")
+    List<Payment> findStalePendingPayments(
+            @Param("provider") Payment.PaymentProvider provider,
+            @Param("status") Payment.PaymentStatus status,
+            @Param("cutoff") java.time.LocalDateTime cutoff);
+
     @Query("SELECT p FROM Payment p WHERE p.provider = :provider AND p.providerId = :providerId")
     Optional<Payment> findByProviderAndProviderId(@Param("provider") Payment.PaymentProvider provider, @Param("providerId") String providerId);
 

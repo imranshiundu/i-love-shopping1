@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Order Confirmation</title>
+    <title>Payment Invoice</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f4f4f7;font-family:Arial,Helvetica,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f7;padding:40px 0;">
@@ -20,12 +20,16 @@
                 <!-- Body -->
                 <tr>
                     <td style="padding:40px;">
-                        <h2 style="margin:0 0 8px;color:#333333;font-size:20px;">Order Confirmed!</h2>
+                        <h2 style="margin:0 0 8px;color:#333333;font-size:20px;">Invoice — payment needed</h2>
                         <p style="margin:0 0 4px;color:#555555;font-size:15px;line-height:1.6;">
                             Hi <strong th:text="${email}">there</strong>,
                         </p>
+                        <p style="margin:0 0 8px;color:#555555;font-size:15px;line-height:1.6;" th:text="${reasonLine}">
+                            Your order is awaiting payment.
+                        </p>
                         <p style="margin:0 0 24px;color:#555555;font-size:15px;line-height:1.6;">
-                            Thank you for your purchase. Your order <strong th:text="${orderNumber}">ILS-0000000000-ABCD</strong> has been placed successfully.
+                            Order <strong th:text="${orderNumber}">ILS-0000000000-ABCD</strong> is reserved for you.
+                            Complete payment below — no need to start over.
                         </p>
 
                         <!-- Order Items -->
@@ -46,7 +50,7 @@
                             </tbody>
                         </table>
 
-                        <!-- Order Totals -->
+                        <!-- Totals -->
                         <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f9f9f9;border:1px solid #eee;border-radius:6px;margin-bottom:24px;">
                             <tr>
                                 <td style="padding:20px;">
@@ -64,7 +68,7 @@
                                             <td align="right" style="padding-bottom:6px;color:#333;font-size:13px;" th:text="${'KES ' + #numbers.formatDecimal(shipping, 1, 2)}">KES 0.00</td>
                                         </tr>
                                         <tr>
-                                            <td style="border-top:1px solid #eee;padding-top:8px;font-weight:700;color:#333;font-size:15px;">Total</td>
+                                            <td style="border-top:1px solid #eee;padding-top:8px;font-weight:700;color:#333;font-size:15px;">Amount due</td>
                                             <td align="right" style="border-top:1px solid #eee;padding-top:8px;font-weight:700;color:#e74c3c;font-size:16px;" th:text="${'KES ' + #numbers.formatDecimal(total, 1, 2)}">KES 0.00</td>
                                         </tr>
                                     </table>
@@ -72,33 +76,27 @@
                             </tr>
                         </table>
 
-                        <!-- Shipping Address -->
-                        <div th:if="${shippingAddress}" style="background-color:#f9f9f9;border:1px solid #eee;border-radius:6px;padding:16px;margin-bottom:24px;">
-                            <p style="margin:0 0 8px;color:#666;font-size:12px;font-weight:600;text-transform:uppercase;">Shipping to</p>
-                            <p style="margin:0;color:#333;font-size:14px;line-height:1.5;" th:utext="${shippingAddress}">Address</p>
-                        </div>
-
-                        <!-- Payment Details -->
-                        <div style="background-color:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:16px;margin-bottom:24px;">
-                            <p style="margin:0 0 8px;color:#666;font-size:12px;font-weight:600;text-transform:uppercase;">Payment</p>
-                            <p style="margin:0;color:#333;font-size:14px;line-height:1.6;">
-                                Paid via <strong th:text="${paymentProvider}">M-Pesa</strong><br/>
-                                Amount paid: <strong th:text="${'KES ' + #numbers.formatDecimal(amountPaid, 1, 2)}">KES 0.00</strong>
-                            </p>
-                        </div>
-
-                        <!-- View Order Button -->
+                        <!-- Pay Button -->
                         <table width="100%" cellpadding="0" cellspacing="0">
                             <tr>
-                                <td align="center" style="padding:8px 0 24px;">
-                                    <a th:href="${orderUrl}" style="display:inline-block;background-color:#e74c3c;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 48px;border-radius:6px;">
-                                        View Order Details
+                                <td align="center" style="padding:8px 0 8px;">
+                                    <a th:href="${payUrl}" style="display:inline-block;background-color:#e74c3c;color:#ffffff;text-decoration:none;font-size:16px;font-weight:600;padding:14px 48px;border-radius:6px;">
+                                        Pay now
                                     </a>
                                 </td>
                             </tr>
                         </table>
+                        <p style="margin:0 0 8px;color:#999999;font-size:13px;line-height:1.5;text-align:center;">
+                            M-Pesa or card — pick either on the payment page.
+                        </p>
+                        <p style="margin:0 0 8px;color:#999999;font-size:13px;line-height:1.5;text-align:center;">
+                            If the button doesn't work, copy and paste this link into your browser:
+                        </p>
+                        <p style="margin:0 0 24px;color:#e74c3c;font-size:13px;word-break:break-all;text-align:center;">
+                            <a th:href="${payUrl}" th:text="${payUrl}" style="color:#e74c3c;text-decoration:none;">pay link</a>
+                        </p>
                         <p style="margin:0;color:#555555;font-size:14px;line-height:1.6;">
-                            If you have any questions about your order, please contact our support team.
+                            Changed your mind? You can cancel or delete this unpaid order from your account — no charge was made.
                         </p>
                     </td>
                 </tr>
