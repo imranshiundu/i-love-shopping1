@@ -74,11 +74,15 @@ export default function AuthModal({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [awaiting2FA, setAwaiting2FA] = useState(false);
 
   const switchMode = (m: AuthMode) => {
     setMode(m);
     setPassword('');
     setConfirmPassword('');
+    setTwoFactorCode('');
+    setAwaiting2FA(false);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -86,7 +90,12 @@ export default function AuthModal({
     setLoading(true);
     try {
       if (mode === 'login') {
-        await login(email, password);
+        const result = await login(email, password, awaiting2FA ? twoFactorCode : undefined);
+        if (result?.twoFactorRequired) {
+          setAwaiting2FA(true);
+          toast('Enter the 6-digit code from your authenticator app');
+          return;
+        }
         toast.success('Welcome back');
       } else {
         if (password !== confirmPassword) { toast.error('Passwords do not match'); return; }
@@ -155,11 +164,18 @@ export default function AuthModal({
                 required autoComplete="new-password" className={fieldCls} />
             </Field>
           )}
+          {mode === 'login' && awaiting2FA && (
+            <Field icon={FiLock} label="Authenticator code" hint="6 digits from Google Authenticator / Authy">
+              <input type="text" inputMode="numeric" value={twoFactorCode}
+                onChange={e => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                required minLength={6} maxLength={6} placeholder="123456" autoComplete="one-time-code" className={fieldCls} />
+            </Field>
+          )}
 
           <button type="submit" disabled={loading}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60">
-            {loading ? (mode === 'login' ? 'Signing in...' : 'Creating account...') : (
-              <>{mode === 'login' ? 'Sign in' : 'Create account'} <FiArrowRight /></>
+            {loading ? (mode === 'login' ? (awaiting2FA ? 'Verifying...' : 'Signing in...') : 'Creating account...') : (
+              <>{mode === 'login' ? (awaiting2FA ? 'Verify code' : 'Sign in') : 'Create account'} <FiArrowRight /></>
             )}
           </button>
         </form>

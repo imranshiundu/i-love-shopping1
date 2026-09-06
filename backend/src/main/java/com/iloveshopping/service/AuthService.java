@@ -473,7 +473,11 @@ public class AuthService {
         Session session = Session.builder()
                 .id(sessionId)
                 .user(user)
-                .refreshTokenHash(null)
+                // Placeholder: refresh_token_hash is NOT NULL UNIQUE, and this
+                // temp session never yields a usable refresh token (deleted on
+                // verify, expires in 10 min). Unguessable so it can't collide
+                // with a real token hash.
+                .refreshTokenHash("TEMP_2FA_" + UUID.randomUUID())
                 .userAgent(userAgent)
                 .ip(ipAddress)
                 .expiresAt(LocalDateTime.now().plusMinutes(10))

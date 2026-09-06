@@ -93,6 +93,12 @@ public class PaymentController {
     public ResponseEntity<Void> stripeWebhook(
             @RequestBody String payload,
             @RequestHeader(value = "Stripe-Signature", required = false) String sig) {
+        // Reject unsigned calls up front: the SDK NPEs on a null signature,
+        // and Stripe must not retry these as 5xx (it retries 5xx webhooks).
+        if (sig == null || sig.isBlank()) {
+            log.warn("Stripe webhook without signature rejected");
+            return ResponseEntity.badRequest().build();
+        }
         try {
             stripePaymentService.processWebhook(payload, sig);
             return ResponseEntity.ok().build();
