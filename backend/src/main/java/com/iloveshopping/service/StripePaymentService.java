@@ -13,7 +13,9 @@ import com.iloveshopping.repository.ProductRepository;
 import com.stripe.Stripe;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.Refund;
 import com.stripe.param.PaymentIntentCreateParams;
+import com.stripe.param.RefundCreateParams;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -209,6 +211,66 @@ public class StripePaymentService {
             }
 
             throw new PaymentException("Failed to confirm Stripe payment: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Real refund through Stripe (admin only). Moves real money back to the
+     * customer's card — in live mode this is a genuine reversal. Idempotent:
+     * an already-refunded payment returns its current state.
+     */
+    @Transactional
+    public Map<String, Object> refundPayment(String orderNumber) {
+        if (!isConfigured()) {
+            throw new PaymentException("Stripe is not configured");
+        }
+
+        Order order = orderRepository.findByNumber(orderNumber)
+                .orElseThrow(() -> new ResourceNotFoundException("Order", "number", orderNumber));
+
+        Payment payment = order.getPayments().stream()
+                .filter(p -> p.getProvider() == Payment.PaymentProvider.STRIPE
+                        && p.getStatus() == Payment.PaymentStatus.SUCCEEDED)
+                .reduce((first, second) -> second)
+                .orElse(null);
+
+        if (payment == null) {
+            boolean alreadyRefunded = order.getPayments().stream()
+                    .anyMatch(p -> p.getProvider() == Payment.PaymentProvider.STRIPE
+                            && p.getStatus() == Payment.PaymentStatus.REFUNDED);
+            if (alreadyRefunded && order.getStatus() == Order.OrderStatus.REFUNDED) {
+                Map<String, Object> ok = new HashMap<>();
+                ok.put("orderNumber", order.getNumber());
+                ok.put("status", "REFUNDED");
+                return ok;
+            }
+            throw new PaymentException("No successful Stripe payment to refund on order " + orderNumber);
+        }
+
+        try {
+            RefundCreateParams params = RefundCreateParams.builder()
+                    .setPaymentIntent(payment.getProviderId())
+                    .setReason(RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
+                    .build();
+            Refund refund = Refund.create(params);
+            log.info("Stripe refund {} for intent {} (order {})",
+                    refund.getId(), payment.getProviderId(), order.getNumber());
+
+            payment.setStatus(Payment.PaymentStatus.REFUNDED);
+            payment.setMetadata(buildMetadata(payment.getProviderId(), "refunded:" + refund.getId()));
+            paymentRepository.save(payment);
+
+            order.setStatus(Order.OrderStatus.REFUNDED);
+            orderRepository.save(order);
+
+            Map<String, Object> ok = new HashMap<>();
+            ok.put("orderNumber", order.getNumber());
+            ok.put("status", "REFUNDED");
+            ok.put("refundId", refund.getId());
+            return ok;
+        } catch (StripeException e) {
+            log.error("Stripe refund failed for order {}: {}", orderNumber, e.getMessage(), e);
+            throw new PaymentException("Stripe refund failed: " + e.getMessage());
         }
     }
 

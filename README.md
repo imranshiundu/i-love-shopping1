@@ -531,6 +531,23 @@ Both money rails work out of the box in test mode — no real money moves.
 
 > Deep-dive (no mocks, real API calls, failure matrix): [`SETUP-PAYMENTS.md`](SETUP-PAYMENTS.md). Automated harness: `./scripts/grok.sh all`.
 
+### Going live with a real bank card
+
+Test keys move no money. To charge a real card, flip Stripe to **live mode**:
+
+1. **Activate your Stripe account** at https://dashboard.stripe.com (business details + payout bank account; required before live keys work).
+2. **Copy the LIVE keys**: Developers → API keys → `pk_live_...` and `sk_live_...` (never commit them, never paste them in chat or email).
+3. **Paste them in 4 places** (test values stay for local dev):
+   - Backend `.env`: `STRIPE_SECRET_KEY=sk_live_...`
+   - Frontend env (`frontend/.env.production` locally): `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...` → `pk_live_...`
+   - **Vercel dashboard** → project → Settings → Environment Variables: same `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, then redeploy
+   - **Production server** `.env` + restart the API
+4. **Live webhook**: Stripe Dashboard → Developers → Webhooks → Add endpoint `https://YOUR-API-HOST/api/v1/payments/stripe/webhook`, subscribe to `payment_intent.succeeded` + `payment_intent.payment_failed` → paste the `whsec_...` as `STRIPE_WEBHOOK_SECRET` in the same 4 places.
+5. **Safe first live test**: buy a cheap item (e.g. KES 150) with your real card → confirm the order flips to CONFIRMED and the charge appears in the Stripe dashboard → refund it from the admin Orders page (REFUNDED button calls the real Stripe refund API and reverses the charge). A small processing fee may be non-refundable — that's Stripe's cut, not ours.
+6. Card data never touches our servers in either mode (Stripe Elements tokenizes in the browser), so PCI scope doesn't change.
+
+**M-Pesa production (real money on STK approval):** create a production app at https://developer.safaricom.co.ke, set `MPESA_ENVIRONMENT=production`, `MPESA_BASE_URL=https://api.safaricom.co.ke`, your production shortcode/passkey/keys, and publicly reachable callback URLs. M-Pesa reversals happen in the M-Pesa org portal — the system has no auto-reversal endpoint for mobile money.
+
 ## Getting Started (Development)
 
 This is a **development** setup, not a production server. Everything runs in the **foreground** so you can watch the logs and press `Ctrl+C` to stop. No background services are started.

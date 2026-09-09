@@ -41,10 +41,16 @@ export default function AdminOrdersPage() {
   useEffect(() => { load(); }, [load]);
 
   const updateStatus = async (orderNumber: string, status: string) => {
+    if (status === 'REFUNDED' && !confirm(`Refund ${orderNumber} for real? This moves money back to the customer's card via Stripe.`)) return;
     setUpdatingId(orderNumber);
     try {
-      await admin.updateOrderStatus(orderNumber, status);
-      toast.success(`${orderNumber} is now ${status}`);
+      if (status === 'REFUNDED') {
+        const res = await admin.refundOrder(orderNumber);
+        toast.success(`${orderNumber} refunded${res.data?.refundId ? ` (${res.data.refundId})` : ''}`);
+      } else {
+        await admin.updateOrderStatus(orderNumber, status);
+        toast.success(`${orderNumber} is now ${status}`);
+      }
       await load();
     } catch (e: any) { toast.error(e.message); }
     setUpdatingId(null);

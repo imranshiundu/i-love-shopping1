@@ -219,6 +219,8 @@ export const admin = {
     ),
   updateOrderStatus: (orderNumber: string, status: string) =>
     request<Order>(`/admin/orders/${orderNumber}/status`, { method: 'PUT', body: JSON.stringify({ status }) }),
+  refundOrder: (orderNumber: string) =>
+    request<{ orderNumber: string; status: string; refundId?: string }>(`/admin/orders/${orderNumber}/refund`, { method: 'POST' }),
   listUsers: (page = 0, size = 20) => request<{ users: User[]; pagination: any }>(`/admin/users?page=${page}&size=${size}`),
   createCategory: (data: Partial<Category>) => request<Category>('/categories', { method: 'POST', body: JSON.stringify(data) }),
   updateCategory: (id: string, data: Partial<Category>) => request<Category>(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

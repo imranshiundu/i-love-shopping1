@@ -6,6 +6,7 @@ import com.iloveshopping.dto.common.ApiResponse;
 import com.iloveshopping.dto.order.OrderResponse;
 import com.iloveshopping.dto.user.UserProfileResponse;
 import com.iloveshopping.service.AdminService;
+import com.iloveshopping.service.StripePaymentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,6 +26,7 @@ import java.util.List;
 public class AdminController {
 
     private final AdminService adminService;
+    private final StripePaymentService stripePaymentService;
 
     @GetMapping("/stats")
     @Operation(summary = "Dashboard statistics (Admin)")
@@ -51,6 +53,14 @@ public class AdminController {
 
         OrderResponse order = adminService.updateOrderStatus(orderNumber, request);
         return ResponseEntity.ok(ApiResponse.success(order));
+    }
+
+    @PostMapping("/orders/{orderNumber}/refund")
+    @Operation(summary = "Refund a paid Stripe order for real (Admin) — moves money back to the card")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> refundOrder(
+            @PathVariable String orderNumber) {
+
+        return ResponseEntity.ok(ApiResponse.success(stripePaymentService.refundPayment(orderNumber)));
     }
 
     @GetMapping("/users")
