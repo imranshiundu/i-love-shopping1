@@ -31,10 +31,6 @@ type StkStatus = 'idle' | 'sending' | 'waiting_pin' | 'polling' | 'success' | 'f
 const STK_POLL_MS = 3000;
 const STK_POLL_MAX = 40;
 
-const stripePromise = config.stripe.publishableKey
-  ? loadStripe(config.stripe.publishableKey)
-  : null;
-
 const FIELD_STYLE = {
   base: { fontSize: '15px', color: '#1c1917', '::placeholder': { color: '#a8a29e' }, fontFamily: 'system-ui, sans-serif' },
   invalid: { color: '#e11d48' },
@@ -212,6 +208,29 @@ function CheckoutContent() {
   const capturedTotalRef = useRef<number>(0);
   const [payTotal, setPayTotal] = useState(0);
   const [orderForPayment, setOrderForPayment] = useState<{ id: string; number: string } | null>(null);
+
+  // Stripe Elements, keyed to the backend's active mode (test/live) so the
+  // storefront can never mix a test key with a live backend or vice versa.
+  const [stripePromise, setStripePromise] = useState<Promise<any> | null>(null);
+  const [stripeEnv, setStripeEnv] = useState<'test' | 'live' | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await paymentsApi.stripeConfig();
+        const key = res.data?.publishableKey || config.stripe.publishableKey;
+        if (!cancelled && key) {
+          setStripePromise(loadStripe(key));
+          setStripeEnv(res.data?.environment === 'live' ? 'live' : 'test');
+        }
+      } catch {
+        if (!cancelled && config.stripe.publishableKey) {
+          setStripePromise(loadStripe(config.stripe.publishableKey));
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   // Auth gate: user must sign in/register before paying
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -762,7 +781,21 @@ function CheckoutContent() {
                       <m.icon className="h-5 w-5" />
                     </span>
                     <span className="flex-1">
-                      <span className="block font-semibold">{m.label}</span>
+                      <span className="flex items-center gap-2 font-semibold">
+                        {m.label}
+                        {m.id === 'stripe' && stripeEnv && (
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide ${
+                            stripeEnv === 'live' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {stripeEnv === 'live' ? 'Live — real money' : 'Test mode'}
+                          </span>
+                        )}
+                        {m.id === 'mpesa' && (
+                          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-stone-500">
+                            Africa only
+                          </span>
+                        )}
+                      </span>
                       <span className="block text-sm text-stone-500">{m.desc}</span>
                     </span>
                     <span className={`flex h-5 w-5 items-center justify-center rounded-full border-2 ${paymentMethod === m.id ? 'border-primary-600 bg-primary-600' : 'border-stone-300'}`}>

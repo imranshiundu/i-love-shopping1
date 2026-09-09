@@ -52,10 +52,11 @@ public class PaymentController {
     // ---- Stripe ----
 
     @GetMapping("/stripe/config")
-    @Operation(summary = "Get Stripe publishable key")
+    @Operation(summary = "Get Stripe mode + publishable key (public — lets the storefront auto-match test/live)")
     public ResponseEntity<ApiResponse<Map<String, Object>>> stripeConfig() {
         Map<String, Object> out = new HashMap<>();
-        out.put("publishableKey", stripeProperties.getPublishableKey());
+        out.put("environment", stripeProperties.isLive() ? "live" : "test");
+        out.put("publishableKey", stripeProperties.effectivePublishableKey());
         out.put("configured", stripePaymentService.isConfigured());
         return ResponseEntity.ok(ApiResponse.success(out));
     }

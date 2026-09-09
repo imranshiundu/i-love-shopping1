@@ -41,22 +41,28 @@ public class StripePaymentService {
 
     @PostConstruct
     public void init() {
-        if (stripeProperties.getSecretKey() != null && !stripeProperties.getSecretKey().isBlank()) {
-            Stripe.apiKey = stripeProperties.getSecretKey();
-            log.info("Stripe API key configured");
+        if (effectiveSecretKey() != null) {
+            Stripe.apiKey = effectiveSecretKey();
+            log.info("Stripe API key configured ({} mode)", stripeProperties.isLive() ? "LIVE — real money" : "test");
         } else {
             log.warn("Stripe secret key not configured — card payments will be unavailable");
         }
     }
 
     public boolean isConfigured() {
-        return stripeProperties.getSecretKey() != null && !stripeProperties.getSecretKey().isBlank();
+        return effectiveSecretKey() != null;
+    }
+
+    private String effectiveSecretKey() {
+        return stripeProperties.effectiveSecretKey();
     }
 
     @Transactional
     public Map<String, Object> createPaymentIntent(String orderId, BigDecimal clientAmount, String currency) {
         if (!isConfigured()) {
-            throw new PaymentException("Stripe is not configured. Add STRIPE_SECRET_KEY to your environment.");
+            throw new PaymentException(stripeProperties.isLive()
+                    ? "Stripe live mode is on but no live key is set. Add STRIPE_LIVE_SECRET_KEY (or flip STRIPE_ENVIRONMENT back to test)."
+                    : "Stripe is not configured. Add STRIPE_TEST_SECRET_KEY (or STRIPE_SECRET_KEY) to your environment.");
         }
 
         Order order = orderRepository.findById(orderId)
@@ -115,10 +121,10 @@ public class StripePaymentService {
             Map<String, Object> response = new HashMap<>();
             response.put("paymentIntentId", paymentIntent.getId());
             response.put("clientSecret", paymentIntent.getClientSecret());
+            response.put("publishableKey", stripeProperties.effectivePublishableKey());
             response.put("status", paymentIntent.getStatus());
             response.put("orderId", order.getId());
             response.put("paymentId", payment.getId());
-            response.put("publishableKey", stripeProperties.getPublishableKey());
 
             log.info("Stripe PaymentIntent created: {} for order {}", paymentIntent.getId(), order.getNumber());
             return response;
@@ -279,7 +285,7 @@ public class StripePaymentService {
         if (!isConfigured()) return;
 
         com.stripe.model.Event event = com.stripe.net.Webhook.constructEvent(
-                payload, sigHeader, stripeProperties.getWebhookSecret());
+                payload, sigHeader, stripeProperties.effectiveWebhookSecret());
 
         try {
             String type = event.getType();

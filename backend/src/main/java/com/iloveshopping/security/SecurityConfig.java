@@ -77,6 +77,7 @@ public class SecurityConfig {
                         .requestMatchers("/orders/payments/mpesa/**").permitAll()
                         .requestMatchers("/payments/mpesa/**").permitAll()
                         .requestMatchers("/payments/stripe/webhook").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/payments/stripe/config").permitAll()
                         .requestMatchers(HttpMethod.POST, "/payments/stripe/create-intent").permitAll()
                         .requestMatchers(HttpMethod.POST, "/payments/stripe/confirm").permitAll()
                         .requestMatchers(HttpMethod.POST, "/orders/*/cancel").permitAll()

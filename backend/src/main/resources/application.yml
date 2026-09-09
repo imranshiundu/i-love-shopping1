@@ -133,9 +133,16 @@ mpesa:
   stk-timeout-seconds: ${MPESA_STK_TIMEOUT_SECONDS:120}
 
 stripe:
+  environment: ${STRIPE_ENVIRONMENT:test}
   secret-key: ${STRIPE_SECRET_KEY:}
   publishable-key: ${STRIPE_PUBLISHABLE_KEY:}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET:}
+  test-secret-key: ${STRIPE_TEST_SECRET_KEY:}
+  test-publishable-key: ${STRIPE_TEST_PUBLISHABLE_KEY:}
+  test-webhook-secret: ${STRIPE_TEST_WEBHOOK_SECRET:}
+  live-secret-key: ${STRIPE_LIVE_SECRET_KEY:}
+  live-publishable-key: ${STRIPE_LIVE_PUBLISHABLE_KEY:}
+  live-webhook-secret: ${STRIPE_LIVE_WEBHOOK_SECRET:}
   min-amount: ${STRIPE_MIN_AMOUNT:100}
 
 spring.rabbitmq:

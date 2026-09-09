@@ -533,18 +533,18 @@ Both money rails work out of the box in test mode — no real money moves.
 
 ### Going live with a real bank card
 
-Test keys move no money. To charge a real card, flip Stripe to **live mode**:
+**How the modes differ (important):** unlike M-Pesa Daraja — where even the sandbox auto-completes prompts against a fake balance — **Stripe test mode moves no money at all**: charges and refunds are simulated ledger entries visible only in your test dashboard. Flip to live and the *same code* moves real money, which you then reverse with a real refund. So: test freely in test mode, and after any live test, refund immediately (below).
+
+Switching is one variable — the storefront follows automatically (it loads whichever publishable key matches the backend mode, and badges the checkout `Test mode` vs `Live — real money`):
 
 1. **Activate your Stripe account** at https://dashboard.stripe.com (business details + payout bank account; required before live keys work).
 2. **Copy the LIVE keys**: Developers → API keys → `pk_live_...` and `sk_live_...` (never commit them, never paste them in chat or email).
-3. **Paste them in 4 places** (test values stay for local dev):
-   - Backend `.env`: `STRIPE_SECRET_KEY=sk_live_...`
-   - Frontend env (`frontend/.env.production` locally): `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...` → `pk_live_...`
-   - **Vercel dashboard** → project → Settings → Environment Variables: same `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`, then redeploy
-   - **Production server** `.env` + restart the API
-4. **Live webhook**: Stripe Dashboard → Developers → Webhooks → Add endpoint `https://YOUR-API-HOST/api/v1/payments/stripe/webhook`, subscribe to `payment_intent.succeeded` + `payment_intent.payment_failed` → paste the `whsec_...` as `STRIPE_WEBHOOK_SECRET` in the same 4 places.
-5. **Safe first live test**: buy a cheap item (e.g. KES 150) with your real card → confirm the order flips to CONFIRMED and the charge appears in the Stripe dashboard → refund it from the admin Orders page (REFUNDED button calls the real Stripe refund API and reverses the charge). A small processing fee may be non-refundable — that's Stripe's cut, not ours.
-6. Card data never touches our servers in either mode (Stripe Elements tokenizes in the browser), so PCI scope doesn't change.
+3. **Paste them once** as the live set (keep the test set untouched):
+   `STRIPE_LIVE_SECRET_KEY=sk_live_...`, `STRIPE_LIVE_PUBLISHABLE_KEY=pk_live_...`, `STRIPE_LIVE_WEBHOOK_SECRET=whsec_...` — in backend `.env`, and on the production server's `.env`. No frontend change needed.
+4. **Flip the switch**: `STRIPE_ENVIRONMENT=live` (back to `test` when done) + restart the API. That's it.
+5. **Live webhook**: Stripe Dashboard → Developers → Webhooks → Add endpoint `https://YOUR-API-HOST/api/v1/payments/stripe/webhook`, subscribe to `payment_intent.succeeded` + `payment_intent.payment_failed` → that's where the live `whsec_...` comes from.
+6. **Safe first live test**: buy a cheap item (e.g. KES 150) with your real card → confirm the order flips to CONFIRMED and the charge appears in the **live** dashboard → refund it from the admin Orders page (REFUNDED button calls the real Stripe refund API and reverses the charge). A small processing fee may be non-refundable — that's Stripe's cut, not ours.
+7. Card data never touches our servers in either mode (Stripe Elements tokenizes in the browser), so PCI scope doesn't change.
 
 **M-Pesa production (real money on STK approval):** create a production app at https://developer.safaricom.co.ke, set `MPESA_ENVIRONMENT=production`, `MPESA_BASE_URL=https://api.safaricom.co.ke`, your production shortcode/passkey/keys, and publicly reachable callback URLs. M-Pesa reversals happen in the M-Pesa org portal — the system has no auto-reversal endpoint for mobile money.
 

@@ -207,6 +207,8 @@ export const payments = {
     request<any[]>(`/payments?page=${page}&size=${size}`),
   stripeCreateIntent: (orderId: string, amount: number, currency = 'KES') =>
     request<any>('/payments/stripe/create-intent', { method: 'POST', body: JSON.stringify({ orderId, amount, currency }) }),
+  stripeConfig: () =>
+    request<{ environment: string; publishableKey: string; configured: boolean }>('/payments/stripe/config'),
   stripeConfirm: (paymentIntentId: string) =>
     request<any>('/payments/stripe/confirm', { method: 'POST', body: JSON.stringify({ paymentIntentId }) }),
 };
