@@ -66,6 +66,19 @@ Then restart the backend — it picks up values from `.env` automatically.
 
 ---
 
+## If You Are Testing from Estonia: What Works and What Doesn't
+
+| Flow | Works from Estonia? | Notes |
+|---|---|---|
+| Stripe card payment end-to-end | ✅ Yes, fully | Use the test cards above; no real money, no Estonian bank needed |
+| M-Pesa STK push accepted | ✅ Yes (sandbox) | The API returns `ResponseCode: 0` with a real `CheckoutRequestID` for phone `254708374149` |
+| M-Pesa phone prompt + PIN | ❌ No | Requires a Safaricom SIM in Africa; the prompt goes to the test phone, not yours |
+| M-Pesa success/failure/timeout callbacks | ✅ Yes (simulated) | POST a Daraja-shaped callback to `/orders/payments/mpesa/callback` (see `SETUP-PAYMENTS.md`); order flips to CONFIRMED/FAILED exactly like production |
+| STK expiry watchdog | ✅ Yes | Unanswered test pushes auto-fail after `MPESA_STK_TIMEOUT_SECONDS` and trigger the invoice email |
+| Prices in euros | ✅ Display only | Switch currency in the header globe icon; payments always settle in KES |
+
+**Emails while testing:** order confirmation, invoices and password mails need a sender — any Gmail account works from anywhere (app password, 10-minute setup), or Brevo, or local MailHog which captures without sending. Exact steps for all three: [README → Bring Your Own Tokens](../../README.md#bring-your-own-tokens-oauth-email--captcha).
+
 ## Setup for Kenya Testers (M-Pesa)
 
 ### Using Daraja Sandbox
