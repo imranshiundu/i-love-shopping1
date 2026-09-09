@@ -10,6 +10,8 @@ B2C E-commerce Platform for the Kenyan market, built with a **Next.js 14 storefr
 - [Technology Stack](#technology-stack)
 - [Features](#features)
 - [Prerequisites](#prerequisites)
+- [Bring Your Own Tokens](#bring-your-own-tokens-oauth-email--captcha)
+- [Payment test keys](#payment-test-keys-sandbox)
 - [Getting Started (Development)](#getting-started-development)
 - [Quick Start with the Setup Script](#quick-start-with-the-setup-script)
 - [Running Manually](#running-manually)
@@ -80,7 +82,6 @@ Order state flows through RabbitMQ: checkout publishes `order.created`, successf
 ```mermaid
 erDiagram
     USER ||--o{ SESSION : has
-    USER ||--o{ REFRESH_TOKEN : has
     USER ||--o{ ADDRESS : has
     USER ||--o{ CART : has
     USER ||--o{ ORDER : places
@@ -92,6 +93,10 @@ erDiagram
         string name
         string avatar
         datetime email_verified
+        string email_verification_token
+        datetime email_verification_expires_at
+        string password_reset_token
+        datetime password_reset_expires_at
         string two_factor_secret
         boolean two_factor_enabled
         string roles
@@ -105,15 +110,6 @@ erDiagram
         string refresh_token_hash UK
         string user_agent
         string ip
-        datetime expires_at
-        datetime revoked_at
-        datetime created_at
-    }
-
-    REFRESH_TOKEN {
-        uuid id PK
-        string token_hash UK
-        uuid user_id FK
         datetime expires_at
         datetime revoked_at
         datetime created_at
@@ -328,13 +324,13 @@ erDiagram
 - ✅ Product CRUD with images
 - ✅ Stock tracking with atomic decrement/increment
 - ✅ Sale pricing with compare-at price
-- ✅ Weight & dimensions (metric/imperial)
+- ✅ Weight & dimensions
 - ✅ Full-text search on name & description
 - ✅ Faceted filtering (category, brand, price, stock, sale)
 - ✅ Sorting (relevance, price, newest, rating)
 - ✅ Search suggestions/autocomplete
 - ✅ Similar products recommendations
-- ✅ Pagination with cursor support
+- ✅ Offset pagination
 
 ### Shopping Cart
 - ✅ User carts (authenticated)
@@ -345,12 +341,12 @@ erDiagram
 - ✅ Cart merging on login
 
 ### Orders & Checkout
-- ✅ Multi-step checkout (shipping/billing addresses)
+- ✅ Single-page checkout (shipping/billing addresses)
 - ✅ Address book with default addresses
 - ✅ Tax calculation (configurable rate)
 - ✅ Shipping calculation (free over threshold)
 - ✅ Order number generation (prefix + timestamp + random)
-- ✅ Order status workflow (PENDING → CONFIRMED → PROCESSING → SHIPPED → DELIVERED)
+- ✅ Order status workflow (PENDING → CONFIRMED → PROCESSING → SHIPPED → DELIVERED, plus EXPIRED/CANCELLED/REFUNDED)
 - ✅ Order cancellation (before processing)
 - ✅ Order history with pagination
 
@@ -383,7 +379,8 @@ erDiagram
 - ✅ Cart page with real-time totals, quantity updates and free-shipping threshold
 - ✅ Single-page checkout: address form + payment method selection (M-Pesa, Stripe card)
 - ✅ Order success page and order history
-- ✅ Auth pages: login, register, forgot password
+- ✅ Auth modal: sign-in/register tabs, 2FA code step, Google/GitHub buttons, forgot-password link
+- ✅ Auth pages: forgot password, reset password, verify email, OAuth callback
 - ✅ Account area: profile, addresses book, password change
 - ✅ Admin area (role-gated): dashboard, orders, products, categories, brands
 - ✅ Search autocomplete in the header, responsive layout, toast notifications
@@ -424,6 +421,9 @@ These go beyond the core requirements - added for real-world polish:
 - **JWT aligned to spec** - 15-minute access tokens, 7-day refresh tokens with single-use rotation and reuse detection.
 
 ### Auth & email extras (not in the brief)
+- **Modal authentication** - sign-in/register live in a global modal (deep-linkable via `?auth=login&next=...`), including the 2FA code step and OAuth buttons.
+- **OAuth end-to-end** - Google/GitHub buttons, `/oauth2/redirect` callback page, token handoff and guest-cart merge; providers stay hidden until you set keys on both sides.
+- **GitHub-hosted product images** - catalogue imagery served from a dedicated CDN repo instead of placeholder services, so images survive redeploys.
 - **Working email verification** - persisted single-use tokens (24h), `GET /auth/verify-email`, plus `POST /auth/resend-verification` which reuses a still-valid link.
 - **Working password reset** - persisted single-use tokens (1h), session invalidation on reset, no account enumeration.
 - **Real Gmail sender** - transactional mail goes through Gmail SMTP (`MAIL_*` in `.env`); MailHog remains a one-block dev toggle.
@@ -496,6 +496,31 @@ You must create your own third-party tokens and paste them into `.env` (backend)
 1. https://www.google.com/recaptcha/admin → register the site (v3) → get Site Key + Secret Key.
 2. Backend `.env`: `RECAPTCHA_SECRET_KEY=<secret>`; frontend env: `NEXT_PUBLIC_RECAPTCHA_SITE_KEY=<site key>` and `NEXT_PUBLIC_RECAPTCHA_ENABLED=true`.
 3. Leave the dev defaults (`dev-test-secret` + disabled flag) and verification is bypassed for local work.
+
+### Payment test keys (sandbox)
+
+Both money rails work out of the box in test mode — no real money moves.
+
+**M-Pesa Daraja sandbox (pre-filled)**
+- `.env` already contains working sandbox credentials (`MPESA_*`) — nothing to paste.
+- Test phone: `254708374149` (Safaricom's official sandbox number). Any STK push to it is accepted with `ResponseCode: 0`.
+- In sandbox, Safaricom auto-completes the prompt with `ResultCode: 0` within seconds **if it can reach your callback URL**. Locally that means running a tunnel (ngrok/cloudflared) and setting `MPESA_CALLBACK_URL`/`MPESA_TIMEOUT_URL` to it; without a tunnel you can still drive the full flow by POSTing a Daraja-shaped callback to `/orders/payments/mpesa/callback` yourself.
+- Unanswered prompts expire after `MPESA_STK_TIMEOUT_SECONDS` (default 120) and the order gets a payable invoice email automatically.
+- Production: get your own keys at https://developer.safaricom.co.ke, set `MPESA_ENVIRONMENT=production` + `MPESA_BASE_URL=https://api.safaricom.co.ke`, and point the callback URLs at your public API.
+
+**Stripe test mode**
+1. https://dashboard.stripe.com/test/apikeys → copy the test keys into `.env` (`STRIPE_SECRET_KEY=sk_test_...`) and the frontend env (`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...`).
+2. Test card: `4242 4242 4242 4242`, any future expiry, any CVC.
+3. Orders under `STRIPE_MIN_AMOUNT` (default KES 100) are rejected with a message pointing at M-Pesa — Stripe itself refuses sub-≈$0.50 charges.
+4. Webhooks (optional, for real-time status): install the Stripe CLI, run `stripe listen --forward-to localhost:8080/api/v1/payments/stripe/webhook`, and set the printed `whsec_...` as `STRIPE_WEBHOOK_SECRET`. Unsigned webhook calls are rejected with 400 (never 500, so Stripe won't pointlessly retry them).
+
+**End-to-end test payment (either rail)**
+1. Add a product to the cart → checkout → place the order (status `PENDING`, invoice email arrives).
+2. M-Pesa: STK push to `254708374149` → approve (or wait for the sandbox auto-callback) → order flips to `CONFIRMED`.
+3. Card: create a PaymentIntent → confirm with `4242...` → `CONFIRMED`.
+4. Watch `/account/orders`, the confirmation email, and the receipt at `/account/orders/NUMBER/receipt`.
+
+> Deep-dive (no mocks, real API calls, failure matrix): [`SETUP-PAYMENTS.md`](SETUP-PAYMENTS.md). Automated harness: `./scripts/grok.sh all`.
 
 ## Getting Started (Development)
 
@@ -719,7 +744,7 @@ Then open **http://localhost:3000** in your browser and:
 1. Browse products, filter by category/brand/price on `/products`
 2. Switch the display currency from the globe icon in the header
 3. Add items to the cart and watch totals update in real time
-4. Log in as `admin@iloveshopping.com` / `Admin123!` and place an order through checkout with the card option
+4. Log in as `admin@iloveshopping.com` / `Admin123!` and place an order through checkout with the card option (needs Stripe test keys — see [Payment test keys](#payment-test-keys-sandbox))
 5. Watch the order flip from PENDING to CONFIRMED in `/account/orders`, then check the confirmation email at http://localhost:8025 (Mailhog)
 6. Visit `/admin` for the dashboard, orders, products, categories and brands management
 
@@ -801,7 +826,7 @@ Every value in the frontend is configurable - no hardcoded URLs, prices or ident
 | `NEXT_PUBLIC_SHIPPING_COST` | `200` | Flat shipping fee below threshold |
 | `NEXT_PUBLIC_TAX_RATE` | `0.16` | VAT rate applied at cart/checkout |
 | `NEXT_PUBLIC_MIN_PASSWORD_LENGTH` | `8` | Registration/password validation |
-| `NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS` | `picsum.photos,images.unsplash.com` | Next.js image allowlist (comma-separated) |
+| `NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS` | `picsum.photos,images.unsplash.com,raw.githubusercontent.com` | Next.js image allowlist (comma-separated) |
 | `NEXT_PUBLIC_FEATURED_PRODUCTS_COUNT` | `8` | Products on the home page |
 | `NEXT_PUBLIC_PRODUCTS_PAGE_SIZE` | `12` | Products per listing page |
 | `NEXT_PUBLIC_ORDERS_PAGE_SIZE` | `10` | Orders per account page |
@@ -1085,7 +1110,10 @@ start target\site\jacoco\index.html
 | `JwtServiceTest` | Unit | JWT token generation, validation, expiry |
 | `AuthValidationTest` | Unit | Input validation for auth DTOs |
 | `AuthControllerTest` | API integration | Auth endpoint routing, validation, service delegation |
+| `OrderControllerTest` | API integration | Unpaid-order delete delegation |
 | `DataEncryptionServiceTest` | Unit | AES-GCM round-trip, idempotency, legacy plaintext compat |
+| `CartFunctionalityTest` | Unit | Cart totals, snapshots, quantity recalculation |
+| `CheckoutFlowTest` / `CheckoutValidationTest` | Unit | Order totals, shipping threshold, cancel guards, stock errors |
 | `ProductTest` | Unit | Product entity business logic |
 | `SecurityTest` | Unit | SQL injection, XSS, path traversal detection |
 | `HealthCheckTest` | Unit | Health check response structure |
@@ -1204,11 +1232,12 @@ i-love-shopping/
 │   │   │   │   ├── repository/      # Spring Data repositories
 │   │   │   │   ├── security/        # JWT, OAuth2, security config
 │   │   │   │   ├── service/         # Business logic
-│   │   │   │   └── util/            # Utility classes
+│   │   │   │   ├── util/            # Utility classes
+│   │   │   │   └── validation/      # Address + input validators
 │   │   │   └── resources/
-│   │   │       ├── db/migration/    # Flyway SQL migrations + seed data
+│   │   │       ├── db/migration/    # Flyway SQL migrations + seed data (V1..V13)
 │   │   │       ├── application.yml  # Main configuration
-│   │   │       └── templates/email/ # Thymeleaf email templates
+│   │   │       └── templates/email/ # Thymeleaf emails (verification, reset, invoice, confirmation, 2FA)
 │   │   └── test/
 │   │       └── java/...             # Unit & integration tests
 │   ├── Dockerfile
@@ -1222,13 +1251,15 @@ i-love-shopping/
 │   │   │   ├── products/            # Listing + detail pages
 │   │   │   ├── cart/                # Cart
 │   │   │   ├── checkout/            # Checkout + success page
-│   │   │   ├── auth/                # Login, register, forgot password
-│   │   │   ├── account/             # Profile, orders, addresses
+│   │   │   ├── auth/                # Forgot/reset password, verify email (login+register are a global modal)
+│   │   │   ├── account/             # Profile, orders (+invoice/receipt documents), addresses
+│   │   │   ├── oauth2/redirect/     # OAuth callback (Google/GitHub token handoff)
 │   │   │   └── admin/               # Admin dashboard (role-gated layout)
 │   │   ├── components/              # Header, footer, UI primitives
+│   │   ├── components/auth/         # Sign-in/register modal + host
 │   │   ├── contexts/                # Auth + cart context
 │   │   ├── services/                # API client, cart service
-│   │   ├── lib/                     # config.ts (all env vars), utils
+│   │   ├── lib/                     # config.ts (all env vars), captcha.ts, utils
 │   │   └── types/                   # Shared TypeScript types
 │   ├── Dockerfile                   # Multi-stage Node build
 │   ├── next.config.js               # API rewrites + image allowlist from env

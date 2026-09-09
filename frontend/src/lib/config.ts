@@ -31,7 +31,7 @@ export const config = {
     minPasswordLength: Number(process.env.NEXT_PUBLIC_MIN_PASSWORD_LENGTH) || 8,
   },
   images: {
-    hostnames: (process.env.NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS || 'picsum.photos,images.unsplash.com').split(','),
+    hostnames: (process.env.NEXT_PUBLIC_ALLOWED_IMAGE_HOSTS || 'picsum.photos,images.unsplash.com,raw.githubusercontent.com').split(','),
   },
   pages: {
     featuredProducts: Number(process.env.NEXT_PUBLIC_FEATURED_PRODUCTS_COUNT) || 8,

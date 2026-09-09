@@ -7,6 +7,7 @@ import com.iloveshopping.entity.User;
 import com.iloveshopping.exception.AuthenticationException;
 import com.iloveshopping.exception.ResourceConflictException;
 import com.iloveshopping.exception.ResourceNotFoundException;
+import com.iloveshopping.repository.SessionRepository;
 import com.iloveshopping.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,8 @@ public class UserManagementService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SessionRepository sessionRepository;
+    private final EmailService emailService;
 
     public UserProfileResponse getCurrentUserProfile() {
         User user = getCurrentUser();
@@ -45,6 +48,14 @@ public class UserManagementService {
             }
             user.setEmail(request.getEmail().toLowerCase());
             user.setEmailVerified(null);
+            // New address must be verified before it is trusted: issue a
+            // single-use token and mail the verification link.
+            user.setEmailVerificationToken(java.util.UUID.randomUUID().toString());
+            user.setEmailVerificationExpiresAt(java.time.LocalDateTime.now().plusHours(24));
+            userRepository.save(user);
+            emailService.sendVerificationEmail(user.getEmail(), user.getEmailVerificationToken());
+            log.info("Profile updated with email change for user: {}", user.getEmail());
+            return UserProfileResponse.from(user);
         }
 
         userRepository.save(user);
@@ -61,6 +72,9 @@ public class UserManagementService {
 
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
+
+        // Stolen-session protection: all other sessions die with the old password.
+        sessionRepository.revokeAllUserSessions(user.getId(), java.time.LocalDateTime.now());
 
         log.info("Password changed for user: {}", user.getEmail());
     }
