@@ -29,7 +29,7 @@ Required variables:
 - `GOOGLE_CLIENT_SECRET` - OAuth2 secret
 - `MAIL_PASSWORD` - SMTP app password
 - `DATA_ENCRYPTION_KEY` - 32+ char random string; encrypts order addresses and payment records at rest
-- `MPESA_SIMULATION_ENABLED` - keep `false` in production so STK push hits the real Daraja API
+- `MPESA_STK_TIMEOUT_SECONDS` - seconds before an unanswered STK push is auto-marked failed (default 120)
 - Frontend build args: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_NAME`, and the rest of the `NEXT_PUBLIC_*` set (see README Configuration)
 
 ## Development Deployment

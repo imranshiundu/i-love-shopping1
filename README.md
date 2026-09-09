@@ -706,10 +706,10 @@ These accounts are seeded by Flyway migrations and are ready to use:
 | **Administrator** | `admin@iloveshopping.com` | `Admin123!` | Everything, plus `/admin`: dashboard analytics, orders lifecycle, product CRUD, offers engine, customers |
 | **Customer** | `user@iloveshopping.com` | `User123!` | Browse, buy, review, manage profile and addresses |
 
-You can also register a brand-new account at `/auth/register` (verification
-emails land in Mailhog during development), or go through the entire shopping,
-checkout and payment journey as a **guest** - no account needed until after
-you have paid.
+You can also register a brand-new account via the **Create account** button in the
+header (a modal — verification emails land in Mailhog during development),
+or go through the entire shopping, checkout and payment journey as a
+**guest** - no account needed until after you have paid.
 
 > These credentials are for local development and reviewer environments only.
 > Never ship seeded passwords to production.
@@ -866,8 +866,12 @@ Swagger UI is available at: `http://localhost:8080/api/v1/docs`
 | `DELETE` | `/cart/items/{id}` | Remove cart item | Yes |
 | `POST` | `/orders/checkout` | Checkout (create order) | Yes |
 | `GET` | `/orders` | List user orders | Yes |
+| `GET` | `/auth/verify-email` | Verify email with token | No |
+| `POST` | `/auth/resend-verification` | Resend verification email | No |
 | `GET` | `/orders/{number}` | Get order details | Yes |
 | `POST` | `/orders/{number}/cancel` | Cancel order | Yes |
+| `DELETE` | `/orders/{number}` | Delete unpaid order | Yes |
+| `POST` | `/orders/{number}/retry-payment` | Retry payment (re-opens unpaid order) | Yes |
 | `POST` | `/orders/payments/mpesa/stk-push` | Initiate M-Pesa payment | Yes |
 | `POST` | `/payments/stripe/create-intent` | Create Stripe PaymentIntent | Yes |
 | `POST` | `/payments/stripe/confirm` | Confirm Stripe payment | Yes |

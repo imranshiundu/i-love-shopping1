@@ -23,7 +23,7 @@ export default function ForgotPasswordPage() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center px-5 py-14" style={{ background: 'linear-gradient(160deg, #101418 0%, #161d26 100%)' }}>
       <div className="w-full max-w-md">
-        <Link href="/auth/login" className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-stone-400 hover:text-white">
+        <Link href="/?auth=login" className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-stone-400 hover:text-white">
           <FiArrowLeft /> Back to sign in
         </Link>
 
@@ -70,7 +70,7 @@ export default function ForgotPasswordPage() {
 
         <p className="mt-8 text-center text-sm text-stone-500">
           Remembered it?{' '}
-          <Link href="/auth/login" className="font-semibold text-primary-400 hover:text-primary-300">Sign in</Link>
+          <Link href="/?auth=login" className="font-semibold text-primary-400 hover:text-primary-300">Sign in</Link>
         </p>
       </div>
     </div>

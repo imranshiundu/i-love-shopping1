@@ -36,7 +36,7 @@ function VerifyEmailContent() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center px-5 py-14" style={{ background: 'linear-gradient(160deg, #101418 0%, #161d26 100%)' }}>
       <div className="w-full max-w-md">
-        <Link href="/auth/login" className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-stone-400 hover:text-white">
+        <Link href="/?auth=login" className="mb-8 inline-flex items-center gap-2 text-sm font-medium text-stone-400 hover:text-white">
           <FiArrowLeft /> Back to sign in
         </Link>
 
@@ -60,7 +60,7 @@ function VerifyEmailContent() {
                 <p className="mt-2 leading-relaxed text-stone-500">
                   Your email address is confirmed. You can now sign in and shop.
                 </p>
-                <Link href="/auth/login"
+                <Link href="/?auth=login"
                   className="mt-6 inline-block w-full rounded-xl bg-stone-900 py-3 text-center font-semibold text-white shadow-lg shadow-stone-900/20 transition-all hover:-translate-y-0.5 hover:bg-stone-800">
                   Sign in
                 </Link>
