@@ -31,7 +31,7 @@ i-love-shopping is a full-featured B2C e-commerce platform designed for the Keny
 
 ### Key Highlights
 
-- **M-Pesa Daraja Integration** - Full STK Push payment flow with callback handling
+- **M-Pesa Daraja Integration** - Full STK Push payment flow with callback handling (African markets only)
 - **JWT Authentication** - Access/refresh tokens with rotation and revocation
 - **Two-Factor Authentication** - TOTP-based 2FA with Google Authenticator support
 - **CAPTCHA Protection** - Google reCAPTCHA v3 integration
@@ -350,7 +350,7 @@ erDiagram
 - ✅ Order cancellation (before processing)
 - ✅ Order history with pagination
 
-### M-Pesa Payments
+### M-Pesa Payments (African markets only)
 
 - ✅ C2B Payments
 - ✅ STK Push initiation
@@ -406,7 +406,7 @@ erDiagram
 These go beyond the core requirements - added for real-world polish:
 
 ### Payments
-- **Two payment rails at checkout** - M-Pesa Daraja (mobile money) and card via Stripe, both selectable in a single payment step. (Flutterwave/Airtel entries were removed: enum-only placeholders with no implementation. Stripe covers Visa/Mastercard worldwide including Kenya; M-Pesa covers mobile money.)
+- **Two payment rails at checkout** - M-Pesa Daraja (mobile money, **only in supported African markets**: Kenya, Tanzania, DRC, Mozambique, Lesotho, Ghana, Ethiopia) and card via Stripe (testable worldwide). Both selectable in a single payment step. (Flutterwave/Airtel entries were removed: enum-only placeholders with no implementation. Stripe covers Visa/Mastercard worldwide including Kenya; M-Pesa covers mobile money.)
 - **Real M-Pesa Daraja** - STK push via Safaricom sandbox/production. Configure keys in `.env`. Callback polling fallback for local dev.
 - **STK expiry watchdog** - Safaricom phone prompts last ~60–120s. A scheduled job (`MPESA_STK_TIMEOUT_SECONDS`, default 120) auto-marks unanswered STK sessions FAILED so orders never get stuck.
 - **Pay-later invoices** - every unpaid order triggers a payable invoice email (`/checkout?retry=ORDER-NUMBER`); fresh invoices are re-sent on every failed/expired payment. Customers can leave mid-payment and resume anytime.
@@ -479,11 +479,19 @@ You must create your own third-party tokens and paste them into `.env` (backend)
 3. Paste into `.env`: `GITHUB_CLIENT_ID=...` and `GITHUB_CLIENT_SECRET=...`.
 4. Show the button: set `NEXT_PUBLIC_GITHUB_ENABLED=true` in the frontend env and redeploy the frontend.
 
-**Email — Gmail app password (simplest)**
-1. Google Account → Security → 2-Step Verification (must be on) → App passwords → create one for Mail.
-2. Paste into `.env` (use the 16-letter code **without spaces** as the password):
-   `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USERNAME=you@gmail.com`, `MAIL_PASSWORD=xxxx xxxx xxxx xxxx` → without spaces, `MAIL_SMTP_AUTH=true`, `MAIL_SMTP_STARTTLS=true`, `MAIL_FROM=you@gmail.com`.
-3. The sender address always follows `MAIL_FROM`, so set it to the same Gmail account.
+**Email — Gmail app password (simplest, step by step)**
+1. Sign in to the Google account that will send the mail.
+2. Turn on 2-Step Verification: Google Account → Security → 2-Step Verification → follow the prompts (required — app passwords don't exist without it).
+3. Create the app password: Security → search "App passwords" → name it (e.g. `i-love-shopping`) → Google shows a **16-letter code** like `abcd efgh ijkl mnop`. Copy it immediately (it won't be shown again).
+4. Paste into `.env` — **delete the spaces** from the code and map it like this:
+   | Gmail value | `.env` variable |
+   |---|---|
+   | `smtp.gmail.com` | `MAIL_HOST` |
+   | `587` | `MAIL_PORT` |
+   | your Gmail address | `MAIL_USERNAME` **and** `MAIL_FROM` (must be the same account) |
+   | 16-letter code, no spaces (`abcdefghijklmnop`) | `MAIL_PASSWORD` |
+   | on | `MAIL_SMTP_AUTH=true`, `MAIL_SMTP_STARTTLS=true` |
+5. Restart the backend and register a test account — the verification email should land in the Gmail inbox (check Spam first). If it fails, the app logs the SMTP error on startup/first send; the usual cause is spaces left in the code or 2-Step Verification being off.
 
 **Email — Brevo (or any SMTP service)**
 1. Sign up at https://www.brevo.com → get an SMTP key (any provider works: Brevo, SendGrid, SES, Mailgun...).
@@ -501,15 +509,16 @@ You must create your own third-party tokens and paste them into `.env` (backend)
 
 Both money rails work out of the box in test mode — no real money moves.
 
-**M-Pesa Daraja sandbox (pre-filled)**
+**M-Pesa Daraja sandbox (pre-filled — Africa only)**
+- M-Pesa works **only in supported African markets** (Kenya, Tanzania, DRC, Mozambique, Lesotho, Ghana, Ethiopia). Outside Africa, test payments with a Stripe card below instead.
 - `.env` already contains working sandbox credentials (`MPESA_*`) — nothing to paste.
 - Test phone: `254708374149` (Safaricom's official sandbox number). Any STK push to it is accepted with `ResponseCode: 0`.
 - In sandbox, Safaricom auto-completes the prompt with `ResultCode: 0` within seconds **if it can reach your callback URL**. Locally that means running a tunnel (ngrok/cloudflared) and setting `MPESA_CALLBACK_URL`/`MPESA_TIMEOUT_URL` to it; without a tunnel you can still drive the full flow by POSTing a Daraja-shaped callback to `/orders/payments/mpesa/callback` yourself.
 - Unanswered prompts expire after `MPESA_STK_TIMEOUT_SECONDS` (default 120) and the order gets a payable invoice email automatically.
 - Production: get your own keys at https://developer.safaricom.co.ke, set `MPESA_ENVIRONMENT=production` + `MPESA_BASE_URL=https://api.safaricom.co.ke`, and point the callback URLs at your public API.
 
-**Stripe test mode**
-1. https://dashboard.stripe.com/test/apikeys → copy the test keys into `.env` (`STRIPE_SECRET_KEY=sk_test_...`) and the frontend env (`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...`).
+**Stripe test mode (works worldwide)**
+1. https://dashboard.stripe.com/test/apikeys → copy the test keys into `.env` (`STRIPE_SECRET_KEY=sk_test_...`) and the frontend env (`NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...`). Anyone, anywhere can test card payments with these.
 2. Test card: `4242 4242 4242 4242`, any future expiry, any CVC.
 3. Orders under `STRIPE_MIN_AMOUNT` (default KES 100) are rejected with a message pointing at M-Pesa — Stripe itself refuses sub-≈$0.50 charges.
 4. Webhooks (optional, for real-time status): install the Stripe CLI, run `stripe listen --forward-to localhost:8080/api/v1/payments/stripe/webhook`, and set the printed `whsec_...` as `STRIPE_WEBHOOK_SECRET`. Unsigned webhook calls are rejected with 400 (never 500, so Stripe won't pointlessly retry them).
