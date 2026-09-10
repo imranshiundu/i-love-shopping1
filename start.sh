@@ -199,13 +199,35 @@ log "Preparing frontend..."
 cd "$REPO_DIR/frontend"
 command -v node >/dev/null 2>&1 || die "Node.js is not installed (need 20+)."
 [ -d "node_modules" ] || { log "Installing frontend dependencies..."; npm install; }
+# Bake the full runtime config into the build so testers get working
+# payments/captcha without hand-editing frontend env files.
 export NEXT_PUBLIC_API_URL="http://localhost:$API_PORT/api/v1"
+export NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY="${STRIPE_TEST_PUBLISHABLE_KEY:-$STRIPE_PUBLISHABLE_KEY}"
+export NEXT_PUBLIC_STRIPE_MIN_AMOUNT="${STRIPE_MIN_AMOUNT:-100}"
+export NEXT_PUBLIC_APP_NAME="${APP_NAME:-i-love-shopping}"
+export NEXT_PUBLIC_APP_URL="http://localhost:$FE_PORT"
+export NEXT_PUBLIC_SUPPORT_EMAIL="${SUPPORT_EMAIL:-support@iloveshopping.com}"
+export NEXT_PUBLIC_COMPANY_LOCATION="Nairobi, Kenya"
+export NEXT_PUBLIC_DEFAULT_COUNTRY="${DEFAULT_COUNTRY:-KE}"
+export NEXT_PUBLIC_FREE_SHIPPING_THRESHOLD="${FREE_SHIPPING_THRESHOLD:-5000}"
+export NEXT_PUBLIC_SHIPPING_COST="${SHIPPING_COST:-10}"
+export NEXT_PUBLIC_TAX_RATE="${TAX_RATE:-0.16}"
+export NEXT_PUBLIC_MIN_PASSWORD_LENGTH="${MIN_PASSWORD_LENGTH:-8}"
+# reCAPTCHA + OAuth buttons only when the backend can actually honor them.
+if [ -n "$RECAPTCHA_SITE_KEY" ] && [ "$RECAPTCHA_SITE_KEY" != "dev-recaptcha-site-key" ] \
+    && [ -n "$RECAPTCHA_SECRET_KEY" ] && [ "$RECAPTCHA_SECRET_KEY" != "dev-test-secret" ]; then
+  export NEXT_PUBLIC_RECAPTCHA_ENABLED=true NEXT_PUBLIC_RECAPTCHA_SITE_KEY="$RECAPTCHA_SITE_KEY"
+else
+  export NEXT_PUBLIC_RECAPTCHA_ENABLED=false
+fi
+export NEXT_PUBLIC_GOOGLE_ENABLED=false NEXT_PUBLIC_GITHUB_ENABLED=false
 MARKER=".next/.api-port"
-if $REBUILD || [ ! -d ".next" ] || [ ! -f "$MARKER" ] || [ "$(cat "$MARKER")" != "http://localhost:$API_PORT/api/v1" ] \
+MARKER_VAL="http://localhost:$API_PORT/api/v1|${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}|${NEXT_PUBLIC_RECAPTCHA_ENABLED}"
+if $REBUILD || [ ! -d ".next" ] || [ ! -f "$MARKER" ] || [ "$(cat "$MARKER")" != "$MARKER_VAL" ] \
     || [ -n "$(find src -newer .next -print -quit 2>/dev/null)" ]; then
   log "Building frontend (may take a few minutes)..."
   NEXT_PUBLIC_API_URL="http://localhost:$API_PORT/api/v1" npm run build
-  echo "http://localhost:$API_PORT/api/v1" > "$MARKER"
+  echo "$MARKER_VAL" > "$MARKER"
 fi
 pkill -f "$REPO_DIR/frontend" 2>/dev/null || true
 sleep 2
@@ -227,6 +249,12 @@ for i in $(seq 1 12); do
 done
 
 # ── Done ──
+MPESA_STATE="disabled (set MPESA_* in .env)"; [ -n "$MPESA_CONSUMER_KEY" ] && MPESA_STATE="sandbox, STK to 254708374149 (Africa only)"
+STRIPE_STATE="disabled (set STRIPE_TEST_SECRET_KEY in .env)"
+if [ -n "$STRIPE_TEST_SECRET_KEY" ] || [ -n "$STRIPE_SECRET_KEY" ]; then STRIPE_STATE="test mode, card 4242... (worldwide)"; fi
+[ "$STRIPE_ENVIRONMENT" = "live" ] && STRIPE_STATE="LIVE — real money moves!"
+MAIL_STATE="MailHog http://localhost:8025"; [ "$MAIL_HOST" != "localhost" ] && MAIL_STATE="$MAIL_HOST (real delivery)"
+OAUTH_STATE="off (set GOOGLE_*/GITHUB_* + frontend flags to enable)"
 echo
 echo "============================================================"
 ok "i-love-shopping is running (dev behaves like production)!"
@@ -243,8 +271,10 @@ echo "    Admin:   admin@iloveshopping.com / Admin123!"
 echo "    User:    user@iloveshopping.com  / User123!"
 echo
 echo "  Test payments:"
-echo "    M-Pesa (Africa only): sandbox STK push to 254708374149"
-echo "    Card (worldwide test): 4242 4242 4242 4242, any future expiry/CVC"
+echo "    M-Pesa:  $MPESA_STATE"
+echo "    Stripe:  $STRIPE_STATE"
+echo "    Email:   $MAIL_STATE"
+echo "    OAuth:   $OAUTH_STATE"
 echo
 echo "  To stop (keeps dev database):  ./start.sh --stop"
 echo "============================================================"
