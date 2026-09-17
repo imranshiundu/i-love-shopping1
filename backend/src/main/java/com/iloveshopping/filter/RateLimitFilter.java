@@ -17,12 +17,21 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Token bucket rate limiting per client IP.
+ *
+ * <p>Each bucket starts full (capacity = burst allowance) and drains one
+ * token per request. Tokens refill continuously at a rate of
+ * {@code requestsPerMinute / 60.0} tokens per second, so steady traffic at
+ * or below the sustained rate passes while bursts above the bucket capacity
+ * are rejected with 429.</p>
+ */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 @Slf4j
 public class RateLimitFilter implements Filter {
 
-    private final ConcurrentHashMap<String, RequestCounter> requestCounts = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, TokenBucket> buckets = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
 
     @Value("${security.rate-limit.auth-requests-per-minute:10}")
@@ -30,6 +39,10 @@ public class RateLimitFilter implements Filter {
 
     @Value("${security.rate-limit.api-requests-per-minute:100}")
     private int apiRequestsPerMinute;
+
+    /** Burst allowance above the sustained rate, in requests. */
+    @Value("${security.rate-limit.burst-capacity:20}")
+    private int burstCapacity;
 
     public RateLimitFilter(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
@@ -45,19 +58,21 @@ public class RateLimitFilter implements Filter {
         String clientIp = getClientIp(request);
         String requestUri = request.getRequestURI();
 
-        int limit = isAuthEndpoint(requestUri) ? authRequestsPerMinute : apiRequestsPerMinute;
-        String key = clientIp + ":" + (isAuthEndpoint(requestUri) ? "auth" : "api");
+        boolean auth = isAuthEndpoint(requestUri);
+        int perMinute = auth ? authRequestsPerMinute : apiRequestsPerMinute;
+        String key = clientIp + ":" + (auth ? "auth" : "api");
 
-        RequestCounter counter = requestCounts.compute(key, (k, existing) -> {
-            if (existing == null || existing.isExpired()) {
-                return new RequestCounter();
-            }
-            return existing;
-        });
+        double refillPerSecond = perMinute / 60.0;
+        double capacity = perMinute + burstCapacity;
 
-        if (counter.incrementAndGet() > limit) {
-            log.warn("Rate limit exceeded for IP: {} on path: {} (limit: {})", clientIp, requestUri, limit);
-            writeRateLimitExceeded(response, limit);
+        TokenBucket bucket = buckets.compute(key, (k, existing) ->
+                existing == null ? new TokenBucket(capacity, refillPerSecond) : existing);
+
+        if (!bucket.tryConsume()) {
+            long retryAfterSeconds = (long) Math.ceil(bucket.secondsUntilNextToken());
+            log.warn("Rate limit exceeded for IP: {} on path: {} ({} req/min, burst {})",
+                    clientIp, requestUri, perMinute, (long) capacity);
+            writeRateLimitExceeded(response, perMinute, Math.max(1, retryAfterSeconds));
             return;
         }
 
@@ -80,11 +95,11 @@ public class RateLimitFilter implements Filter {
         return uri.contains("/auth/") || uri.contains("/login") || uri.contains("/register");
     }
 
-    private void writeRateLimitExceeded(HttpServletResponse response, int limit) throws IOException {
+    private void writeRateLimitExceeded(HttpServletResponse response, int limit, long retryAfterSeconds) throws IOException {
         ApiResponse.ErrorResponse errorResponse = ApiResponse.ErrorResponse.builder()
                 .statusCode(HttpStatus.TOO_MANY_REQUESTS.value())
                 .error(HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase())
-                .message("Too many requests. Limit is " + limit + " requests per minute.")
+                .message("Too many requests. Limit is " + limit + " requests per minute. Retry in " + retryAfterSeconds + "s.")
                 .build();
 
         ApiResponse<Object> apiResponse = ApiResponse.<Object>builder()
@@ -95,21 +110,47 @@ public class RateLimitFilter implements Filter {
 
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.setHeader("Retry-After", "60");
+        response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
         objectMapper.writeValue(response.getOutputStream(), apiResponse);
     }
 
-    private static class RequestCounter {
-        private long count = 0;
-        private final long windowStart = System.currentTimeMillis();
-        private static final long WINDOW_MS = 60_000; // 1 minute
+    /**
+     * Continuous-refill token bucket, safe for concurrent use.
+     */
+    static class TokenBucket {
+        private double tokens;
+        private final double capacity;
+        private final double refillPerSecond;
+        private long lastRefillNanos;
 
-        long incrementAndGet() {
-            return ++count;
+        TokenBucket(double capacity, double refillPerSecond) {
+            this.capacity = capacity;
+            this.refillPerSecond = refillPerSecond;
+            this.tokens = capacity; // start full so legitimate first bursts pass
+            this.lastRefillNanos = System.nanoTime();
         }
 
-        boolean isExpired() {
-            return System.currentTimeMillis() - windowStart > WINDOW_MS;
+        synchronized boolean tryConsume() {
+            refill();
+            if (tokens >= 1.0) {
+                tokens -= 1.0;
+                return true;
+            }
+            return false;
+        }
+
+        synchronized double secondsUntilNextToken() {
+            refill();
+            return Math.max(0, (1.0 - tokens) / refillPerSecond);
+        }
+
+        private void refill() {
+            long now = System.nanoTime();
+            double elapsedSeconds = (now - lastRefillNanos) / 1_000_000_000.0;
+            if (elapsedSeconds > 0) {
+                tokens = Math.min(capacity, tokens + elapsedSeconds * refillPerSecond);
+                lastRefillNanos = now;
+            }
         }
     }
 }
