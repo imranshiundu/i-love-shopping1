@@ -32,21 +32,27 @@ public class Address {
     @Column(name = "type", nullable = false, length = 10)
     private AddressType type;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "line1", nullable = false, length = 200)
     private String line1;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "line2", length = 200)
     private String line2;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "city", nullable = false, length = 100)
     private String city;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "state", nullable = false, length = 100)
     private String state;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "postal_code", nullable = false, length = 20)
     private String postalCode;
 
@@ -54,6 +60,7 @@ public class Address {
     @Builder.Default
     private String country = "KE";
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "phone", length = 20)
     private String phone;
 

@@ -30,9 +30,11 @@ public class Session {
     @Column(name = "refresh_token_hash", unique = true, nullable = false, length = 512)
     private String refreshTokenHash;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "user_agent", length = 500)
     private String userAgent;
 
+    @Convert(converter = EncryptedStringConverter.class)
     @Column(name = "ip", length = 45)
     private String ip;
 

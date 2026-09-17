@@ -18,6 +18,15 @@ public class AppProperties {
     private int maxCartItems = 50;
     private int maxCartQuantityPerItem = 99;
     private String mailFrom = "noreply@iloveshopping.com";
+    private String supportEmail = "support@iloveshopping.com";
+
+    public String getSupportEmail() {
+        return supportEmail;
+    }
+
+    public void setSupportEmail(String supportEmail) {
+        this.supportEmail = supportEmail;
+    }
 
     public boolean isDevMode() {
         return "development".equals(System.getProperty("spring.profiles.active"));

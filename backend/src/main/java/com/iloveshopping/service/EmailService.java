@@ -185,6 +185,33 @@ public class EmailService {
         sendEmail(email, "Your 2FA Code", "email/2fa-code", context);
     }
 
+    /**
+     * Delivers a contact/support form submission to the support inbox.
+     * Plain text email — no template needed for a single message.
+     */
+    @Async
+    public void sendContactEmail(String name, String email, String subject, String message) {
+        try {
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, false, "UTF-8");
+            helper.setTo(appProperties.getSupportEmail());
+            helper.setSubject("Contact form: " + (subject == null || subject.isBlank() ? "New message" : subject));
+            helper.setFrom(appProperties.getMailFrom());
+            helper.setReplyTo(email);
+            helper.setText("""
+                    New message from the contact form:
+
+                    Name: %s
+                    Email: %s
+
+                    %s
+                    """.formatted(name, email, message), false);
+            mailSender.send(mimeMessage);
+        } catch (MessagingException e) {
+            log.error("Failed to send contact email: {}", e.getMessage(), e);
+        }
+    }
+
     private void sendEmail(String to, String subject, String template, Context context) {
         try {
             String htmlContent = templateEngine.process(template, context);
