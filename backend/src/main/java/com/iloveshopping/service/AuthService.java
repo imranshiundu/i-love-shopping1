@@ -14,6 +14,7 @@ import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.OrderRepository;
 import com.iloveshopping.repository.SessionRepository;
 import com.iloveshopping.repository.UserRepository;
+import com.iloveshopping.security.ClerkTokenVerifier;
 import com.iloveshopping.security.JwtService;
 import com.iloveshopping.util.CaptchaUtil;
 import com.iloveshopping.util.TwoFactorAuthUtil;
@@ -41,6 +42,7 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final PasswordEncoder passwordEncoder;
     private final CaptchaUtil captchaUtil;
+    private final ClerkTokenVerifier clerkTokenVerifier;
     private final RecaptchaProperties recaptchaProperties;
     private final EmailService emailService;
 
@@ -155,6 +157,15 @@ public class AuthService {
             }
 
             sessionRepository.deleteById(sessionId);
+        } else if (user.getRoles() != null && user.getRoles().contains(User.Role.ADMIN)) {
+            // All admin accounts MUST be enrolled in 2FA before they can
+            // sign in. Point the client at the enrollment flow.
+            log.info("Admin login blocked pending 2FA enrollment: {}", user.getEmail());
+            return AuthResponse.builder()
+                    .twoFactorRequired(true)
+                    .twoFactorSetupRequired(true)
+                    .message("Admin accounts must enable two-factor authentication before signing in.")
+                    .build();
         }
 
         String sessionId = UUID.randomUUID().toString();
@@ -180,6 +191,89 @@ public class AuthService {
         log.info("User logged in successfully: {}", user.getEmail());
 
         // Claim any guest orders made with this email
+        claimGuestOrders(user);
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .expiresIn(jwtProperties.getAccessExpiryMinutes() * 60)
+                .user(AuthResponse.UserDto.from(user))
+                .twoFactorRequired(false)
+                .sessionId(sessionId)
+                .build();
+    }
+
+    /**
+     * Signs in (or provisions) a store account from a verified Clerk session.
+     * Replaces the legacy Google/GitHub OAuth2 login: the Clerk session token
+     * is signature-checked against the instance JWKS, the profile is resolved
+     * via the Clerk Backend API, and a local account is linked by Clerk id
+     * (falling back to email) before issuing the standard store JWT pair.
+     */
+    @Transactional
+    public AuthResponse loginWithClerk(String clerkSessionToken, String ipAddress, String userAgent) {
+        log.info("Clerk login attempt");
+        ClerkTokenVerifier.ClerkUser clerkUser = clerkTokenVerifier.verify(clerkSessionToken);
+
+        Optional<User> userOpt = userRepository.findByClerkId(clerkUser.id());
+        if (userOpt.isEmpty()) {
+            userOpt = userRepository.findByEmailIgnoreCase(clerkUser.email());
+        }
+        User user;
+        if (userOpt.isPresent()) {
+            user = userOpt.get();
+            boolean changed = false;
+            if (user.getClerkId() == null) {
+                user.setClerkId(clerkUser.id());
+                changed = true;
+            }
+            if (user.getEmailVerified() == null) {
+                user.setEmailVerified(LocalDateTime.now());
+                changed = true;
+            }
+            if ((user.getAvatar() == null || user.getAvatar().isBlank()) && clerkUser.avatarUrl() != null) {
+                user.setAvatar(clerkUser.avatarUrl());
+                changed = true;
+            }
+            if (changed) {
+                userRepository.save(user);
+            }
+        } else {
+            user = User.builder()
+                    .email(clerkUser.email())
+                    .clerkId(clerkUser.id())
+                    .name(clerkUser.name() != null ? clerkUser.name() : clerkUser.email())
+                    .avatar(clerkUser.avatarUrl())
+                    .emailVerified(LocalDateTime.now())
+                    .twoFactorEnabled(false)
+                    .roles(Set.of(User.Role.USER))
+                    .build();
+            userRepository.save(user);
+            log.info("Provisioned store account from Clerk identity: {}", user.getEmail());
+        }
+
+        String sessionId = UUID.randomUUID().toString();
+        String refreshToken = jwtService.generateRefreshToken(user, sessionId);
+        String refreshTokenHash = passwordEncoder.encode(refreshToken);
+
+        sessionRepository.findByUserId(user.getId())
+                .forEach(session -> sessionRepository.deleteById(session.getId()));
+
+        Session session = Session.builder()
+                .id(sessionId)
+                .user(user)
+                .refreshTokenHash(refreshTokenHash)
+                .userAgent(userAgent)
+                .ip(ipAddress)
+                .expiresAt(LocalDateTime.now().plusDays(jwtProperties.getRefreshExpiryDays()))
+                .build();
+
+        sessionRepository.save(session);
+
+        String accessToken = jwtService.generateAccessToken(user, sessionId);
+
+        log.info("User logged in via Clerk successfully: {}", user.getEmail());
+
         claimGuestOrders(user);
 
         return AuthResponse.builder()
@@ -400,6 +494,63 @@ public class AuthService {
         userRepository.save(user);
 
         log.info("2FA enabled for user: {}", user.getEmail());
+    }
+
+    /**
+     * Starts 2FA enrollment with email + password validation (no JWT needed).
+     * Used by the forced admin enrollment flow at login: the admin is not yet
+     * fully signed in, so credentials are re-verified here instead of relying
+     * on an authenticated principal.
+     */
+    @Transactional
+    public TwoFASetupResponse setup2FAWithPassword(String email, String password) {
+        User user = requireEnrollableUser(email, password);
+        log.info("2FA enrollment start (password-validated): {}", user.getEmail());
+
+        String secret = generateTotpSecret();
+        user.setTwoFactorSecret(secret);
+        userRepository.save(user);
+
+        return TwoFASetupResponse.builder()
+                .secret(secret)
+                .qrCodeUrl(TwoFactorAuthUtil.getQrCodeUrl(user.getEmail(), secret))
+                .manualEntryKey(secret)
+                .build();
+    }
+
+    /**
+     * Completes 2FA enrollment with email + password + TOTP code validation.
+     */
+    @Transactional
+    public void complete2FAEnrollment(String email, String password, String code) {
+        User user = requireEnrollableUser(email, password);
+
+        String secret = user.getTwoFactorSecret();
+        if (secret == null || secret.isBlank()) {
+            throw AuthenticationException.invalidTwoFactorCode();
+        }
+        if (!verifyTwoFactorCode(secret, code)) {
+            throw AuthenticationException.invalidTwoFactorCode();
+        }
+
+        user.setTwoFactorEnabled(true);
+        userRepository.save(user);
+        log.info("2FA enrollment completed: {}", user.getEmail());
+    }
+
+    private User requireEnrollableUser(String email, String password) {
+        if (email == null || email.isBlank() || password == null || password.isBlank()) {
+            throw AuthenticationException.invalidCredentials();
+        }
+        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(email);
+        if (userOpt.isEmpty() || !passwordEncoder.matches(password, userOpt.get().getPasswordHash())) {
+            throw AuthenticationException.invalidCredentials();
+        }
+        User user = userOpt.get();
+        if (user.getTwoFactorEnabled()) {
+            throw new IllegalStateException("Two-factor authentication is already enabled");
+        }
+        return user;
     }
 
     @Transactional

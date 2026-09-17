@@ -80,6 +80,11 @@ async function request<T>(path: string, options: RequestInit & { _retried?: bool
   return data;
 }
 
+function authHeadersMultipart(): Record<string, string> {
+  const token = getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 async function authRefreshInternal(): Promise<boolean> {
   // Single-flight: concurrent 401s share ONE refresh call. The backend rotates
   // the refresh token on each refresh (revoking the previous one), so parallel
@@ -137,6 +142,10 @@ export const auth = {
   deleteAddress: (id: string) => request<void>(`/user/addresses/${id}`, { method: 'DELETE' }),
   changePassword: (currentPassword: string, newPassword: string) =>
     request<void>('/user/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  setup2FAEnroll: (email: string, password: string) =>
+    request<{ secret: string; qrCodeUrl?: string; manualEntryKey: string }>('/auth/2fa/setup-enroll', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  complete2FAEnroll: (email: string, password: string, code: string) =>
+    request<void>('/auth/2fa/complete-enroll', { method: 'POST', body: JSON.stringify({ email, password, code }) }),
 };
 
 export const products = {
@@ -147,9 +156,12 @@ export const products = {
   getBySlug: (slug: string) => request<Product>(`/products/${slug}`),
   getSuggestions: (q: string) => request<string[]>(`/products/search/suggestions?query=${encodeURIComponent(q)}`),
   getSimilar: (slug: string) => request<Product[]>(`/products/similar/${slug}`),
-  getReviews: (slug: string, page = 0) => request<{ reviews: Review[]; pagination: any }>(`/products/${slug}/reviews?page=${page}`),
+  getReviews: (slug: string, page = 0, sortBy: 'helpful' | 'newest' = 'helpful') =>
+    request<{ reviews: Review[]; pagination: any }>(`/products/${slug}/reviews?page=${page}&sortBy=${sortBy}`),
   addReview: (slug: string, rating: number, title: string, content: string) =>
     request<Review>(`/products/${slug}/reviews`, { method: 'POST', body: JSON.stringify({ rating, title, content }) }),
+  voteReviewHelpful: (reviewId: string) =>
+    request<Review>(`/reviews/${reviewId}/helpful`, { method: 'POST' }),
 };
 
 export const categories = {
@@ -182,7 +194,7 @@ export const cart = {
 };
 
 export const orders = {
-  checkout: (data: { shippingAddress: Address; billingAddress?: Address; notes?: string; guestEmail?: string }) =>
+  checkout: (data: { shippingAddress: Address; billingAddress?: Address; notes?: string; guestEmail?: string; shippingMethodId?: string }) =>
     request<Order>('/orders/checkout', { method: 'POST', body: JSON.stringify(data) }),
   list: (page = 0, size = 10, status?: string, from?: string, to?: string) => {
     const params = new URLSearchParams({ page: String(page), size: String(size) });
@@ -202,8 +214,16 @@ export const orders = {
     request<any>(`/orders/${orderNumber}/retry-payment`, { method: 'POST', body: JSON.stringify({ phoneNumber }) }),
 };
 
-export const payments = {
-  getPaymentHistory: (page = 0, size = 20) =>
+export const shipping = {
+  list: () => request<any>(`/shipping-methods`),
+};
+
+export const contact = {
+  send: (name: string, email: string, subject: string, message: string) =>
+    request<void>('/contact', { method: 'POST', body: JSON.stringify({ name, email, subject, message }) }),
+};
+
+export const payments = {  getPaymentHistory: (page = 0, size = 20) =>
     request<any[]>(`/payments?page=${page}&size=${size}`),
   stripeCreateIntent: (orderId: string, amount: number, currency = 'KES') =>
     request<any>('/payments/stripe/create-intent', { method: 'POST', body: JSON.stringify({ orderId, amount, currency }) }),
@@ -224,6 +244,29 @@ export const admin = {
   refundOrder: (orderNumber: string) =>
     request<{ orderNumber: string; status: string; refundId?: string }>(`/admin/orders/${orderNumber}/refund`, { method: 'POST' }),
   listUsers: (page = 0, size = 20) => request<{ users: User[]; pagination: any }>(`/admin/users?page=${page}&size=${size}`),
+  updateUserRoles: (userId: string, roles: string[]) =>
+    request<any>(`/admin/users/${userId}/roles`, { method: 'PUT', body: JSON.stringify({ roles }) }),
+  listReviews: (status = 'all', page = 0, size = 20) =>
+    request<{ reviews: Review[]; pagination: any }>(`/admin/reviews?status=${status}&page=${page}&size=${size}`),
+  moderateReview: (reviewId: string, status: 'APPROVED' | 'REJECTED') =>
+    request<Review>(`/admin/reviews/${reviewId}/status?status=${status}`, { method: 'PUT' }),
+  bulkUploadProducts: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return fetch(`${API_URL}/admin/products/bulk-upload`, {
+      method: 'POST',
+      headers: authHeadersMultipart(),
+      body: form,
+    }).then(async res => {
+      const data = await res.json().catch(() => null);
+      if (!res.ok || data?.error) throw new Error(data?.error?.message || `Upload failed (${res.status})`);
+      return data as ApiResponse<any>;
+    });
+  },
+  listShippingMethods: () => request<any>(`/shipping-methods`),
+  saveShippingMethod: (method: any) =>
+    request<any>(`/admin/shipping-methods/${method.id || ''}`, { method: 'PUT', body: JSON.stringify(method) }),
+  deleteShippingMethod: (id: string) => request<void>(`/admin/shipping-methods/${id}`, { method: 'DELETE' }),
   createCategory: (data: Partial<Category>) => request<Category>('/categories', { method: 'POST', body: JSON.stringify(data) }),
   updateCategory: (id: string, data: Partial<Category>) => request<Category>(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCategory: (id: string) => request<void>(`/categories/${id}`, { method: 'DELETE' }),

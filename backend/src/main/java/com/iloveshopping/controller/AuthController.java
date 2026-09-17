@@ -58,6 +58,21 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 
+    @PostMapping("/clerk")
+    @Operation(summary = "Login with a verified Clerk session (social sign-in)")
+    public ResponseEntity<ApiResponse<AuthResponse>> loginWithClerk(
+            @Valid @RequestBody ClerkLoginRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse httpResponse) {
+
+        String ipAddress = RequestUtil.getClientIp(httpRequest);
+        String userAgent = RequestUtil.getUserAgent(httpRequest);
+
+        AuthResponse response = authService.loginWithClerk(request.getToken(), ipAddress, userAgent);
+        setAuthCookies(httpResponse, response);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
     @PostMapping("/refresh")
     @Operation(summary = "Refresh access token using refresh token")
     public ResponseEntity<ApiResponse<AuthResponse>> refresh(
@@ -217,5 +232,23 @@ public class AuthController {
             @Valid @RequestBody Verify2FARequest request) {
 
         return ResponseEntity.ok(ApiResponse.success(AuthResponse.builder().build()));
+    }
+
+    @PostMapping("/2fa/setup-enroll")
+    @Operation(summary = "Start 2FA enrollment with email + password (forced admin enrollment)")
+    public ResponseEntity<ApiResponse<TwoFASetupResponse>> setup2FAWithPassword(
+            @Valid @RequestBody TwoFAEnrollSetupRequest request) {
+
+        TwoFASetupResponse response = authService.setup2FAWithPassword(request.getEmail(), request.getPassword());
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @PostMapping("/2fa/complete-enroll")
+    @Operation(summary = "Complete 2FA enrollment with email + password + code (forced admin enrollment)")
+    public ResponseEntity<ApiResponse<Void>> complete2FAEnrollment(
+            @Valid @RequestBody TwoFAEnrollCompleteRequest request) {
+
+        authService.complete2FAEnrollment(request.getEmail(), request.getPassword(), request.getCode());
+        return ResponseEntity.ok(ApiResponse.success(null));
     }
 }

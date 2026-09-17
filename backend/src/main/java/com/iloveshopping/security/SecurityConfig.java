@@ -63,8 +63,11 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/auth/register", "/auth/login", "/auth/refresh", "/auth/logout",
                                 "/auth/logout-all", "/auth/forgot-password", "/auth/reset-password",
-                                "/auth/verify-email", "/auth/resend-verification", "/auth/verify-captcha").permitAll()
+                                "/auth/verify-email", "/auth/resend-verification", "/auth/verify-captcha",
+                                "/auth/clerk").permitAll()
+                        .requestMatchers("/auth/2fa/setup-enroll", "/auth/2fa/complete-enroll").permitAll()
                         .requestMatchers("/auth/2fa/**").authenticated()
+                        .requestMatchers("/contact").permitAll()
                         .requestMatchers("/products", "/products/**").permitAll()
                         .requestMatchers("/categories", "/categories/**").permitAll()
                         .requestMatchers("/brands", "/brands/**").permitAll()

@@ -19,6 +19,7 @@ public class AuthResponse {
     private long expiresIn;
     private UserDto user;
     private boolean twoFactorRequired;
+    private boolean twoFactorSetupRequired;
     private String sessionId;
     private String message;
 

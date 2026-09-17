@@ -23,6 +23,7 @@ export interface AuthResponse {
   expiresIn?: number;
   user: User;
   twoFactorRequired: boolean;
+  twoFactorSetupRequired?: boolean;
   sessionId?: string;
   message?: string;
 }
@@ -83,7 +84,7 @@ export interface Cart {
 
 export interface Order {
   id: string; number: string; status: string; subtotal: number; tax: number;
-  shipping: number; total: number; currency: string;
+  shipping: number; total: number; currency: string; shippingMethod?: string;
   shippingAddress: Address; billingAddress?: Address; notes?: string;
   items: OrderItem[]; payments: Payment[];
   createdAt: string; updatedAt: string;
@@ -109,7 +110,8 @@ export interface Address {
 export interface Review {
   id: string; productId: string; userId: string; userName?: string;
   rating: number; title: string; content: string;
-  isVerifiedPurchase: boolean; createdAt: string;
+  isVerifiedPurchase: boolean; helpfulCount: number; viewerVoted?: boolean;
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED'; createdAt: string;
 }
 
 export interface PageInfo { page: number; size: number; totalElements: number; totalPages: number; }

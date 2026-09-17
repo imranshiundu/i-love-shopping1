@@ -1,7 +1,9 @@
 'use client';
 import { useState, FormEvent } from 'react';
 import Link from 'next/link';
+import { useSignIn } from '@clerk/nextjs';
 import { useAuth } from '@/contexts/AuthContext';
+import { auth as authApi } from '@/services/api';
 import { config } from '@/lib/config';
 import { getRegisterCaptchaToken } from '@/lib/captcha';
 import toast from 'react-hot-toast';
@@ -27,26 +29,39 @@ function Field({ icon: Icon, label, hint, children }: { icon: any; label: string
 }
 
 function OAuthButtons() {
-  const showGoogle = config.oauth.google;
+  const { isLoaded, signIn } = useSignIn();
+  // Google is enabled on the Clerk instance; GitHub appears once its
+  // connection is configured in Clerk and the flag below is flipped.
   const showGithub = config.oauth.github;
-  if (!showGoogle && !showGithub) return null;
-  const start = (provider: 'google' | 'github') => {
-    window.location.href = `${config.api.baseUrl}/oauth2/authorization/${provider}`;
+  const start = async (strategy: 'oauth_google' | 'oauth_github') => {
+    if (!isLoaded || !signIn) return;
+    try {
+      sessionStorage.setItem('ils_post_clerk_next', window.location.pathname + window.location.search);
+    } catch {
+      /* storage unavailable — will fall back to home */
+    }
+    try {
+      await signIn.authenticateWithRedirect({
+        strategy,
+        redirectUrl: '/sso-callback',
+        redirectUrlComplete: '/clerk-callback',
+      });
+    } catch {
+      toast.error('Social sign-in could not start. Please try again.');
+    }
   };
   return (
     <div className="mt-5">
       <div className="flex items-center gap-3 text-xs text-stone-400">
         <span className="h-px flex-1 bg-stone-200" /> or continue with <span className="h-px flex-1 bg-stone-200" />
       </div>
-      <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
-        {showGoogle && (
-          <button type="button" onClick={() => start('google')}
-            className="flex items-center justify-center gap-2 rounded-xl border border-stone-300 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50">
-            <FaGoogle className="text-[#DB4437]" /> Google
-          </button>
-        )}
+      <div className={`mt-3 grid gap-2.5${showGithub ? ' sm:grid-cols-2' : ''}`}>
+        <button type="button" onClick={() => start('oauth_google')}
+          className="flex items-center justify-center gap-2 rounded-xl border border-stone-300 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50">
+          <FaGoogle className="text-[#DB4437]" /> Google
+        </button>
         {showGithub && (
-          <button type="button" onClick={() => start('github')}
+          <button type="button" onClick={() => start('oauth_github')}
             className="flex items-center justify-center gap-2 rounded-xl border border-stone-300 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50">
             <FaGithub /> GitHub
           </button>
@@ -76,6 +91,8 @@ export default function AuthModal({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [awaiting2FA, setAwaiting2FA] = useState(false);
+  const [enrollKey, setEnrollKey] = useState('');
+  const [enrolling, setEnrolling] = useState(false);
 
   const switchMode = (m: AuthMode) => {
     setMode(m);
@@ -83,17 +100,63 @@ export default function AuthModal({
     setConfirmPassword('');
     setTwoFactorCode('');
     setAwaiting2FA(false);
+    setEnrollKey('');
+    setEnrolling(false);
+  };
+
+  const startEnrollment = async () => {
+    setEnrolling(true);
+    try {
+      const res = await authApi.setup2FAEnroll(email, password);
+      setEnrollKey(res.data?.manualEntryKey || res.data?.secret || '');
+      toast('Scan or enter the key in your authenticator app');
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not start 2FA setup');
+    }
+    setEnrolling(false);
+  };
+
+  const completeEnrollment = async () => {
+    if (twoFactorCode.length !== 6) {
+      toast.error('Enter the 6-digit code from your authenticator app');
+      return;
+    }
+    setLoading(true);
+    try {
+      await authApi.complete2FAEnroll(email, password, twoFactorCode);
+      // Enrollment done — sign in with the fresh code.
+      const result = await login(email, password, twoFactorCode);
+      if (result?.twoFactorRequired) {
+        toast.error('Verification failed — try again');
+        return;
+      }
+      toast.success('Two-factor enabled. Welcome!');
+      onSuccess();
+    } catch (err: any) {
+      toast.error(err?.message || 'Could not verify your code');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (mode === 'login' && awaiting2FA && enrollKey) {
+      await completeEnrollment();
+      return;
+    }
     setLoading(true);
     try {
       if (mode === 'login') {
         const result = await login(email, password, awaiting2FA ? twoFactorCode : undefined);
         if (result?.twoFactorRequired) {
           setAwaiting2FA(true);
-          toast('Enter the 6-digit code from your authenticator app');
+          if (result.twoFactorSetupRequired) {
+            if (!enrollKey) await startEnrollment();
+            toast(result.message || 'Admin accounts must enable two-factor authentication');
+          } else {
+            toast('Enter the 6-digit code from your authenticator app');
+          }
           return;
         }
         toast.success('Welcome back');
@@ -165,7 +228,31 @@ export default function AuthModal({
             </Field>
           )}
           {mode === 'login' && awaiting2FA && (
-            <Field icon={FiLock} label="Authenticator code" hint="6 digits from Google Authenticator / Authy">
+            enrollKey ? (
+              <div className="rounded-xl bg-stone-50 p-4">
+                <p className="text-sm font-semibold text-stone-800">Set up two-factor authentication</p>
+                <p className="mt-1 text-xs text-stone-500">
+                  Enter this key into your authenticator app (Google Authenticator, Authy — &ldquo;Enter a setup key&rdquo;), then type the 6-digit code it shows.
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <code className="flex-1 break-all rounded-lg bg-white px-3 py-2 font-mono text-xs ring-1 ring-stone-200">{enrollKey}</code>
+                  <button
+                    type="button"
+                    onClick={() => { navigator.clipboard?.writeText(enrollKey); toast('Key copied'); }}
+                    className="rounded-lg border border-stone-300 px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-100"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className="rounded-xl bg-amber-50 p-3 text-xs font-medium text-amber-800 ring-1 ring-amber-200">
+                Preparing your two-factor setup…
+              </p>
+            )
+          )}
+          {mode === 'login' && awaiting2FA && (
+            <Field icon={FiLock} label="Authenticator code" hint="6 digits from your authenticator app">
               <input type="text" inputMode="numeric" value={twoFactorCode}
                 onChange={e => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required minLength={6} maxLength={6} placeholder="123456" autoComplete="one-time-code" className={fieldCls} />
@@ -174,8 +261,8 @@ export default function AuthModal({
 
           <button type="submit" disabled={loading}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary-600 py-3.5 font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700 disabled:opacity-60">
-            {loading ? (mode === 'login' ? (awaiting2FA ? 'Verifying...' : 'Signing in...') : 'Creating account...') : (
-              <>{mode === 'login' ? (awaiting2FA ? 'Verify code' : 'Sign in') : 'Create account'} <FiArrowRight /></>
+            {loading ? (mode === 'login' ? (awaiting2FA ? (enrollKey ? 'Enabling...' : 'Verifying...') : 'Signing in...') : 'Creating account...') : (
+              <>{mode === 'login' ? (awaiting2FA ? (enrollKey ? 'Enable 2FA and sign in' : 'Verify code') : 'Sign in') : 'Create account'} <FiArrowRight /></>
             )}
           </button>
         </form>

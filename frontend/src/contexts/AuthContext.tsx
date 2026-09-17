@@ -6,7 +6,7 @@ import { User, Cart } from '@/types';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string, twoFactorCode?: string) => Promise<{ twoFactorRequired: boolean; sessionId?: string } | void>;
+  login: (email: string, password: string, twoFactorCode?: string) => Promise<{ twoFactorRequired: boolean; twoFactorSetupRequired?: boolean; sessionId?: string; message?: string } | void>;
   register: (email: string, password: string, name: string, captchaToken?: string) => Promise<void>;
   loginWithTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -88,7 +88,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (email: string, password: string, twoFactorCode?: string) => {
     const res = await authApi.login(email, password, false, twoFactorCode);
     if (res.data?.twoFactorRequired) {
-      return { twoFactorRequired: true as const, sessionId: res.data.sessionId };
+      return {
+        twoFactorRequired: true as const,
+        twoFactorSetupRequired: res.data.twoFactorSetupRequired === true,
+        sessionId: res.data.sessionId,
+        message: res.data.message,
+      };
     }
     if (res.data?.accessToken) {
       setAccessToken(res.data.accessToken);
