@@ -7,7 +7,8 @@ export const config = {
     enabled: process.env.NEXT_PUBLIC_RECAPTCHA_ENABLED !== 'false',
   },
   oauth: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_ENABLED === 'true',
+    // Social sign-in is handled by Clerk now. GitHub appears once its
+    // connection is configured in the Clerk dashboard and this is flipped.
     github: process.env.NEXT_PUBLIC_GITHUB_ENABLED === 'true',
   },
   stripe: {
