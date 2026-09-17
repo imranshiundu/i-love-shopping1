@@ -205,7 +205,7 @@ export default function AdminOffersPage() {
                   {activeOffers.map(p => (
                     <li key={p.id} className="flex items-center gap-3 rounded-xl border border-stone-100 p-2.5">
                       <span className="h-9 w-9 shrink-0 overflow-hidden rounded-lg bg-stone-100">
-                        {p.images?.[0] && <img src={p.images[0].url} alt="" className="h-full w-full object-cover" />}
+                        {p.images?.[0] && <img src={p.images[0].url} alt={p.name || "Product"} className="h-full w-full object-cover" />}
                       </span>
                       <Link href={`/products/${p.slug}`} className="min-w-0 flex-1 truncate text-sm font-medium hover:text-primary-700">
                         {p.name}

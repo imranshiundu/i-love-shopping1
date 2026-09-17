@@ -9,14 +9,16 @@ import { formatKES } from '@/lib/utils';
 import { FiShoppingCart, FiUser, FiSearch, FiMenu, FiX, FiTruck, FiGlobe, FiCheck } from 'react-icons/fi';
 
 export default function Header() {
-  const { user, logout, cartCount, openAuthModal } = useAuth();
+  const { user, logout, cartCount, openAuthModal, cart } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [currencyOpen, setCurrencyOpen] = useState(false);
+  const [cartPreviewOpen, setCartPreviewOpen] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const currencyRef = useRef<HTMLDivElement>(null);
+  const cartPreviewRef = useRef<HTMLDivElement>(null);
   const { currency: activeCurrency, setCurrencyCode } = useCurrency();
 
   useEffect(() => {
@@ -34,6 +36,7 @@ export default function Header() {
     const handleClick = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSuggestions([]);
       if (currencyRef.current && !currencyRef.current.contains(e.target as Node)) setCurrencyOpen(false);
+      if (cartPreviewRef.current && !cartPreviewRef.current.contains(e.target as Node)) setCartPreviewOpen(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -119,14 +122,76 @@ export default function Header() {
                 )}
               </div>
 
-              <Link href="/cart" className="group relative rounded-full p-2.5 text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950" aria-label="Cart">
-                <FiShoppingCart className="h-5 w-5" />
-                {cartCount > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-[10px] font-bold text-white ring-2 ring-white">
-                    {cartCount}
-                  </span>
+              <div ref={cartPreviewRef} className="relative">
+                <Link href="/cart" className="group relative rounded-full p-2.5 text-stone-600 transition-colors hover:bg-stone-100 hover:text-stone-950" aria-label="Cart"
+                  onMouseEnter={() => setCartPreviewOpen(true)}>
+                  <FiShoppingCart className="h-5 w-5" />
+                  {cartCount > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-primary-600 text-[10px] font-bold text-white ring-2 ring-white">
+                      {cartCount}
+                    </span>
+                  )}
+                </Link>
+                {cartPreviewOpen && (
+                  <div
+                    className="absolute right-0 z-50 mt-1 w-80 overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-xl shadow-stone-900/10"
+                    onMouseLeave={() => setCartPreviewOpen(false)}
+                    role="dialog"
+                    aria-label="Cart preview"
+                  >
+                    {cart && cart.items.length > 0 ? (
+                      <>
+                        <div className="flex items-center justify-between border-b border-stone-100 px-4 py-3">
+                          <p className="text-sm font-bold">Your cart <span className="font-normal text-stone-400">({cart.totalItems})</span></p>
+                          <Link href="/cart" onClick={() => setCartPreviewOpen(false)} className="text-xs font-semibold text-primary-600 hover:text-primary-700">
+                            View cart
+                          </Link>
+                        </div>
+                        <ul className="max-h-64 divide-y divide-stone-100 overflow-y-auto">
+                          {cart.items.slice(0, 4).map(item => (
+                            <li key={item.id} className="flex items-center gap-3 px-4 py-3">
+                              <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-stone-100">
+                                {item.productImage
+                                  ? <img src={item.productImage} alt={item.productName} className="h-full w-full object-cover" />
+                                  : <span className="flex h-full w-full items-center justify-center text-[10px] text-stone-400" aria-hidden="true">—</span>}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium">{item.productName}</span>
+                                <span className="text-xs text-stone-400">Qty {item.quantity}</span>
+                              </span>
+                              <span className="text-sm font-semibold tabular-nums">{formatKES(item.lineTotal)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                        {cart.items.length > 4 && (
+                          <p className="border-t border-stone-100 px-4 py-2 text-center text-xs text-stone-400">
+                            + {cart.items.length - 4} more item{cart.items.length - 4 === 1 ? '' : 's'}
+                          </p>
+                        )}
+                        <div className="border-t border-stone-100 p-4">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-stone-500">Subtotal</span>
+                            <span className="font-bold">{formatKES(cart.subtotal || 0)}</span>
+                          </div>
+                          <Link href="/checkout" onClick={() => setCartPreviewOpen(false)}
+                            className="mt-3 flex w-full items-center justify-center rounded-xl bg-primary-600 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-primary-700">
+                            Checkout
+                          </Link>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="px-6 py-8 text-center">
+                        <FiShoppingCart className="mx-auto h-6 w-6 text-stone-300" aria-hidden="true" />
+                        <p className="mt-2 text-sm font-medium text-stone-600">Your cart is empty</p>
+                        <Link href="/products" onClick={() => setCartPreviewOpen(false)}
+                          className="mt-4 inline-block rounded-xl border border-stone-300 px-4 py-2 text-xs font-semibold text-stone-700 hover:bg-stone-50">
+                          Browse products
+                        </Link>
+                      </div>
+                    )}
+                  </div>
                 )}
-              </Link>
+              </div>
 
               {user ? (
                 <div className="relative">

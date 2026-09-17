@@ -167,7 +167,7 @@ export default function AccountOrdersPage() {
                     {items.slice(0, 4).map(item => (
                       <div key={item.id} className="flex items-center gap-2.5 rounded-xl bg-stone-50 py-1.5 pl-1.5 pr-3.5">
                         <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-stone-200">
-                          {item.productImage && <img src={item.productImage} alt="" className="h-full w-full object-cover" />}
+                          {item.productImage && <img src={item.productImage} alt={item.productName || "Ordered product"} className="h-full w-full object-cover" />}
                         </span>
                         <span className="min-w-0">
                           <span className="block max-w-[150px] truncate text-xs font-semibold">{item.productName}</span>

@@ -94,7 +94,7 @@ export default function AccountDashboardPage() {
                 {orders.slice(0, 5).map(o => (
                   <li key={o.id} className="flex items-center gap-4 border-b border-stone-50 px-6 py-4 last:border-0 hover:bg-stone-50/60">
                     <span className="h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-stone-100 ring-1 ring-stone-200">
-                      {o.items?.[0]?.productImage && <img src={o.items[0].productImage} alt="" className="h-full w-full object-cover" />}
+                      {o.items?.[0]?.productImage && <img src={o.items[0].productImage} alt={o.items[0].productName || "Recent order item"} className="h-full w-full object-cover" />}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="font-mono text-xs font-semibold text-stone-500">{o.number}</p>

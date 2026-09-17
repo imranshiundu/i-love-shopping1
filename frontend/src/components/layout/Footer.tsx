@@ -8,7 +8,7 @@ export default function Footer() {
   return (
     <footer className="bg-stone-950 text-stone-400 print:hidden">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-2 gap-10 border-b border-white/5 py-14 md:grid-cols-4 lg:gap-8">
+        <div className="grid grid-cols-2 gap-10 border-b border-white/5 py-14 md:grid-cols-3 lg:grid-cols-5 lg:gap-8">
           <div className="col-span-2 md:col-span-1">
             <p className="text-xl font-extrabold tracking-tight text-white">
               {config.app.name}<span className="text-primary-500">.</span>
@@ -17,10 +17,15 @@ export default function Footer() {
               Considered goods from independent makers - delivered across Kenya with care.
             </p>
             <div className="mt-6 flex gap-3">
-              {[FiInstagram, FiTwitter, FiFacebook].map((Icon, i) => (
-                <span key={i} className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full border border-white/10 transition-colors hover:border-primary-500 hover:text-primary-400">
+              {[
+                { Icon: FiInstagram, href: 'https://instagram.com', label: 'Instagram' },
+                { Icon: FiTwitter, href: 'https://twitter.com', label: 'Twitter' },
+                { Icon: FiFacebook, href: 'https://facebook.com', label: 'Facebook' },
+              ].map(({ Icon, href, label }) => (
+                <a key={label} href={href} target="_blank" rel="noopener noreferrer" aria-label={label}
+                  className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 transition-colors hover:border-primary-500 hover:text-primary-400">
                   <Icon className="h-4 w-4" />
-                </span>
+                </a>
               ))}
             </div>
           </div>
@@ -46,11 +51,19 @@ export default function Footer() {
           </div>
 
           <div>
+            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Company</h3>
+            <ul className="mt-5 space-y-3 text-sm">
+              <li><Link href="/about" className="transition-colors hover:text-white">About us</Link></li>
+              <li><Link href="/contact" className="transition-colors hover:text-white">Contact & support</Link></li>
+            </ul>
+          </div>
+
+          <div>
             <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Client care</h3>
             <ul className="mt-5 space-y-3 text-sm">
               <li className="flex items-start gap-2.5">
                 <FiMail className="mt-0.5 h-4 w-4 shrink-0 text-stone-600" />
-                {config.app.supportEmail}
+                <a href={`mailto:${config.app.supportEmail}`} className="transition-colors hover:text-white">{config.app.supportEmail}</a>
               </li>
               <li className="flex items-start gap-2.5">
                 <FiMapPin className="mt-0.5 h-4 w-4 shrink-0 text-stone-600" />

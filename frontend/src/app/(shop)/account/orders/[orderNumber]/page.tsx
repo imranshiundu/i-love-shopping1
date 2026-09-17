@@ -200,7 +200,7 @@ function OrderDetailContent({ orderNumber }: { orderNumber: string }) {
             {items.map(item => (
               <li key={item.id} className="flex items-center gap-4">
                 <span className="h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-stone-100">
-                  {item.productImage && <img src={item.productImage} alt="" className="h-full w-full object-cover" />}
+                  {item.productImage && <img src={item.productImage} alt={item.productName || "Ordered product"} className="h-full w-full object-cover" />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold">{item.productName}</p>

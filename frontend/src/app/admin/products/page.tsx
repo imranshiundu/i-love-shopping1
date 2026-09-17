@@ -1,11 +1,16 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { admin, products as productsApi, categories as categoriesApi, brands as brandsApi } from '@/services/api';
 import { Product, Category, Brand } from '@/types';
 import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
-import { FiPlus, FiEdit2, FiTrash2, FiX, FiTag } from 'react-icons/fi';
+import { FiPlus, FiEdit2, FiTrash2, FiX, FiTag, FiUpload } from 'react-icons/fi';
 import toast from 'react-hot-toast';
+
+interface BulkResult {
+  fileName: string; totalRows: number; created: number; updated: number; skipped: number;
+  errors: { row: number; identifier?: string; reason: string }[];
+}
 
 interface FormState {
   name: string; description: string; price: string; compareAtPrice: string;
@@ -26,6 +31,9 @@ export default function AdminProductsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [bulkResult, setBulkResult] = useState<BulkResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -45,6 +53,22 @@ export default function AdminProductsPage() {
   useEffect(() => { load(); }, [load]);
 
   const openCreate = () => { setEditingId(null); setForm(EMPTY_FORM); setModalOpen(true); };
+
+  const handleBulkUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    try {
+      const res: any = await admin.bulkUploadProducts(file);
+      setBulkResult(res.data as BulkResult);
+      toast.success(`Imported ${res.data.created} new, updated ${res.data.updated}, skipped ${res.data.skipped}`);
+      await load();
+    } catch (err: any) {
+      toast.error(err.message || 'Bulk upload failed');
+    }
+    setUploading(false);
+  };
 
   const openEdit = (p: Product) => {
     setEditingId(p.id);
@@ -104,10 +128,24 @@ export default function AdminProductsPage() {
               {products.length} in catalogue - {discountedCount} currently discounted
             </p>
           </div>
-          <button onClick={openCreate}
-            className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700">
-            <FiPlus /> New product
-          </button>
+          <div className="flex items-center gap-3">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,.csv"
+              className="hidden"
+              onChange={handleBulkUpload}
+              aria-label="Bulk upload products from JSON or CSV"
+            />
+            <button onClick={() => fileInputRef.current?.click()} disabled={uploading}
+              className="flex items-center gap-2 rounded-xl border border-stone-300 px-5 py-2.5 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-50 disabled:opacity-60">
+              <FiUpload /> {uploading ? 'Importing...' : 'Bulk upload'}
+            </button>
+            <button onClick={openCreate}
+              className="flex items-center gap-2 rounded-xl bg-primary-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-600/25 transition-all hover:-translate-y-0.5 hover:bg-primary-700">
+              <FiPlus /> New product
+            </button>
+          </div>
         </div>
       </Reveal>
 
@@ -134,7 +172,7 @@ export default function AdminProductsPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-stone-100">
-                            {p.images?.[0] && <img src={p.images[0].url} alt="" className="h-full w-full object-cover" />}
+                            {p.images?.[0] && <img src={p.images[0].url} alt={p.name || "Product"} className="h-full w-full object-cover" />}
                           </span>
                           <div className="min-w-0">
                             <p className="max-w-[240px] truncate font-medium">{p.name}</p>
@@ -178,6 +216,33 @@ export default function AdminProductsPage() {
           )}
         </div>
       </Reveal>
+
+      {bulkResult && (
+        <Reveal delay={60}>
+          <div className="rounded-2xl border border-stone-200/80 bg-white p-5">
+            <div className="flex items-center justify-between">
+              <h2 className="flex items-center gap-2 font-bold"><FiUpload className="text-primary-600" /> Import report — {bulkResult.fileName}</h2>
+              <button onClick={() => setBulkResult(null)} aria-label="Dismiss import report"
+                className="rounded-lg p-1.5 text-stone-400 hover:bg-stone-100 hover:text-stone-600"><FiX /></button>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-sm font-semibold">
+              <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-700">{bulkResult.created} created</span>
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-700">{bulkResult.updated} updated</span>
+              <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-700">{bulkResult.skipped} skipped</span>
+              <span className="rounded-full bg-stone-100 px-3 py-1 text-stone-600">{bulkResult.totalRows} rows</span>
+            </div>
+            {bulkResult.errors.length > 0 && (
+              <ul className="mt-3 max-h-40 space-y-1 overflow-y-auto rounded-xl bg-rose-50 p-3 text-xs text-rose-800 ring-1 ring-rose-200">
+                {bulkResult.errors.map((err, i) => (
+                  <li key={i}>
+                    Row {err.row}{err.identifier ? ` (${err.identifier})` : ''}: {err.reason}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </Reveal>
+      )}
 
       {modalOpen && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center overflow-y-auto bg-stone-950/60 p-4 backdrop-blur-sm" onClick={() => setModalOpen(false)}>

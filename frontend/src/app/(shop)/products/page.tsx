@@ -4,10 +4,11 @@ import { useSearchParams } from 'next/navigation';
 import { products as productsApi, categories as categoriesApi, brands as brandsApi } from '@/services/api';
 import { config } from '@/lib/config';
 import { Product, Category, Brand } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
 import ProductCard from '@/components/product/ProductCard';
-import { FiFilter, FiX, FiChevronLeft, FiChevronRight, FiSearch } from 'react-icons/fi';
+import Link from 'next/link';
+import { FiFilter, FiX, FiChevronLeft, FiChevronRight, FiSearch, FiGrid, FiList, FiStar } from 'react-icons/fi';
 
 function ProductsContent() {
   const searchParams = useSearchParams();
@@ -17,6 +18,7 @@ function ProductsContent() {
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({ page: 0, size: config.pages.productsPageSize, totalElements: 0, totalPages: 0 });
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   const [query, setQueryInput] = useState(searchParams.get('q') || '');
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get('category') || '');
@@ -107,6 +109,24 @@ function ProductsContent() {
                 <option value="rating">Top rated</option>
               </select>
             </label>
+            <div className="flex items-center overflow-hidden rounded-xl border border-stone-300" role="group" aria-label="View mode">
+              <button
+                onClick={() => setViewMode('grid')}
+                aria-label="Grid view"
+                aria-pressed={viewMode === 'grid'}
+                className={`px-3 py-2.5 text-sm font-semibold transition-colors ${viewMode === 'grid' ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50'}`}
+              >
+                <FiGrid />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                aria-label="List view"
+                aria-pressed={viewMode === 'list'}
+                className={`px-3 py-2.5 text-sm font-semibold transition-colors ${viewMode === 'list' ? 'bg-stone-900 text-white' : 'bg-white text-stone-500 hover:bg-stone-50'}`}
+              >
+                <FiList />
+              </button>
+            </div>
           </div>
 
           {loading ? (
@@ -137,13 +157,54 @@ function ProductsContent() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-2 gap-5 xl:grid-cols-3">
-                {products.map((product, i) => (
-                  <Reveal key={product.id} delay={(i % 3) * 80}>
-                    <ProductCard product={product} />
-                  </Reveal>
-                ))}
-              </div>
+              {viewMode === 'grid' ? (
+                <div className="grid grid-cols-2 gap-5 xl:grid-cols-3">
+                  {products.map((product, i) => (
+                    <Reveal key={product.id} delay={(i % 3) * 80}>
+                      <ProductCard product={product} />
+                    </Reveal>
+                  ))}
+                </div>
+              ) : (
+                <ul className="space-y-4" aria-label="Products in list view">
+                  {products.map((product, i) => (
+                    <Reveal key={product.id} delay={(i % 3) * 60}>
+                      <li className="group flex items-stretch gap-5 rounded-2xl border border-stone-200/80 bg-white p-4 transition-shadow hover:shadow-lg hover:shadow-stone-900/5">
+                        <Link href={`/products/${product.slug}`} className="w-28 shrink-0 self-center overflow-hidden rounded-xl bg-stone-100 sm:w-40">
+                          {product.images?.[0] ? (
+                            <img src={product.images[0].url} alt={product.images[0].alt || product.name} loading="lazy"
+                              className="aspect-square w-full object-cover" />
+                          ) : (
+                            <span className="flex aspect-square w-full items-center justify-center text-stone-300" aria-hidden="true">—</span>
+                          )}
+                        </Link>
+                        <div className="flex min-w-0 flex-1 flex-col">
+                          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-600">{product.brand?.name || 'Marketplace'}</p>
+                          <Link href={`/products/${product.slug}`} className="mt-1 font-semibold text-stone-900 hover:text-primary-700 sm:text-lg">
+                            {product.name}
+                          </Link>
+                          <div className="mt-1 flex items-center gap-2 text-sm text-stone-500">
+                            <span className="flex items-center gap-0.5" aria-label={`Rated ${product.averageRating || 0} of 5`}>
+                              {[1, 2, 3, 4, 5].map(s => (
+                                <FiStar key={s} className={`h-3 w-3 ${s <= Math.round(product.averageRating || 0) ? 'fill-amber-400 text-amber-400' : 'text-stone-300'}`} />
+                              ))}
+                            </span>
+                            {product.reviewCount > 0 && <span className="text-xs">({product.reviewCount})</span>}
+                          </div>
+                          <p className="mt-2 hidden line-clamp-2 flex-1 text-sm text-stone-500 sm:block">{product.description}</p>
+                          <div className="mt-3 flex flex-wrap items-center gap-3">
+                            <span className="text-lg font-extrabold tabular-nums">{formatKES(product.price)}</span>
+                            {product.compareAtPrice && (
+                              <span className="text-sm text-stone-400 line-through">{formatKES(product.compareAtPrice)}</span>
+                            )}
+                            {!product.inStock && <span className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-semibold text-stone-500">Out of stock</span>}
+                          </div>
+                        </div>
+                      </li>
+                    </Reveal>
+                  ))}
+                </ul>
+              )}
 
               {pagination.totalPages > 1 && (
                 <nav className="mt-12 flex items-center justify-center gap-2" aria-label="Pagination">

@@ -12,7 +12,7 @@ import {
   useStripe,
 } from '@stripe/react-stripe-js';
 import { useAuth } from '@/contexts/AuthContext';
-import { orders, payments as paymentsApi, auth } from '@/services/api';
+import { orders, payments as paymentsApi, auth, shipping as shippingApi } from '@/services/api';
 import { config } from '@/lib/config';
 import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
@@ -249,17 +249,23 @@ function CheckoutContent() {
   });
   const [sameAsShipping, setSameAsShipping] = useState(true);
   const [notes, setNotes] = useState('');
+  const [shippingMethods, setShippingMethods] = useState<any[]>([]);
+  const [selectedMethodId, setSelectedMethodId] = useState('');
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
 
   const subtotal = cart?.items.reduce((sum, item) => sum + item.priceSnapshot * item.quantity, 0) || 0;
-  const shippingCost = subtotal >= config.commerce.freeShippingThreshold ? 0 : config.commerce.shippingCost;
+  const selectedMethod = shippingMethods.find(m => m.id === selectedMethodId) || shippingMethods[0] || null;
+  const shippingCost = subtotal >= config.commerce.freeShippingThreshold
+    ? 0
+    : selectedMethod ? Number(selectedMethod.cost) : config.commerce.shippingCost;
   const tax = Math.round(subtotal * config.commerce.taxRate * 100) / 100;
   const total = subtotal + shippingCost + tax;
 
   useEffect(() => {
     refreshCart();
+    shippingApi.list().then(r => setShippingMethods(r.data || [])).catch(() => {});
   }, [refreshCart]);
 
   // Check for pending orders (incomplete payments) for logged-in users
@@ -492,6 +498,7 @@ function CheckoutContent() {
           billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : { ...billing, type: 'BILLING' },
           notes,
           guestEmail: user?.email || undefined,
+          shippingMethodId: selectedMethod?.id || undefined,
         });
         const order = res.data as any;
         if (!order) throw new Error('Checkout failed');
@@ -694,6 +701,43 @@ function CheckoutContent() {
 
           <Reveal delay={80}>
             <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
+              <h2 className="text-lg font-bold">Delivery method</h2>
+              <p className="mt-1 text-sm text-stone-500">Free on all orders over {formatKES(config.commerce.freeShippingThreshold)}.</p>
+              <fieldset className="mt-4 space-y-2.5">
+                <legend className="sr-only">Delivery method</legend>
+                {(shippingMethods.length > 0 ? shippingMethods : [{ id: '', name: 'Standard delivery', description: 'Nationwide courier', cost: config.commerce.shippingCost, estimatedDays: '2-3 business days' }]).map((m: any) => {
+                  const isSelected = (selectedMethodId || shippingMethods[0]?.id || '') === m.id;
+                  const cost = subtotal >= config.commerce.freeShippingThreshold ? 0 : Number(m.cost);
+                  return (
+                    <label key={m.id || 'fallback'} className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-colors ${
+                      isSelected ? 'border-primary-600 bg-primary-50' : 'border-stone-200 hover:border-stone-300'
+                    }`}>
+                      <input
+                        type="radio"
+                        name="shippingMethod"
+                        value={m.id}
+                        checked={isSelected}
+                        onChange={() => setSelectedMethodId(m.id)}
+                        className="sr-only"
+                      />
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${isSelected ? 'border-primary-600' : 'border-stone-300'}`} aria-hidden="true">
+                        {isSelected && <span className="h-2.5 w-2.5 rounded-full bg-primary-600" />}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-semibold">{m.name}</span>
+                        {m.description && <span className="mt-0.5 block text-xs text-stone-500">{m.description}</span>}
+                        {m.estimatedDays && <span className="mt-0.5 block text-xs text-stone-400">Arrives: {m.estimatedDays}</span>}
+                      </span>
+                      <span className={`text-sm font-bold ${cost === 0 ? 'text-emerald-600' : ''}`}>{cost === 0 ? 'Free' : formatKES(cost)}</span>
+                    </label>
+                  );
+                })}
+              </fieldset>
+            </section>
+          </Reveal>
+
+          <Reveal delay={100}>
+            <section className="rounded-2xl border border-stone-200/80 bg-white p-6 sm:p-7">
               <h2 className="text-lg font-bold">Order notes</h2>
               <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3}
                 placeholder="Gate code, preferred delivery time, gift note..."
@@ -711,7 +755,7 @@ function CheckoutContent() {
                   {cart.items.map(item => (
                     <li key={item.id} className="flex items-center gap-3">
                       <span className="relative shrink-0 overflow-hidden rounded-lg bg-stone-100">
-                        {item.productImage && <img src={item.productImage} alt="" className="h-12 w-12 object-cover" />}
+                        {item.productImage && <img src={item.productImage} alt={item.productName || "Cart item"} className="h-12 w-12 object-cover" />}
                         <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-stone-900 text-[10px] font-bold text-white">{item.quantity}</span>
                       </span>
                       <span className="min-w-0 flex-1 truncate text-sm">{item.productName}</span>

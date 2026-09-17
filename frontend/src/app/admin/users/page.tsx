@@ -17,10 +17,23 @@ interface Customer {
   createdAt: string;
 }
 
+const ROLE_OPTIONS = ['USER', 'ADMIN', 'MODERATOR', 'SUPPORT', 'SALES'];
+
+const roleBadgeCls: Record<string, string> = {
+  ADMIN: 'bg-violet-100 text-violet-700',
+  MODERATOR: 'bg-blue-100 text-blue-700',
+  SUPPORT: 'bg-amber-100 text-amber-700',
+  SALES: 'bg-emerald-100 text-emerald-700',
+  USER: 'bg-stone-100 text-stone-600',
+};
+
 export default function AdminCustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
+  const [editingRoles, setEditingRoles] = useState<string | null>(null);
+  const [roleDraft, setRoleDraft] = useState<string[]>([]);
+  const [savingRoles, setSavingRoles] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -40,6 +53,20 @@ export default function AdminCustomersPage() {
   );
 
   const adminsCount = customers.filter(c => c.roles?.includes('ADMIN')).length;
+
+  const saveRoles = async (userId: string) => {
+    if (roleDraft.length === 0) { toast.error('Pick at least one role'); return; }
+    setSavingRoles(true);
+    try {
+      await admin.updateUserRoles(userId, roleDraft);
+      toast.success('Roles updated');
+      setEditingRoles(null);
+      await load();
+    } catch (e: any) {
+      toast.error(e.message || 'Could not update roles');
+    }
+    setSavingRoles(false);
+  };
 
   return (
     <div className="space-y-6">
@@ -98,10 +125,45 @@ export default function AdminCustomersPage() {
                       </td>
                       <td className="px-5 py-3.5 text-stone-500">{c.createdAt ? formatDate(c.createdAt) : '-'}</td>
                       <td className="px-5 py-3.5">
-                        {c.roles?.includes('ADMIN') ? (
-                          <span className="rounded-full bg-violet-100 px-2.5 py-1 text-[10px] font-bold text-violet-700">ADMIN</span>
+                        {editingRoles === c.id ? (
+                          <div className="flex items-center gap-2">
+                            <div className="flex flex-wrap gap-1" aria-label="Assign roles">
+                              {ROLE_OPTIONS.map(r => (
+                                <button
+                                  key={r}
+                                  type="button"
+                                  onClick={() => setRoleDraft(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r])}
+                                  aria-pressed={roleDraft.includes(r)}
+                                  className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition-colors ${
+                                    roleDraft.includes(r) ? roleBadgeCls[r] : 'bg-stone-50 text-stone-400 ring-1 ring-stone-200 hover:bg-stone-100'
+                                  }`}
+                                >
+                                  {r}
+                                </button>
+                              ))}
+                            </div>
+                            <button onClick={() => saveRoles(c.id)} disabled={savingRoles}
+                              className="rounded-lg bg-primary-600 px-2.5 py-1.5 text-[11px] font-bold text-white hover:bg-primary-700 disabled:opacity-60">
+                              {savingRoles ? '...' : 'Save'}
+                            </button>
+                            <button onClick={() => setEditingRoles(null)}
+                              className="rounded-lg px-2 py-1.5 text-[11px] font-bold text-stone-400 hover:text-stone-600">
+                              Cancel
+                            </button>
+                          </div>
                         ) : (
-                          <span className="rounded-full bg-stone-100 px-2.5 py-1 text-[10px] font-bold text-stone-600">CUSTOMER</span>
+                          <button
+                            onClick={() => { setEditingRoles(c.id); setRoleDraft(c.roles?.length ? [...c.roles] : ['USER']); }}
+                            aria-label={`Edit roles for ${c.name || c.email}`}
+                            className="group flex flex-wrap items-center gap-1"
+                            title="Click to edit roles"
+                          >
+                            {(c.roles?.length ? c.roles : ['USER']).map(r => (
+                              <span key={r} className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${roleBadgeCls[r] || roleBadgeCls.USER} group-hover:ring-2 group-hover:ring-primary-200`}>
+                                {r === 'USER' && !c.roles?.length ? 'CUSTOMER' : r}
+                              </span>
+                            ))}
+                          </button>
                         )}
                       </td>
                       <td className="px-5 py-3.5">

@@ -38,6 +38,12 @@ export default function CartPage() {
     setUpdating(null);
   };
 
+  const clearAll = async () => {
+    if (!confirm('Remove all items from your cart?')) return;
+    try { await cartApi.clear(); await refreshCart(); toast.success('Cart cleared'); }
+    catch (e: any) { toast.error(e.message || 'Could not clear the cart'); }
+  };
+
   if (cartLoading) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-24 text-center">
@@ -73,9 +79,17 @@ export default function CartPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600">Your basket</p>
-        <h1 className="mt-1.5 text-3xl font-bold tracking-tight sm:text-4xl">Shopping cart</h1>
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-600">Your basket</p>
+          <h1 className="mt-1.5 text-3xl font-bold tracking-tight sm:text-4xl">Shopping cart</h1>
+        </div>
+        {cart.items.length > 0 && (
+          <button onClick={clearAll} disabled={updating !== null}
+            className="flex items-center gap-2 rounded-xl border border-stone-300 px-4 py-2.5 text-sm font-semibold text-stone-600 transition-colors hover:bg-rose-50 hover:text-rose-700 disabled:opacity-60">
+            Clear cart
+          </button>
+        )}
       </div>
 
       {!shipping && (
@@ -154,7 +168,7 @@ export default function CartPage() {
               </div>
 
               <dl className="mt-5 space-y-3 text-sm">
-                <div className="flex justify-between"><dt className="text-stone-500">Subtotal</dt><dd className="font-semibold">{formatKES(subtotal)}</dd></div>
+                <div className="flex justify-between"><dt className="text-stone-500">Subtotal (excl. delivery)</dt><dd className="font-semibold">{formatKES(subtotal)}</dd></div>
                 <div className="flex justify-between"><dt className="text-stone-500">Delivery</dt><dd className="font-semibold">{shipping === 0 ? 'Free' : formatKES(shipping)}</dd></div>
                 <div className="flex justify-between"><dt className="text-stone-500">VAT ({Math.round(config.commerce.taxRate * 100)}%)</dt><dd className="font-semibold">{formatKES(tax)}</dd></div>
                 <div className="border-t border-stone-200 pt-3">

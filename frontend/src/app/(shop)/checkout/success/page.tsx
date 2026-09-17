@@ -2,12 +2,23 @@
 import { Suspense, useEffect, useState, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { FiCheckCircle, FiArrowRight, FiPackage, FiMail, FiPhone, FiLoader, FiAlertCircle } from 'react-icons/fi';
+import { FiCheckCircle, FiArrowRight, FiPackage, FiMail, FiPhone, FiLoader, FiAlertCircle, FiTruck } from 'react-icons/fi';
 import { config } from '@/lib/config';
+import { formatKES } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
 import { orders } from '@/services/api';
+import { Order } from '@/types';
 
 type PollState = 'pending' | 'confirmed' | 'failed' | 'expired' | 'timeout';
+
+function estimatedDelivery(order: Order | null): string {
+  if (!order) return '2-3 business days';
+  // Store pickup is same day; express next day; standard 2-3 days.
+  const method = (order.shippingMethod || '').toLowerCase();
+  if (method.includes('pickup')) return 'Same day';
+  if (method.includes('express')) return 'Next business day';
+  return '2-3 business days';
+}
 
 function SuccessContent() {
   const searchParams = useSearchParams();
@@ -15,6 +26,7 @@ function SuccessContent() {
   const { user, loading } = useAuth();
   const [pollState, setPollState] = useState<PollState>('pending');
   const [orderStatus, setOrderStatus] = useState<string>('PENDING');
+  const [order, setOrder] = useState<Order | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const attemptsRef = useRef(0);
 
@@ -32,6 +44,7 @@ function SuccessContent() {
       try {
         const res = await orders.getByNumber(orderNumber);
         const status = res.data?.status;
+        if (res.data) setOrder(res.data);
         if (status) setOrderStatus(status);
         if (status === 'CONFIRMED' || status === 'PROCESSING' || status === 'SHIPPED' || status === 'DELIVERED') {
           if (pollRef.current) clearInterval(pollRef.current);
@@ -84,9 +97,43 @@ function SuccessContent() {
             Order reference{' '}
             <code className="rounded-lg bg-stone-100 px-2.5 py-1 font-mono text-sm font-bold text-stone-900">{orderNumber}</code>
             <span className="ml-2 text-xs uppercase tracking-wider text-stone-400">Status: {orderStatus}</span>
+            {order?.id && (
+              <>
+                <br />
+                <span className="text-xs text-stone-400">Order ID: <code className="font-mono">{order.id}</code></span>
+              </>
+            )}
           </p>
         )}
       </div>
+
+      {!isError && order && (
+        <section className="mt-10 rounded-2xl border border-stone-200/80 bg-white p-6" aria-label="Order summary">
+          <h2 className="flex items-center gap-2.5 text-lg font-bold"><FiTruck className="text-primary-600" /> Order summary</h2>
+          {order.items && order.items.length > 0 && (
+            <ul className="mt-4 divide-y divide-stone-100">
+              {order.items.map(item => (
+                <li key={item.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{item.quantity} x {item.name}</span>
+                  <span className="font-semibold tabular-nums">{formatKES(item.total)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <dl className="mt-4 space-y-2 border-t border-stone-200 pt-4 text-sm">
+            <div className="flex justify-between"><dt className="text-stone-500">Subtotal</dt><dd className="font-semibold">{formatKES(order.subtotal)}</dd></div>
+            <div className="flex justify-between"><dt className="text-stone-500">Delivery{order.shippingMethod ? ` (${order.shippingMethod})` : ''}</dt><dd className="font-semibold">{order.shipping === 0 ? 'Free' : formatKES(order.shipping)}</dd></div>
+            <div className="flex justify-between"><dt className="text-stone-500">VAT</dt><dd className="font-semibold">{formatKES(order.tax)}</dd></div>
+            <div className="flex justify-between border-t border-stone-200 pt-2.5">
+              <dt className="font-bold">Total paid</dt><dd className="font-extrabold">{formatKES(order.total)}</dd>
+            </div>
+          </dl>
+          <p className="mt-4 rounded-xl bg-primary-50 px-4 py-3 text-sm font-medium text-primary-800">
+            Estimated delivery: {estimatedDelivery(order)}
+            {order.shippingAddress?.city ? ` — shipping to ${order.shippingAddress.city}` : ''}
+          </p>
+        </section>
+      )}
 
       {!isError && (
         <div className="mt-10 grid gap-3 sm:grid-cols-3">
