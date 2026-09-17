@@ -191,4 +191,40 @@ public class AdminService {
                 .map(UserProfileResponse::from)
                 .collect(Collectors.toList());
     }
+
+    /**
+     * Replaces a user's roles. Role names must match the known enum values.
+     * Admins can grant support/sales/moderator/admin.
+     */
+    @Transactional
+    public UserProfileResponse updateUserRoles(String userId, Set<String> roles) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new com.iloveshopping.exception.ResourceNotFoundException("User", "id", userId));
+
+        java.util.Set<User.Role> newRoles = new java.util.HashSet<>();
+        for (String role : roles) {
+            try {
+                newRoles.add(User.Role.valueOf(role.toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Unknown role: " + role
+                        + " (valid: USER, ADMIN, MODERATOR, SUPPORT, SALES)");
+            }
+        }
+        if (newRoles.isEmpty()) {
+            throw new IllegalArgumentException("At least one role is required");
+        }
+
+        // Never let the last active admin demote themselves out of admin.
+        if (!newRoles.contains(User.Role.ADMIN)
+                && user.getRoles() != null && user.getRoles().contains(User.Role.ADMIN)) {
+            long adminCount = userRepository.findByRole(User.Role.ADMIN).size();
+            if (adminCount <= 1) {
+                throw new IllegalArgumentException("Cannot remove the last admin account");
+            }
+        }
+
+        user.setRoles(newRoles);
+        user = userRepository.save(user);
+        return UserProfileResponse.from(user);
+    }
 }

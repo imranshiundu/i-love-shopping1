@@ -2,6 +2,7 @@ package com.iloveshopping.controller;
 
 import com.iloveshopping.dto.admin.AdminStatsResponse;
 import com.iloveshopping.dto.admin.UpdateOrderStatusRequest;
+import com.iloveshopping.dto.admin.UpdateUserRolesRequest;
 import com.iloveshopping.dto.common.ApiResponse;
 import com.iloveshopping.dto.order.OrderResponse;
 import com.iloveshopping.dto.user.UserProfileResponse;
@@ -69,5 +70,15 @@ public class AdminController {
 
         List<UserProfileResponse> users = adminService.getAllUsers();
         return ResponseEntity.ok(ApiResponse.success(users));
+    }
+
+    @PutMapping("/users/{id}/roles")
+    @Operation(summary = "Assign roles to a user (Admin)")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> updateUserRoles(
+            @PathVariable String id,
+            @Valid @RequestBody UpdateUserRolesRequest request) {
+
+        UserProfileResponse user = adminService.updateUserRoles(id, request.getRoles());
+        return ResponseEntity.ok(ApiResponse.success(user));
     }
 }

@@ -7,8 +7,10 @@ import com.iloveshopping.dto.catalog.CreateCategoryRequest;
 import com.iloveshopping.dto.catalog.CreateProductRequest;
 import com.iloveshopping.dto.catalog.ProductResponse;
 import com.iloveshopping.dto.catalog.ProductSearchResponse;
+import com.iloveshopping.dto.catalog.BulkUploadResult;
 import com.iloveshopping.dto.common.ApiResponse;
 import com.iloveshopping.service.CatalogService;
+import com.iloveshopping.service.ProductImportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,6 +31,7 @@ import java.util.List;
 public class CatalogController {
 
     private final CatalogService catalogService;
+    private final ProductImportService productImportService;
 
     // ===== Categories =====
 
@@ -248,5 +251,15 @@ public class CatalogController {
 
         catalogService.deleteProduct(id);
         return ResponseEntity.ok(ApiResponse.success(null));
+    }
+
+    @PostMapping(value = "/products/bulk-upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Bulk import products from a JSON or CSV file (Admin)")
+    public ResponseEntity<ApiResponse<BulkUploadResult>> bulkUploadProducts(
+            @org.springframework.web.bind.annotation.RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+
+        BulkUploadResult result = productImportService.importProducts(file);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 }

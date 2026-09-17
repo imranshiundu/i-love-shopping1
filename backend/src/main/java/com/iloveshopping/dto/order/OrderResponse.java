@@ -25,6 +25,7 @@ public class OrderResponse {
     private BigDecimal subtotal;
     private BigDecimal tax;
     private BigDecimal shipping;
+    private String shippingMethod;
     private BigDecimal total;
     private String currency;
     private AddressDto shippingAddress;
@@ -50,6 +51,7 @@ public class OrderResponse {
                 .subtotal(order.getSubtotal())
                 .tax(order.getTax())
                 .shipping(order.getShipping())
+                .shippingMethod(order.getShippingMethod())
                 .total(order.getTotal())
                 .currency(order.getCurrency())
                 .shippingAddress(order.getShippingAddress() != null ? AddressDto.fromJson(order.getShippingAddress()) : null)

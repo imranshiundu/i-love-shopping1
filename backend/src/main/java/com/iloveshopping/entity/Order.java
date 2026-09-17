@@ -41,6 +41,9 @@ public class Order {
     @Builder.Default
     private OrderStatus status = OrderStatus.PENDING;
 
+    @Column(name = "shipping_method", length = 100)
+    private String shippingMethod;
+
     @Column(name = "subtotal", nullable = false, precision = 10, scale = 2)
     private BigDecimal subtotal;
 

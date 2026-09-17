@@ -47,6 +47,7 @@ public class OrderService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final com.iloveshopping.repository.ShippingMethodRepository shippingMethodRepository;
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
     private final OrderMessagePublisher orderMessagePublisher;
@@ -97,7 +98,20 @@ public class OrderService {
 
         BigDecimal tax = subtotal.multiply(BigDecimal.valueOf(appProperties.getTaxRate()))
                 .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal shipping = calculateShipping(subtotal);
+
+        // Delivery option chosen at checkout; falls back to the cheapest
+        // active method. Free-shipping threshold still applies.
+        com.iloveshopping.entity.ShippingMethod shippingMethod = null;
+        if (request.getShippingMethodId() != null && !request.getShippingMethodId().isBlank()) {
+            shippingMethod = shippingMethodRepository.findById(request.getShippingMethodId())
+                    .filter(m -> Boolean.TRUE.equals(m.getActive()))
+                    .orElseThrow(() -> new IllegalArgumentException("Selected delivery option is not available"));
+        } else {
+            shippingMethod = shippingMethodRepository.findAllByActiveTrueOrderByDisplayOrderAsc().stream()
+                    .findFirst()
+                    .orElse(null);
+        }
+        BigDecimal shipping = calculateShipping(subtotal, shippingMethod);
         BigDecimal total = subtotal.add(tax).add(shipping);
 
         String orderNumber = generateOrderNumber();
@@ -121,6 +135,7 @@ public class OrderService {
                 .subtotal(subtotal)
                 .tax(tax)
                 .shipping(shipping)
+                .shippingMethod(shippingMethod != null ? shippingMethod.getName() : null)
                 .total(total)
                 .currency(appProperties.getDefaultCurrency())
                 .shippingAddress(shippingJson)
@@ -374,11 +389,14 @@ public class OrderService {
         return prefix + "-" + ts + "-" + rand;
     }
 
-    private BigDecimal calculateShipping(BigDecimal subtotal) {
+    private BigDecimal calculateShipping(BigDecimal subtotal, com.iloveshopping.entity.ShippingMethod method) {
         if (subtotal.compareTo(BigDecimal.valueOf(appProperties.getFreeShippingThreshold())) >= 0) {
             return BigDecimal.ZERO;
         }
-        return BigDecimal.valueOf(10); // KES 10 flat shipping
+        if (method != null && method.getCost() != null) {
+            return method.getCost();
+        }
+        return BigDecimal.valueOf(10); // KES 10 flat shipping fallback
     }
 
     private String toJson(Object o) {

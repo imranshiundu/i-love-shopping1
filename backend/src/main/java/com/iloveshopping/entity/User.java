@@ -17,7 +17,8 @@ import java.util.stream.Collectors;
 @Entity
 @Table(name = "users", indexes = {
     @Index(name = "idx_users_email", columnList = "email"),
-    @Index(name = "idx_users_email_verified", columnList = "emailVerified")
+    @Index(name = "idx_users_email_verified", columnList = "emailVerified"),
+    @Index(name = "idx_users_clerk_id", columnList = "clerkId")
 })
 @Getter
 @Setter
@@ -42,6 +43,9 @@ public class User implements UserDetails {
 
     @Column(name = "avatar", length = 500)
     private String avatar;
+
+    @Column(name = "clerk_id", length = 255, unique = true)
+    private String clerkId;
 
     @Column(name = "email_verified")
     private LocalDateTime emailVerified;
@@ -138,6 +142,6 @@ public class User implements UserDetails {
     }
 
     public enum Role {
-        USER, ADMIN, MODERATOR
+        USER, ADMIN, MODERATOR, SUPPORT, SALES
     }
 }

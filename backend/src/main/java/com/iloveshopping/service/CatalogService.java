@@ -419,6 +419,10 @@ public class CatalogService {
         };
     }
 
+    public String generateSlugPublic(String name) {
+        return generateSlug(name);
+    }
+
     private String generateSlug(String name) {
         String normalized = Normalizer.normalize(name, Normalizer.Form.NFD);
         Pattern pattern = Pattern.compile("[^\\p{ASCII}]");

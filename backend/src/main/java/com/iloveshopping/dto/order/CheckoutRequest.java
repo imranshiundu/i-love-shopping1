@@ -26,6 +26,9 @@ public class CheckoutRequest {
 
     private String guestEmail;
 
+    /** Optional delivery option — falls back to the cheapest active method. */
+    private String shippingMethodId;
+
     @Data
     @Builder
     @NoArgsConstructor
