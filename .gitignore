@@ -43,6 +43,9 @@ jacoco/
 # Docker
 *.pid
 
+# TLS keys (regenerate with scripts/generate-tls-cert.sh)
+docker/nginx/ssl/
+
 # Database
 *.db
 *.sqlite

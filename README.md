@@ -266,6 +266,47 @@ erDiagram
     }
 ```
 
+## Performance Analysis
+
+Load testing uses k6 with three scenarios that mimic real shopper behavior (browsing catalogs, searching + cart, checkout + account flow). Full instructions, scripts and the report template live in [`load-tests/`](load-tests/README.md).
+
+**How to reproduce:**
+
+```bash
+RATE_LIMIT_AUTH_PER_MINUTE=100000 RATE_LIMIT_API_PER_MINUTE=100000 RATE_LIMIT_BURST_CAPACITY=5000 ./start.sh
+BASE_URL=http://localhost:8080/api/v1 FRONTEND_URL=http://localhost:3000 k6 run load-tests/1-browsing.js
+BASE_URL=http://localhost:8080/api/v1 k6 run load-tests/2-search-and-cart.js
+BASE_URL=http://localhost:8080/api/v1 k6 run load-tests/3-checkout-flow.js
+# breaking point: raise --vus until p(95) crosses 5s
+```
+
+**Objectives (asserted as k6 thresholds — a run fails when any is missed):**
+
+| Objective | Threshold |
+|---|---|
+| 90% of requests within 2s | `http_req_duration: p(90)<2000` |
+| 50 concurrent users supported | Scenario 1 ramps to 50 VUs |
+| 10+ transactions/sec at peak | Scenario 2 arrival rate 15 iter/s |
+| 98% transaction success at high traffic | `checks: rate>0.90` |
+| Error rate < 5% | `http_req_failed: rate<0.05` |
+
+**Results (fill from your own run):**
+
+| Metric | Result |
+|---|---|
+| Max concurrent users before p95 > 5s | _see breaking-point procedure in load-tests/README.md_ |
+| Throughput at peak (req/s) | _from k6 summary_ |
+| p(90) / p(95) at 50 VUs | _from scenario 1 summary_ |
+| Error rate at peak | _from k6 summary_ |
+| CPU / memory at peak | `docker stats` during the run |
+
+**Known bottlenecks and proposed solutions:**
+
+1. **PostgreSQL connection pool** — Hikari's default 10 connections saturate first under high concurrency. Fix: raise `spring.datasource.hikari.maximum-pool-size` (2× cores per instance) and add `pgbouncer` in front when scaling horizontally.
+2. **BCrypt refresh-token rotation** — every token refresh runs BCrypt (cost 12), ~100ms of CPU each. Fix: cache recently-verified refresh tokens in Redis with a short TTL.
+3. **Rate-limiter bucket map** — one map entry per client IP grows unbounded under attack-style load. Fix: scheduled cleanup of idle buckets (already bounded in practice by nginx `limit_req` in production).
+4. **Lazy order-items loading** — order list endpoints load items per order (N+1 on large lists). Fix: batch fetch with `@EntityGraph` for admin listing.
+
 ## Technology Stack
 
 ### Backend
