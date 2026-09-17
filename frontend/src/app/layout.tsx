@@ -1,3 +1,4 @@
+import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata } from 'next';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/lib/currency';
@@ -12,9 +13,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <AuthProvider>
+        <ClerkProvider>
+          <AuthProvider>
           <CurrencyProvider>{children}</CurrencyProvider>
-        </AuthProvider>
+          </AuthProvider>
+        </ClerkProvider>
       </body>
     </html>
   );
