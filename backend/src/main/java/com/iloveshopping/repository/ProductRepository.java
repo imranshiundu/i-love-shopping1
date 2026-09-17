@@ -20,6 +20,8 @@ public interface ProductRepository extends JpaRepository<Product, String> {
 
     Optional<Product> findBySku(String sku);
 
+    Optional<Product> findBySkuIgnoreCase(String sku);
+
     List<Product> findByCategoryId(String categoryId);
 
     List<Product> findByBrandId(String brandId);

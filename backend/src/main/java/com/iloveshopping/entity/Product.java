@@ -92,11 +92,11 @@ public class Product {
     @Builder.Default
     private List<Review> reviews = new ArrayList<>();
 
-    @Formula("(SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.product_id = id)")
+    @Formula("(SELECT COALESCE(AVG(r.rating), 0) FROM reviews r WHERE r.product_id = id AND r.status = 'APPROVED')")
     @Basic(fetch = FetchType.EAGER)
     private Double averageRating;
 
-    @Formula("(SELECT COUNT(r.id) FROM reviews r WHERE r.product_id = id)")
+    @Formula("(SELECT COUNT(r.id) FROM reviews r WHERE r.product_id = id AND r.status = 'APPROVED')")
     @Basic(fetch = FetchType.EAGER)
     private Long reviewCount;
 

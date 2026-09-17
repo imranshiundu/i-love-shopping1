@@ -1,7 +1,6 @@
 package com.iloveshopping.dto.user;
 
 import com.iloveshopping.entity.Review;
-import com.iloveshopping.entity.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -23,10 +22,17 @@ public class ReviewResponse {
     private String title;
     private String content;
     private boolean isVerifiedPurchase;
+    private int helpfulCount;
+    private boolean viewerVoted;
+    private String status;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
     public static ReviewResponse from(Review review) {
+        return from(review, false);
+    }
+
+    public static ReviewResponse from(Review review, boolean viewerVoted) {
         if (review == null) return null;
         return ReviewResponse.builder()
                 .id(review.getId())
@@ -37,6 +43,9 @@ public class ReviewResponse {
                 .title(review.getTitle())
                 .content(review.getContent())
                 .isVerifiedPurchase(review.getIsVerifiedPurchase())
+                .helpfulCount(review.getHelpfulCount() != null ? review.getHelpfulCount() : 0)
+                .viewerVoted(viewerVoted)
+                .status(review.getStatus() != null ? review.getStatus().name() : null)
                 .createdAt(review.getCreatedAt())
                 .updatedAt(review.getUpdatedAt())
                 .build();

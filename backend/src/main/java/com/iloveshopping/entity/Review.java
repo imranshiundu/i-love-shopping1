@@ -11,7 +11,8 @@ import java.time.LocalDateTime;
 @Table(name = "reviews", indexes = {
     @Index(name = "idx_reviews_product_id", columnList = "product_id"),
     @Index(name = "idx_reviews_user_id", columnList = "user_id"),
-    @Index(name = "idx_reviews_product_user", columnList = "product_id, user_id", unique = true)
+    @Index(name = "idx_reviews_product_user", columnList = "product_id, user_id", unique = true),
+    @Index(name = "idx_reviews_status", columnList = "status")
 })
 @Getter
 @Setter
@@ -46,6 +47,14 @@ public class Review {
     @Builder.Default
     private Boolean isVerifiedPurchase = false;
 
+    @Column(name = "helpful_count", nullable = false)
+    @Builder.Default
+    private Integer helpfulCount = 0;
+
+    @Column(name = "status", nullable = false, length = 20)
+    @Builder.Default
+    private Status status = Status.PENDING;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
@@ -60,5 +69,9 @@ public class Review {
         if (rating != null && (rating < 1 || rating > 5)) {
             throw new IllegalArgumentException("Rating must be between 1 and 5");
         }
+    }
+
+    public enum Status {
+        PENDING, APPROVED, REJECTED
     }
 }
