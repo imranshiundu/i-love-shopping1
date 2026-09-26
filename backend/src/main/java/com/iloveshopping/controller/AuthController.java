@@ -226,14 +226,6 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success(null));
     }
 
-    @PostMapping("/2fa/verify")
-    @Operation(summary = "Verify 2FA code for login")
-    public ResponseEntity<ApiResponse<AuthResponse>> verify2FA(
-            @Valid @RequestBody Verify2FARequest request) {
-
-        return ResponseEntity.ok(ApiResponse.success(AuthResponse.builder().build()));
-    }
-
     @PostMapping("/2fa/setup-enroll")
     @Operation(summary = "Start 2FA enrollment with email + password (forced admin enrollment)")
     public ResponseEntity<ApiResponse<TwoFASetupResponse>> setup2FAWithPassword(

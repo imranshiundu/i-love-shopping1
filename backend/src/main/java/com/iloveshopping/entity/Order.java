@@ -109,6 +109,8 @@ public class Order {
     }
 
     public boolean canBeCancelled() {
-        return status == OrderStatus.PENDING || status == OrderStatus.CONFIRMED;
+        // Only unpaid orders. A CONFIRMED order is already PAID — the money
+        // must go back through the refund flow (admin), not a free cancel.
+        return status == OrderStatus.PENDING;
     }
 }

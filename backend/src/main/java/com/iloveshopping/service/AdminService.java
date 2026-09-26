@@ -172,12 +172,33 @@ public class AdminService {
         return orderRepository.findAll(pageable).map(OrderResponse::from);
     }
 
+    /** Allowed status transitions — mirrors the admin UI action map. */
+    private static final java.util.Map<Order.OrderStatus, java.util.Set<Order.OrderStatus>> ALLOWED_TRANSITIONS =
+            java.util.Map.of(
+                    Order.OrderStatus.PENDING, java.util.Set.of(Order.OrderStatus.CONFIRMED, Order.OrderStatus.CANCELLED),
+                    Order.OrderStatus.CONFIRMED, java.util.Set.of(Order.OrderStatus.PROCESSING, Order.OrderStatus.CANCELLED),
+                    Order.OrderStatus.PROCESSING, java.util.Set.of(Order.OrderStatus.SHIPPED, Order.OrderStatus.CANCELLED),
+                    Order.OrderStatus.SHIPPED, java.util.Set.of(Order.OrderStatus.DELIVERED),
+                    Order.OrderStatus.DELIVERED, java.util.Set.of(Order.OrderStatus.REFUNDED),
+                    Order.OrderStatus.CANCELLED, java.util.Set.of(),
+                    Order.OrderStatus.REFUNDED, java.util.Set.of(),
+                    Order.OrderStatus.EXPIRED, java.util.Set.of(Order.OrderStatus.CONFIRMED, Order.OrderStatus.CANCELLED));
+
     @Transactional
     public OrderResponse updateOrderStatus(String orderNumber, UpdateOrderStatusRequest request) {
         Order order = orderRepository.findByNumber(orderNumber)
                 .orElseThrow(() -> new ResourceNotFoundException("Order", "number", orderNumber));
 
-        order.setStatus(request.getStatus());
+        Order.OrderStatus target = request.getStatus();
+        if (target != order.getStatus()) {
+            java.util.Set<Order.OrderStatus> allowed = ALLOWED_TRANSITIONS.get(order.getStatus());
+            if (allowed == null || !allowed.contains(target)) {
+                throw new IllegalArgumentException(
+                        "Cannot move order " + order.getNumber() + " from " + order.getStatus() + " to " + target);
+            }
+        }
+
+        order.setStatus(target);
         order = orderRepository.save(order);
 
         return OrderResponse.from(order);

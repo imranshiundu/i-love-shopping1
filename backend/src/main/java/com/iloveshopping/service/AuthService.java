@@ -222,6 +222,12 @@ public class AuthService {
         User user;
         if (userOpt.isPresent()) {
             user = userOpt.get();
+            // Admin accounts must not sign in through social login: it would
+            // bypass the mandatory password + TOTP (2FA) enforcement.
+            if (user.getRoles() != null && user.getRoles().contains(User.Role.ADMIN)) {
+                log.warn("Clerk login rejected for admin account {}", user.getEmail());
+                throw AuthenticationException.invalidCredentials();
+            }
             boolean changed = false;
             if (user.getClerkId() == null) {
                 user.setClerkId(clerkUser.id());

@@ -19,7 +19,7 @@ public class TwoFactorAuthUtil {
             byte[] secretBytes = new byte[20];
             java.security.SecureRandom random = new java.security.SecureRandom();
             random.nextBytes(secretBytes);
-            return bytesToHex(secretBytes);
+            return encodeBase32(secretBytes);
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate 2FA secret", e);
         }
@@ -39,7 +39,7 @@ public class TwoFactorAuthUtil {
             return false;
         }
         try {
-            byte[] secretBytes = hexToBytes(secret);
+            byte[] secretBytes = decodeSecret(secret);
             return verifyCode(secretBytes, code, System.currentTimeMillis() / 1000L);
         } catch (Exception e) {
             log.warn("2FA code verification failed: {}", e.getMessage());
@@ -52,7 +52,7 @@ public class TwoFactorAuthUtil {
             return false;
         }
         try {
-            byte[] secretBytes = hexToBytes(secret);
+            byte[] secretBytes = decodeSecret(secret);
             return verifyCode(secretBytes, code, time);
         } catch (Exception e) {
             log.warn("2FA time-based code verification failed: {}", e.getMessage());
@@ -112,6 +112,60 @@ public class TwoFactorAuthUtil {
             sb.append(String.format("%02x", b));
         }
         return sb.toString();
+    }
+
+    /**
+     * Secrets issued before the base32 switch are 40-char hex; new secrets
+     * are base32 (RFC 4648, no padding) — the format authenticator apps
+     * (Google Authenticator, Authy) expect in the otpauth:// URI.
+     */
+    private static byte[] decodeSecret(String secret) {
+        if (secret.matches("(?i)^[0-9a-f]{40}$")) {
+            return hexToBytes(secret);
+        }
+        return decodeBase32(secret);
+    }
+
+    private static String encodeBase32(byte[] bytes) {
+        char[] alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".toCharArray();
+        StringBuilder sb = new StringBuilder((bytes.length * 8 + 4) / 5);
+        for (int i = 0; i < bytes.length; i += 5) {
+            long block = 0;
+            int remaining = Math.min(5, bytes.length - i);
+            for (int j = 0; j < remaining; j++) {
+                block = (block << 8) | (bytes[i + j] & 0xFF);
+            }
+            block <<= (5 - remaining) * 8;
+            int chars = (remaining * 8 + 4) / 5;
+            for (int j = 0; j < chars; j++) {
+                sb.append(alphabet[(int) ((block >> (35 - (j + 1) * 5)) & 0x1F)]);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static byte[] decodeBase32(String base32) {
+        String cleaned = base32.replace("=", "").toUpperCase();
+        java.util.BitSet bits = new java.util.BitSet();
+        int bitCount = 0;
+        for (char c : cleaned.toCharArray()) {
+            int value = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567".indexOf(c);
+            if (value < 0) {
+                throw new IllegalArgumentException("Invalid base32 character: " + c);
+            }
+            for (int b = 4; b >= 0; b--) {
+                bits.set(bitCount++, (value >> b & 1) == 1);
+            }
+        }
+        byte[] out = new byte[bitCount / 8];
+        for (int i = 0; i < out.length; i++) {
+            for (int b = 0; b < 8; b++) {
+                if (bits.get(i * 8 + b)) {
+                    out[i] |= (byte) (0x80 >> b);
+                }
+            }
+        }
+        return out;
     }
 
     private static byte[] hexToBytes(String hex) {

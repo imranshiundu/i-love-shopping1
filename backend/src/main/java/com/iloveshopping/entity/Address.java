@@ -33,27 +33,27 @@ public class Address {
     private AddressType type;
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "name", nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 400)
     private String name;
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "line1", nullable = false, length = 200)
+    @Column(name = "line1", nullable = false, length = 700)
     private String line1;
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "line2", length = 200)
+    @Column(name = "line2", length = 700)
     private String line2;
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "city", nullable = false, length = 100)
+    @Column(name = "city", nullable = false, length = 400)
     private String city;
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "state", nullable = false, length = 100)
+    @Column(name = "state", nullable = false, length = 400)
     private String state;
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "postal_code", nullable = false, length = 20)
+    @Column(name = "postal_code", nullable = false, length = 300)
     private String postalCode;
 
     @Column(name = "country", nullable = false, length = 2)
@@ -61,7 +61,7 @@ public class Address {
     private String country = "KE";
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "phone", length = 20)
+    @Column(name = "phone", length = 300)
     private String phone;
 
     @Column(name = "is_default", nullable = false)

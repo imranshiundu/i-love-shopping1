@@ -31,11 +31,11 @@ public class Session {
     private String refreshTokenHash;
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "user_agent", length = 500)
+    @Column(name = "user_agent", length = 1200)
     private String userAgent;
 
     @Convert(converter = EncryptedStringConverter.class)
-    @Column(name = "ip", length = 45)
+    @Column(name = "ip", length = 255)
     private String ip;
 
     @Column(name = "expires_at", nullable = false)

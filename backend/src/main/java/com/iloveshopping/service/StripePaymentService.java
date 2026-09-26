@@ -266,6 +266,11 @@ public class StripePaymentService {
             payment.setMetadata(buildMetadata(payment.getProviderId(), "refunded:" + refund.getId()));
             paymentRepository.save(payment);
 
+            // Give the reserved stock back — the goods are not going out.
+            for (OrderItem item : order.getItems()) {
+                productRepository.incrementStock(item.getProduct().getId(), item.getQuantity());
+            }
+
             order.setStatus(Order.OrderStatus.REFUNDED);
             orderRepository.save(order);
 
@@ -316,6 +321,17 @@ public class StripePaymentService {
                     payment.setMetadata(buildMetadata(intent.getId(), "failed"));
                     paymentRepository.save(payment);
                     log.warn("Stripe webhook: payment failed for {}", intent.getId());
+                    // Same cleanup as the confirm path: release stock and
+                    // close the order so the customer can retry.
+                    Order order = payment.getOrder();
+                    if (order.getStatus() == Order.OrderStatus.PENDING
+                            || order.getStatus() == Order.OrderStatus.EXPIRED) {
+                        for (OrderItem item : order.getItems()) {
+                            productRepository.incrementStock(item.getProduct().getId(), item.getQuantity());
+                        }
+                        order.setStatus(Order.OrderStatus.CANCELLED);
+                        orderRepository.save(order);
+                    }
                 }
                 case "payment_intent.processing" -> {
                     payment.setStatus(Payment.PaymentStatus.PROCESSING);
@@ -341,6 +357,33 @@ public class StripePaymentService {
 
     private void onPaymentSucceeded(Payment payment) {
         Order order = payment.getOrder();
+
+        // Race guard: the customer may have cancelled while the card payment
+        // was in flight. Money was captured, so refund it immediately and keep
+        // the order cancelled instead of resurrecting it.
+        if (order.getStatus() == Order.OrderStatus.CANCELLED) {
+            log.warn("Payment succeeded for cancelled order {} — auto-refunding {}", order.getNumber(), payment.getProviderId());
+            try {
+                Refund refund = Refund.create(RefundCreateParams.builder()
+                        .setPaymentIntent(payment.getProviderId())
+                        .setReason(RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
+                        .build());
+                payment.setStatus(Payment.PaymentStatus.REFUNDED);
+                payment.setMetadata(buildMetadata(payment.getProviderId(), "auto_refunded_cancelled:" + refund.getId()));
+                paymentRepository.save(payment);
+            } catch (StripeException e) {
+                log.error("Auto-refund failed for cancelled order {}: {} — flagging for manual refund",
+                        order.getNumber(), e.getMessage());
+            }
+            return;
+        }
+        if (order.getStatus() != Order.OrderStatus.PENDING
+                && order.getStatus() != Order.OrderStatus.EXPIRED) {
+            log.warn("Payment succeeded for order {} in status {} — leaving status untouched",
+                    order.getNumber(), order.getStatus());
+            return;
+        }
+
         order.setStatus(Order.OrderStatus.CONFIRMED);
         orderRepository.save(order);
 

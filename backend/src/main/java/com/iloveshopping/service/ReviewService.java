@@ -8,6 +8,7 @@ import com.iloveshopping.entity.Product;
 import com.iloveshopping.entity.Review;
 import com.iloveshopping.entity.ReviewVote;
 import com.iloveshopping.entity.User;
+import com.iloveshopping.exception.AuthenticationException;
 import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.OrderRepository;
 import com.iloveshopping.repository.ProductRepository;
@@ -58,7 +59,7 @@ public class ReviewService {
 
     @Transactional
     public ReviewResponse addReview(String productSlug, ReviewRequest request) {
-        User user = getCurrentUser();
+        User user = requireCurrentUser();
         Product product = productRepository.findBySlug(productSlug)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "slug", productSlug));
 
@@ -88,7 +89,7 @@ public class ReviewService {
 
     @Transactional
     public ReviewResponse updateReview(String id, ReviewRequest request) {
-        User user = getCurrentUser();
+        User user = requireCurrentUser();
         Review review = reviewRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", "id", id));
 
@@ -111,7 +112,7 @@ public class ReviewService {
 
     @Transactional
     public void deleteReview(String id) {
-        User user = getCurrentUser();
+        User user = requireCurrentUser();
         Review review = reviewRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", "id", id));
 
@@ -128,7 +129,7 @@ public class ReviewService {
      */
     @Transactional
     public ReviewResponse toggleHelpful(String reviewId) {
-        User user = getCurrentUser();
+        User user = requireCurrentUser();
         Review review = reviewRepository.findById(reviewId)
                 .orElseThrow(() -> new ResourceNotFoundException("Review", "id", reviewId));
 
@@ -218,5 +219,18 @@ public class ReviewService {
                     .orElseThrow(() -> new ResourceNotFoundException("User", "id", user.getId()));
         }
         return null;
+    }
+
+    /**
+     * Review endpoints live under permitAll paths (/products/**), so an
+     * unauthenticated caller reaches this service. Fail with a proper 401
+     * instead of an NPE.
+     */
+    private User requireCurrentUser() {
+        User user = getCurrentUser();
+        if (user == null) {
+            throw AuthenticationException.invalidToken();
+        }
+        return user;
     }
 }

@@ -68,6 +68,7 @@ public class SecurityConfig {
                         .requestMatchers("/auth/2fa/setup-enroll", "/auth/2fa/complete-enroll").permitAll()
                         .requestMatchers("/auth/2fa/**").authenticated()
                         .requestMatchers("/contact").permitAll()
+                        .requestMatchers("/shipping-methods", "/shipping-methods/**").permitAll()
                         .requestMatchers("/products", "/products/**").permitAll()
                         .requestMatchers("/categories", "/categories/**").permitAll()
                         .requestMatchers("/brands", "/brands/**").permitAll()

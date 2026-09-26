@@ -51,6 +51,7 @@ public class Review {
     @Builder.Default
     private Integer helpfulCount = 0;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     @Builder.Default
     private Status status = Status.PENDING;
@@ -65,7 +66,7 @@ public class Review {
 
     @PrePersist
     @PreUpdate
-    private void validateRating() {
+    void validateRating() {
         if (rating != null && (rating < 1 || rating > 5)) {
             throw new IllegalArgumentException("Rating must be between 1 and 5");
         }
