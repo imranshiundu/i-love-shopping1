@@ -136,7 +136,7 @@ export default function AccountOrdersPage() {
         ) : (
           visible.map((order, idx) => {
             const items: any[] = order.items || [];
-            const cancellable = ['PENDING', 'CONFIRMED'].includes(order.status);
+            const cancellable = order.status === 'PENDING';
             const StatusIcon = STATUS_ICON[order.status] || FiBox;
             return (
               <Reveal key={order.id} delay={Math.min(idx * 60, 240)}>

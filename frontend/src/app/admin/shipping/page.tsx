@@ -50,15 +50,19 @@ export default function AdminShippingPage() {
     if (isNaN(cost) || cost < 0) { toast.error('Cost must be zero or more'); return; }
     setSaving(true);
     try {
-      await admin.saveShippingMethod({
-        id: editingId || undefined,
+      const payload = {
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         cost,
         estimatedDays: form.estimatedDays.trim() || undefined,
         active: form.active,
         displayOrder: Number(form.displayOrder) || 0,
-      });
+      };
+      if (editingId) {
+        await admin.saveShippingMethod({ ...payload, id: editingId });
+      } else {
+        await admin.createShippingMethod(payload);
+      }
       toast.success(editingId ? 'Delivery option updated' : 'Delivery option created');
       setModalOpen(false);
       await load();

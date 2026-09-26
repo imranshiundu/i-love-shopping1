@@ -264,8 +264,10 @@ export const admin = {
     });
   },
   listShippingMethods: () => request<any>(`/shipping-methods`),
+  createShippingMethod: (method: any) =>
+    request<any>(`/admin/shipping-methods`, { method: 'POST', body: JSON.stringify(method) }),
   saveShippingMethod: (method: any) =>
-    request<any>(`/admin/shipping-methods/${method.id || ''}`, { method: 'PUT', body: JSON.stringify(method) }),
+    request<any>(`/admin/shipping-methods/${method.id}`, { method: 'PUT', body: JSON.stringify(method) }),
   deleteShippingMethod: (id: string) => request<void>(`/admin/shipping-methods/${id}`, { method: 'DELETE' }),
   createCategory: (data: Partial<Category>) => request<Category>('/categories', { method: 'POST', body: JSON.stringify(data) }),
   updateCategory: (id: string, data: Partial<Category>) => request<Category>(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

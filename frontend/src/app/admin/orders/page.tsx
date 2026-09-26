@@ -40,6 +40,14 @@ export default function AdminOrdersPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Live operations view: refresh the queue every 15s so new orders and
+  // status changes (payments confirming, shipments moving) appear in
+  // realtime while an admin works.
+  useEffect(() => {
+    const timer = setInterval(() => { load(); }, 15_000);
+    return () => clearInterval(timer);
+  }, [load]);
+
   const updateStatus = async (orderNumber: string, status: string) => {
     if (status === 'REFUNDED' && !confirm(`Refund ${orderNumber} for real? This moves money back to the customer's card via Stripe.`)) return;
     setUpdatingId(orderNumber);

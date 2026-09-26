@@ -74,17 +74,26 @@ function OrderDetailContent({ orderNumber }: { orderNumber: string }) {
 
   useEffect(() => {
     if (!orderNumber) return;
+    let cancelled = false;
     (async () => {
       setLoadingOrder(true);
       try {
         const res = await ordersApi.getByNumber(orderNumber);
-        setOrder(res.data as any);
-        setError(null);
+        if (!cancelled) { setOrder(res.data as any); setError(null); }
       } catch (e: any) {
-        setError(e?.message || 'Could not load this order');
+        if (!cancelled) setError(e?.message || 'Could not load this order');
       }
-      setLoadingOrder(false);
+      if (!cancelled) setLoadingOrder(false);
     })();
+    // Live tracking: re-fetch while the order is still moving through
+    // PENDING/CONFIRMED/PROCESSING so status changes appear without a reload.
+    const timer = setInterval(async () => {
+      try {
+        const res = await ordersApi.getByNumber(orderNumber);
+        if (!cancelled) setOrder(res.data as any);
+      } catch { /* transient */ }
+    }, 10_000);
+    return () => { cancelled = true; clearInterval(timer); };
   }, [orderNumber]);
 
   if (loadingOrder) {
