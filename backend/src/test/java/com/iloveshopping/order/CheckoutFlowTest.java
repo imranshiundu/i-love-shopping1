@@ -52,6 +52,14 @@ class CheckoutFlowTest {
     }
 
     @Test
+    void paidOrdersCannotBeCancelled() {
+        // CONFIRMED means the money was captured — cancelling would keep the
+        // customer's money. Refunds are the only path back from CONFIRMED.
+        Order order = Order.builder().status(Order.OrderStatus.CONFIRMED).total(new BigDecimal("1000")).subtotal(new BigDecimal("800")).shipping(BigDecimal.ZERO).tax(BigDecimal.ZERO).build();
+        assertFalse(order.canBeCancelled());
+    }
+
+    @Test
     void expiredOrdersCannotBeCancelled() {
         Order order = Order.builder().status(Order.OrderStatus.EXPIRED).total(new BigDecimal("1000")).subtotal(new BigDecimal("800")).shipping(BigDecimal.ZERO).tax(BigDecimal.ZERO).build();
         assertFalse(order.canBeCancelled());

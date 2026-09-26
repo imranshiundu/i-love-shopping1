@@ -75,7 +75,9 @@ Order state flows through RabbitMQ: checkout publishes `order.created`, successf
 | `orders` | Checkout, order management, order history |
 | `payments` | M-Pesa STK Push, callbacks, payment status |
 | `users` | Profile management, addresses, password changes |
-| `reviews` | Product reviews and ratings |
+| `reviews` | Product reviews, helpfulness votes and moderation |
+| `review_votes` | One helpful vote per user per review |
+| `shipping_methods` | Admin-managed delivery options (Standard/Express/Pickup) |
 
 ## Entity Relationship Diagram
 
@@ -99,6 +101,7 @@ erDiagram
         datetime password_reset_expires_at
         string two_factor_secret
         boolean two_factor_enabled
+        string clerk_id UK
         string roles
         datetime created_at
         datetime updated_at
@@ -261,6 +264,30 @@ erDiagram
         string title
         string content
         boolean is_verified_purchase
+        integer helpful_count
+        varchar status
+        datetime created_at
+        datetime updated_at
+    }
+
+    REVIEW ||--o{ REVIEW_VOTE : receives
+    USER ||--o{ REVIEW_VOTE : casts
+    REVIEW_VOTE {
+        uuid id PK
+        uuid review_id FK
+        uuid user_id FK
+        datetime created_at
+    }
+
+    ORDER ||--o{ SHIPPING_METHOD : uses
+    SHIPPING_METHOD {
+        uuid id PK
+        string name
+        string description
+        decimal cost
+        string estimated_days
+        boolean active
+        integer display_order
         datetime created_at
         datetime updated_at
     }

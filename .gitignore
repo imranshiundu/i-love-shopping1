@@ -69,3 +69,6 @@ server.txt
 issues.txt
 =
 frontend/.env.production
+
+# Build artifacts
+*.tsbuildinfo
