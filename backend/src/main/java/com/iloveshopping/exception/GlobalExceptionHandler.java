@@ -83,6 +83,31 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return handleApiException(ex, request);
     }
 
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleAccessDeniedException(
+            org.springframework.security.access.AccessDeniedException ex, WebRequest request) {
+        org.springframework.security.core.Authentication auth =
+                org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        HttpStatus status = (auth == null || !auth.isAuthenticated()
+                || auth instanceof org.springframework.security.authentication.AnonymousAuthenticationToken)
+                ? HttpStatus.UNAUTHORIZED : HttpStatus.FORBIDDEN;
+        log.warn("Access denied: {}", ex.getMessage());
+        ApiResponse.ErrorResponse error = ApiResponse.ErrorResponse.builder()
+                .statusCode(status.value())
+                .error(status.getReasonPhrase())
+                .message(status == HttpStatus.UNAUTHORIZED
+                        ? "Authentication required"
+                        : "You do not have permission to access this resource")
+                .path(request.getDescription(false).replace("uri=", ""))
+                .build();
+        return ResponseEntity.status(status)
+                .body(ApiResponse.<Object>builder()
+                        .success(false)
+                        .error(error)
+                        .timestamp(Instant.now())
+                        .build());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<ApiResponse<Object>> handleResourceNotFoundException(ResourceNotFoundException ex, WebRequest request) {
         return handleApiException(ex, request);
