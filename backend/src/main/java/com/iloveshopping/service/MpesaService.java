@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.time.format.DateTimeFormatter;
 import java.util.Base64;
 import java.util.Optional;
@@ -270,12 +271,16 @@ public class MpesaService {
                 }
 
                 // If order was EXPIRED, stock was already restored — re-decrement atomically
+                // (sorted by product id so concurrent callbacks lock rows in the same order)
+                List<OrderItem> decrementItems = order.getItems().stream()
+                        .sorted(java.util.Comparator.comparing(i -> i.getProduct().getId()))
+                        .toList();
                 if (order.getStatus() == Order.OrderStatus.EXPIRED) {
-                    for (OrderItem item : order.getItems()) {
+                    for (OrderItem item : decrementItems) {
                         int rows = productRepository.decrementStock(item.getProduct().getId(), item.getQuantity());
                         if (rows == 0) {
                             // stock no longer available
-                            for (OrderItem i2 : order.getItems()) {
+                            for (OrderItem i2 : decrementItems) {
                                 productRepository.incrementStock(i2.getProduct().getId(), i2.getQuantity());
                             }
                             payment.setStatus(Payment.PaymentStatus.FAILED);
@@ -506,13 +511,18 @@ public class MpesaService {
         if (order.getStatus() == Order.OrderStatus.CANCELLED
                 || order.getStatus() == Order.OrderStatus.EXPIRED) {
             // Re-check stock and re-decrement before re-opening
-            for (OrderItem item : order.getItems()) {
+            // (sorted by product id to avoid row-lock deadlocks under concurrency)
+            for (OrderItem item : order.getItems().stream()
+                    .sorted(java.util.Comparator.comparing(i -> i.getProduct().getId()))
+                    .toList()) {
                 Product product = item.getProduct();
                 if (product.getStock() < item.getQuantity()) {
                     throw new PaymentException("Some items are no longer available. Please place a new order.");
                 }
             }
-            for (OrderItem item : order.getItems()) {
+            for (OrderItem item : order.getItems().stream()
+                    .sorted(java.util.Comparator.comparing(i -> i.getProduct().getId()))
+                    .toList()) {
                 productRepository.decrementStock(item.getProduct().getId(), item.getQuantity());
             }
             order.setStatus(Order.OrderStatus.PENDING);

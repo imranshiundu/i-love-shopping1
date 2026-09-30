@@ -166,10 +166,17 @@ public class OrderService {
 
         final Order saved = orderRepository.save(order);
 
-        // Atomic stock decrement with compensation on failure
+        // Atomic stock decrement with compensation on failure.
+        // Items are decremented in a deterministic order (sorted by product id)
+        // so concurrent checkouts acquire row locks in the same sequence —
+        // otherwise two orders buying the same products in a different
+        // order can deadlock each other.
+        List<CartItem> decrementOrder = items.stream()
+                .sorted(java.util.Comparator.comparing(ci -> ci.getProduct().getId()))
+                .toList();
         List<CartItem> decremented = new ArrayList<>();
         try {
-            for (CartItem ci : items) {
+            for (CartItem ci : decrementOrder) {
                 int rows = productRepository.decrementStock(ci.getProduct().getId(), ci.getQuantity());
                 if (rows == 0) {
                     // Restore any stock we already decremented
