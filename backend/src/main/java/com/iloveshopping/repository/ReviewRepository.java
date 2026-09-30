@@ -28,8 +28,10 @@ public interface ReviewRepository extends JpaRepository<Review, String> {
     @Query("SELECT r FROM Review r WHERE r.product.id = :productId AND r.status = 'APPROVED' ORDER BY r.createdAt DESC")
     Page<Review> findApprovedByRecency(@Param("productId") String productId, Pageable pageable);
 
-    @Query("SELECT r FROM Review r WHERE (:status IS NULL OR r.status = :status) ORDER BY r.createdAt DESC")
-    Page<Review> findAllByStatus(@Param("status") String status, Pageable pageable);
+    @Query("SELECT r FROM Review r WHERE r.status = :status ORDER BY r.createdAt DESC")
+    Page<Review> findByStatus(@Param("status") Review.Status status, Pageable pageable);
+
+    Page<Review> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
     @Query("SELECT AVG(r.rating) FROM Review r WHERE r.product.id = :productId AND r.status = 'APPROVED'")
     Double getAverageRating(@Param("productId") String productId);

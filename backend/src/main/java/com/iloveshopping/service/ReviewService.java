@@ -155,7 +155,18 @@ public class ReviewService {
         PageRequest pageable = PageRequest.of(page, size);
         String normalized = (status == null || status.isBlank() || "all".equalsIgnoreCase(status))
                 ? null : status.toUpperCase();
-        Page<Review> reviewPage = reviewRepository.findAllByStatus(normalized, pageable);
+        Page<Review> reviewPage;
+        if (normalized == null) {
+            reviewPage = reviewRepository.findAllByOrderByCreatedAtDesc(pageable);
+        } else {
+            Review.Status filter;
+            try {
+                filter = Review.Status.valueOf(normalized);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Invalid status: must be PENDING, APPROVED or REJECTED");
+            }
+            reviewPage = reviewRepository.findByStatus(filter, pageable);
+        }
         return reviewPage.map(ReviewResponse::from);
     }
 
