@@ -46,6 +46,9 @@ jacoco/
 # TLS keys (regenerate with scripts/generate-tls-cert.sh)
 docker/nginx/ssl/
 
+# Uploaded product images (runtime artifacts)
+uploads/
+
 # Database
 *.db
 *.sqlite
