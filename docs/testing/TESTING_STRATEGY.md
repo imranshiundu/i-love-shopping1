@@ -37,6 +37,15 @@ This document outlines the testing approach for i-love-shopping.
 **Tools**: Testcontainers, Spring Boot Test, RestAssured
 **Location**: `src/test/java/com/iloveshopping/integration/`
 
+**Implemented**:
+- `UserFlowIntegrationTest` — end-to-end shopper flow through the real HTTP stack
+  against live PostgreSQL + Redis + RabbitMQ containers: anonymous catalog browse,
+  auth-gated order access, register → login → add to cart → checkout → order lookup,
+  foreign-order hiding (404) and admin-endpoint rejection (403) for shoppers.
+  The `test` profile boots Postgres via the Testcontainers JDBC driver
+  (`jdbc:tc:postgresql:16`) with a fresh schema (Flyway off, `create-drop`);
+  the test seeds its own catalog data.
+
 **Planned Tests**:
 - `AuthIntegrationTest` - Registration, login, refresh, 2FA
 - `CatalogIntegrationTest` - Product search, filtering, pagination
@@ -45,6 +54,12 @@ This document outlines the testing approach for i-love-shopping.
 - `PaymentIntegrationTest` - M-Pesa STK Push, callbacks
 
 **Run**: `./mvnw verify -DskipUnitTests`
+
+> **Docker Engine 29 note**: docker-java (used by Testcontainers) negotiates the
+> legacy Docker API 1.32 by default, which Docker 29 refuses (minimum API 1.40).
+> On Docker 29 hosts, create `~/.docker-java.properties` containing
+> `api.version=1.44` (or another supported version) so the Testcontainers
+> Postgres/RabbitMQ containers can start.
 
 ### 3. E2E Tests (Target: Critical user journeys)
 
