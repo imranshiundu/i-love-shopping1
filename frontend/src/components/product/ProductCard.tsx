@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { Product } from '@/types';
 import { formatKES, cn } from '@/lib/utils';
+import { sizedImageUrl } from '@/lib/images';
 import { useAuth } from '@/contexts/AuthContext';
 import { FiStar, FiShoppingBag, FiCheck, FiEye } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -36,7 +37,7 @@ export default function ProductCard({ product }: { product: Product }) {
     >
       <div className="relative aspect-[4/5] overflow-hidden bg-stone-100">
         <img
-          src={image?.url}
+          src={sizedImageUrl(image?.url, 'card')}
           alt={image?.alt || product.name}
           loading="lazy"
           className="img-zoom h-full w-full object-cover"

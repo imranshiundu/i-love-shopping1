@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { products as productsApi } from '@/services/api';
 import { config } from '@/lib/config';
+import { sizedImageUrl } from '@/lib/images';
 import { CURRENCIES, useCurrency } from '@/lib/currency';
 import { formatKES } from '@/lib/utils';
 import { FiShoppingCart, FiUser, FiSearch, FiMenu, FiX, FiTruck, FiGlobe, FiCheck } from 'react-icons/fi';
@@ -152,7 +153,7 @@ export default function Header() {
                             <li key={item.id} className="flex items-center gap-3 px-4 py-3">
                               <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-stone-100">
                                 {item.productImage
-                                  ? <img src={item.productImage} alt={item.productName} className="h-full w-full object-cover" />
+                                  ? <img src={sizedImageUrl(item.productImage, 'thumb')} alt={item.productName} className="h-full w-full object-cover" />
                                   : <span className="flex h-full w-full items-center justify-center text-[10px] text-stone-400" aria-hidden="true">—</span>}
                               </span>
                               <span className="min-w-0 flex-1">

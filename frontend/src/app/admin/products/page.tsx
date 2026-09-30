@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { admin, products as productsApi, categories as categoriesApi, brands as brandsApi } from '@/services/api';
 import { Product, Category, Brand } from '@/types';
 import { formatKES } from '@/lib/utils';
+import { sizedImageUrl } from '@/lib/images';
 import Reveal from '@/components/ui/Reveal';
 import { FiPlus, FiEdit2, FiTrash2, FiX, FiTag, FiUpload } from 'react-icons/fi';
 import toast from 'react-hot-toast';
@@ -172,7 +173,7 @@ export default function AdminProductsPage() {
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
                           <span className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-stone-100">
-                            {p.images?.[0] && <img src={p.images[0].url} alt={p.name || "Product"} className="h-full w-full object-cover" />}
+                            {p.images?.[0] && <img src={sizedImageUrl(p.images[0].url, 'thumb')} alt={p.name || "Product"} className="h-full w-full object-cover" />}
                           </span>
                           <div className="min-w-0">
                             <p className="max-w-[240px] truncate font-medium">{p.name}</p>

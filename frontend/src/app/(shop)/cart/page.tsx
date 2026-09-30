@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { cart as cartApi, products as productsApi } from '@/services/api';
 import { config } from '@/lib/config';
+import { sizedImageUrl } from '@/lib/images';
 import { formatKES } from '@/lib/utils';
 import Reveal from '@/components/ui/Reveal';
 import ProductCard from '@/components/product/ProductCard';
@@ -107,7 +108,7 @@ export default function CartPage() {
               <article className={`flex gap-4 rounded-2xl border border-stone-200/80 bg-white p-4 transition-opacity ${updating === item.id ? 'opacity-50' : ''}`}>
                 <Link href={`/products/${item.productSlug}`} className="shrink-0 overflow-hidden rounded-xl bg-stone-100">
                   {item.productImage ? (
-                    <img src={item.productImage} alt={item.productName} className="h-24 w-24 object-cover sm:h-28 sm:w-28" />
+                    <img src={sizedImageUrl(item.productImage, 'thumb')} alt={item.productName} className="h-24 w-24 object-cover sm:h-28 sm:w-28" />
                   ) : (
                     <div className="flex h-24 w-24 items-center justify-center text-stone-400"><FiShoppingBag /></div>
                   )}
