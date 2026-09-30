@@ -7,14 +7,16 @@ import { check, sleep } from 'k6';
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080/api/v1';
 const FRONTEND_URL = __ENV.FRONTEND_URL || 'http://localhost:3000';
 
+const PEAK = parseInt(__ENV.PEAK || '50', 10);
+
 export const options = {
   scenarios: {
     browsing: {
       executor: 'ramping-vus',
       startVUs: 0,
       stages: [
-        { duration: '30s', target: 20 },
-        { duration: '1m', target: 50 },
+        { duration: '30s', target: Math.round(PEAK * 0.4) },
+        { duration: '1m', target: PEAK },
         { duration: '30s', target: 0 },
       ],
       gracefulRampDown: '10s',

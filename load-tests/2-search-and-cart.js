@@ -36,7 +36,7 @@ export default function () {
   const params = { headers: { 'Content-Type': 'application/json', 'X-Cart-Session': cartSession } };
 
   // 1. Search with suggestions (quick search as you type)
-  const suggestions = http.get(`${BASE_URL}/products/search/suggestions?q=${term}`, { tags: { name: 'GET suggestions' } });
+  const suggestions = http.get(`${BASE_URL}/products/search/suggestions?query=${term}`, { tags: { name: 'GET suggestions' } });
   check(suggestions, { 'suggestions 200': r => r.status === 200 });
 
   // 2. Search results page (faceted)

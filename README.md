@@ -304,8 +304,13 @@ RATE_LIMIT_AUTH_PER_MINUTE=100000 RATE_LIMIT_API_PER_MINUTE=100000 RATE_LIMIT_BU
 BASE_URL=http://localhost:8080/api/v1 FRONTEND_URL=http://localhost:3000 k6 run load-tests/1-browsing.js
 BASE_URL=http://localhost:8080/api/v1 k6 run load-tests/2-search-and-cart.js
 BASE_URL=http://localhost:8080/api/v1 k6 run load-tests/3-checkout-flow.js
-# breaking point: raise --vus until p(95) crosses 5s
+# breaking point: raise the peak until p(95) crosses 5s
+BASE_URL=http://localhost:8080/api/v1 FRONTEND_URL=http://localhost:3000 PEAK=150 k6 run load-tests/1-browsing.js
 ```
+
+> Restock the products the checkout scenario buys (`shoes`, `test-item-kes-1`) before high-volume
+> runs of scenario 3 — it places real orders and can exhaust stock, which (correctly) fails checkouts
+> with 409 once a product sells out.
 
 **Objectives (asserted as k6 thresholds — a run fails when any is missed):**
 
@@ -317,22 +322,24 @@ BASE_URL=http://localhost:8080/api/v1 k6 run load-tests/3-checkout-flow.js
 | 98% transaction success at high traffic | `checks: rate>0.90` |
 | Error rate < 5% | `http_req_failed: rate<0.05` |
 
-**Results (fill from your own run):**
+**Results (measured on the dev stack: 4-vCPU host, API + Postgres 16 + Redis 7 + RabbitMQ + Next.js dev server, k6 from Docker with `--network host`):**
 
 | Metric | Result |
 |---|---|
-| Max concurrent users before p95 > 5s | _see breaking-point procedure in load-tests/README.md_ |
-| Throughput at peak (req/s) | _from k6 summary_ |
-| p(90) / p(95) at 50 VUs | _from scenario 1 summary_ |
-| Error rate at peak | _from k6 summary_ |
-| CPU / memory at peak | `docker stats` during the run |
+| Max concurrent users before p95 > 5s | **~150 VUs** (100 VUs: p95=3.11s; 125 VUs: p95=4.27s; 150 VUs: p95=5.03s — first crossing) |
+| Throughput at peak (req/s) | Browsing: ~60 req/s (11.8 iter/s); search+cart: **46 req/s** (10.4 iter/s); checkout: ~8 req/s |
+| p(90) / p(95) at 50 VUs | **404 ms / 897 ms** (scenario 1, 100% checks) |
+| Error rate at peak | **0.00%** across all scenarios at their peaks (scenario 2: 5,591/5,591 checks pass; scenario 3: 100% after deadlock fix) |
+| CPU / memory at peak | JVM ~27–66% of one core, ~510 MB RSS; Postgres ~19% CPU, 116 MB; Redis ~1%, 2.3 MB (`docker stats` during runs) |
+| Checkout scenario (25 VUs) | 100% checkouts succeed, 0 failed requests; p90≈7.3s dominated by the auth path (see bottleneck 2) |
 
 **Known bottlenecks and proposed solutions:**
 
-1. **PostgreSQL connection pool** — Hikari's default 10 connections saturate first under high concurrency. Fix: raise `spring.datasource.hikari.maximum-pool-size` (2× cores per instance) and add `pgbouncer` in front when scaling horizontally.
-2. **BCrypt refresh-token rotation** — every token refresh runs BCrypt (cost 12), ~100ms of CPU each. Fix: cache recently-verified refresh tokens in Redis with a short TTL.
+1. **PostgreSQL connection pool** — Hikari's default 10 connections saturate first under high concurrency. Fix: raise `spring.datasource.hikari.maximum-pool-size` (2× cores per instance; this repo already sets 20) and add `pgbouncer` in front when scaling horizontally.
+2. **BCrypt on the auth hot path** — login/register/refresh run BCrypt (cost 12) twice (password verify + refresh-token hash): ~1.1s CPU per operation on the test hardware, so checkout-flow p90 degrades to ~7s at 25 VUs. Fix: cache recently-verified refresh tokens in Redis with a short TTL, and hash refresh tokens with a fast keyed hash (they are 256-bit random values and do not need password-grade KDFs).
 3. **Rate-limiter bucket map** — one map entry per client IP grows unbounded under attack-style load. Fix: scheduled cleanup of idle buckets (already bounded in practice by nginx `limit_req` in production).
 4. **Lazy order-items loading** — order list endpoints load items per order (N+1 on large lists). Fix: batch fetch with `@EntityGraph` for admin listing.
+5. **Stock row lock contention** — concurrent checkouts buying the same product queue on the product row lock (they now lock in a deterministic order, which removed the deadlocks found under load testing). Fix: shard hot-product stock counters or move reservations to Redis.
 
 ## Technology Stack
 

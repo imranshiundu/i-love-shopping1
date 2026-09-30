@@ -69,9 +69,26 @@ Fill this in from real runs and paste into the README performance section:
 | CPU/memory at peak | _docker stats during run_ |
 | Bottlenecks identified | _documented below_ |
 
-### Known bottlenecks (from architecture review)
+### Measured results (dev stack, 4-vCPU host, k6 from Docker)
 
-- **PostgreSQL connection pool** — default Hikari pool (10) saturates under high concurrency; raise `spring.datasource.hikari.maximum-pool-size` when scaling.
-- **JWT BCrypt refresh rotation** — refresh token verification runs BCrypt (cost 12) per refresh; ~100ms CPU each. Consider caching verified refresh tokens in Redis.
+| Metric | Result |
+|---|---|
+| Max concurrent users before p95 > 5s | **~150 VUs** (100 → p95 3.11s, 125 → 4.27s, 150 → 5.03s: first crossing; 0% errors at every level) |
+| Throughput at peak (req/s) | Browsing ~60 req/s; search+cart **46 req/s** (10.4 iter/s); checkout ~8 req/s |
+| p(90) latency at 50 VUs | **404 ms** |
+| p(95) latency at 50 VUs | **897 ms** |
+| Error rate at peak | **0.00%** (scenario 2: 5,591/5,591 checks; scenario 3: 100% after the deadlock fix) |
+| CPU/memory at peak | JVM 27–66% of one core / ~510 MB; Postgres 19% / 116 MB; Redis 1% / 2.3 MB |
+| Checkout scenario at 25 VUs | 100% checkout success, p90≈7.3s (auth-path BCrypt dominates — see bottleneck 2) |
+
+Run-prep notes: raise the rate limits as above, use the dev reCAPTCHA key (`RECAPTCHA_SECRET_KEY=dev-test-secret`) so auth
+latency measures the app rather than a round-trip to Google, and restock `shoes`/`test-item-kes-1` before scenario 3
+(it places real orders and a sold-out product correctly returns 409).
+
+### Known bottlenecks (from architecture review + measured under load)
+
+- **PostgreSQL connection pool** — default Hikari pool (10) saturates under high concurrency; raise `spring.datasource.hikari.maximum-pool-size` (this repo sets 20) and add `pgbouncer` when scaling horizontally.
+- **BCrypt on the auth path** — login/register/refresh run BCrypt (cost 12) twice (password verify + refresh-token hash), ~1.1s CPU per hash on the test host; cache verified refresh tokens in Redis and hash refresh tokens with a fast keyed hash (they are 256-bit random values).
 - **Rate limiter bucket map** — grows one entry per IP; under attack-style load, evict idle buckets (scheduled cleanup) to bound memory.
 - **N+1 on order items** — order responses load items lazily per order; batch fetch for large order lists.
+- **Hot stock rows** — concurrent checkouts buying the same product queue on that product's row lock (deadlocks were found under load and fixed by decrementing in deterministic product-id order); shard hot-product counters or move reservations to Redis for very hot SKUs.
