@@ -63,6 +63,7 @@ public class User implements UserDetails {
     private LocalDateTime passwordResetExpiresAt;
 
     @Column(name = "two_factor_secret", length = 255)
+    @Convert(converter = EncryptedStringConverter.class)
     private String twoFactorSecret;
 
     @Column(name = "two_factor_enabled", nullable = false)
