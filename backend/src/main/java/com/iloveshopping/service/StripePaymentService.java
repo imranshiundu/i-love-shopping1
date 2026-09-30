@@ -425,7 +425,9 @@ public class StripePaymentService {
             data.put("paymentIntentId", paymentIntentId);
             data.put("stripeStatus", status);
             data.put("timestamp", java.time.Instant.now().toString());
-            return mapper.writeValueAsString(data);
+            // Encrypted at rest — PaymentResponse decrypts via DataEncryptionService.decryptStatic
+            // encryptForJson wraps the ciphertext in quotes so the value stays valid for the jsonb column
+            return com.iloveshopping.service.DataEncryptionService.encryptForJson(mapper.writeValueAsString(data));
         } catch (Exception e) {
             return "{}";
         }
