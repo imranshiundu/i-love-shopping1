@@ -350,6 +350,17 @@ function CheckoutContent() {
     if ((shipping.phone || '').replace(/\D/g, '').length < 9) {
       toast.error('Enter a valid phone number'); return false;
     }
+    if (!user) {
+      const email = String((shipping as any).email || '').trim();
+      if (!email) {
+        setFieldErrors(prev => ({ ...prev, email: true }));
+        toast.error('Enter your email so we can send the order confirmation'); return false;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setFieldErrors(prev => ({ ...prev, email: true }));
+        toast.error('Enter a valid email address'); return false;
+      }
+    }
     if (!sameAsShipping) {
       for (const { key, label } of REQUIRED.filter(f => f.key !== 'phone')) {
         if (!String(billing[key as keyof Address] || '').trim()) {
@@ -443,12 +454,7 @@ function CheckoutContent() {
 
   const handlePlaceOrder = async () => {
     if (!validateAddress()) return;
-    // Require authentication before payment — user must sign in / register
-    if (!user) {
-      setShowAuthModal(true);
-      setProceedAfterAuth(true);
-      return;
-    }
+    // Guests proceed with the email they entered; signed-in users keep their account flow
     setPayTotal(total);
     setShowPaymentModal(true);
     setStkStatus('idle');
@@ -497,7 +503,7 @@ function CheckoutContent() {
           shippingAddress: { ...shipping, type: 'SHIPPING' },
           billingAddress: sameAsShipping ? { ...shipping, type: 'BILLING' } : { ...billing, type: 'BILLING' },
           notes,
-          guestEmail: user?.email || undefined,
+          guestEmail: user?.email || (shipping as any).email || undefined,
           shippingMethodId: selectedMethod?.id || undefined,
         });
         const order = res.data as any;
@@ -680,6 +686,15 @@ function CheckoutContent() {
                   </div>
                 ))}
               </div>
+              {!user && (
+                <div className="mt-5">
+                  <label className="mb-1 block text-sm font-medium text-stone-700">Email (order confirmation + receipt)<span className="text-rose-500"> *</span></label>
+                  <input type="email" inputMode="email" autoComplete="email" value={(shipping as any).email || ''}
+                    onChange={e => setShipping({ ...shipping, email: e.target.value })}
+                    placeholder="you@example.com"
+                    className={`w-full rounded-xl border px-3.5 py-2.5 text-sm transition-colors focus:outline-none focus:ring-2 ${fieldErrors.email ? 'border-rose-400 bg-rose-50/40 focus:border-rose-500 focus:ring-rose-100' : 'border-stone-300 focus:border-primary-500 focus:ring-primary-100'}`} />
+                </div>
+              )}
               <label className="mt-5 flex cursor-pointer items-center gap-2.5 text-sm font-medium">
                 <input type="checkbox" checked={sameAsShipping} onChange={e => setSameAsShipping(e.target.checked)} className="h-4 w-4 accent-primary-600" />
                 Billing address is the same as delivery

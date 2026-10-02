@@ -60,6 +60,9 @@ function SuccessContent() {
 
   const isPending = pollState === 'pending' || pollState === 'timeout';
   const isError = pollState === 'failed' || pollState === 'expired';
+  // Only claim money received when a payment record actually succeeded —
+  // an admin can confirm an order manually, and that must not read as "paid".
+  const hasVerifiedPayment = !!order?.payments?.some((p: any) => p?.status === 'SUCCEEDED');
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-20 sm:px-6">
@@ -90,7 +93,9 @@ function SuccessContent() {
             ? 'No money was taken. Please try again or use a different payment method.'
             : isPending
               ? 'We are confirming your payment with the provider. This usually takes a few seconds.'
-              : 'We have received your payment and your order is being prepared. A confirmation with full details is on its way to your inbox.'}
+              : hasVerifiedPayment
+                ? 'We have received your payment and your order is being prepared. A confirmation with full details is on its way to your inbox.'
+                : 'Your order is confirmed and reserved for you. No payment has been recorded yet — you can pay anytime from the invoice link we sent you.'}
         </p>
         {orderNumber && (
           <p className="mt-5 text-sm text-stone-500">
@@ -125,7 +130,7 @@ function SuccessContent() {
             <div className="flex justify-between"><dt className="text-stone-500">Delivery{order.shippingMethod ? ` (${order.shippingMethod})` : ''}</dt><dd className="font-semibold">{order.shipping === 0 ? 'Free' : formatKES(order.shipping)}</dd></div>
             <div className="flex justify-between"><dt className="text-stone-500">VAT</dt><dd className="font-semibold">{formatKES(order.tax)}</dd></div>
             <div className="flex justify-between border-t border-stone-200 pt-2.5">
-              <dt className="font-bold">Total paid</dt><dd className="font-extrabold">{formatKES(order.total)}</dd>
+              <dt className="font-bold">{hasVerifiedPayment ? 'Total paid' : 'Total due'}</dt><dd className="font-extrabold">{formatKES(order.total)}</dd>
             </div>
           </dl>
           <p className="mt-4 rounded-xl bg-primary-50 px-4 py-3 text-sm font-medium text-primary-800">
