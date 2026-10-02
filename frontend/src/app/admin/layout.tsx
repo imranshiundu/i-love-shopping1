@@ -8,7 +8,7 @@ import { config } from '@/lib/config';
 import { cn } from '@/lib/utils';
 import {
   FiGrid, FiShoppingBag, FiPackage, FiTag, FiFolder, FiBookmark, FiUsers,
-  FiArrowLeft, FiBarChart2, FiAlertTriangle,
+  FiArrowLeft, FiBarChart2, FiAlertTriangle, FiTruck, FiMessageSquare,
 } from 'react-icons/fi';
 
 const NAV = [
@@ -18,6 +18,8 @@ const NAV = [
   { href: '/admin/offers', label: 'Offers', icon: FiTag },
   { href: '/admin/categories', label: 'Categories', icon: FiFolder },
   { href: '/admin/brands', label: 'Brands', icon: FiBookmark },
+  { href: '/admin/shipping', label: 'Delivery', icon: FiTruck },
+  { href: '/admin/reviews', label: 'Reviews', icon: FiMessageSquare },
   { href: '/admin/users', label: 'Customers', icon: FiUsers },
 ];
 

@@ -16,11 +16,12 @@ interface BulkResult {
 interface FormState {
   name: string; description: string; price: string; compareAtPrice: string;
   sku: string; stock: string; categoryId: string; brandId: string; isActive: boolean;
+  images: { url: string; alt: string }[];
 }
 
 const EMPTY_FORM: FormState = {
   name: '', description: '', price: '', compareAtPrice: '',
-  sku: '', stock: '', categoryId: '', brandId: '', isActive: true,
+  sku: '', stock: '', categoryId: '', brandId: '', isActive: true, images: [],
 };
 
 export default function AdminProductsPage() {
@@ -79,16 +80,23 @@ export default function AdminProductsPage() {
       sku: p.sku || '', stock: String(p.stock ?? ''),
       categoryId: p.category?.id || '', brandId: p.brand?.id || '',
       isActive: p.isActive !== false,
+      images: (p.images || []).map(i => ({ url: i.url, alt: i.alt || '' })),
     });
     setModalOpen(true);
   };
 
   const handleSave = async () => {
-    if (!form.name || !form.description || !form.price || !form.sku || !form.stock || !form.categoryId || !form.brandId) {
+    if (!form.name || !form.description || !form.price || !form.sku || form.stock === '' || !form.categoryId || !form.brandId) {
       toast.error('Fill every required field'); return;
+    }
+    if (Number(form.stock) < 0 || !Number.isInteger(Number(form.stock))) {
+      toast.error('Stock must be a whole number of 0 or more'); return;
     }
     if (form.compareAtPrice && Number(form.compareAtPrice) <= Number(form.price)) {
       toast.error('Compare-at price must be higher than the sale price'); return;
+    }
+    if (form.images.some(i => !i.url.trim())) {
+      toast.error('Every image needs a URL (or remove the empty row)'); return;
     }
     setSaving(true);
     const payload = {
@@ -101,6 +109,7 @@ export default function AdminProductsPage() {
       categoryId: form.categoryId,
       brandId: form.brandId,
       isActive: form.isActive,
+      images: form.images.map((i, idx) => ({ url: i.url.trim(), alt: i.alt.trim(), sortOrder: idx })),
     };
     try {
       if (editingId) { await admin.updateProduct(editingId, payload); toast.success('Product updated'); }
@@ -265,7 +274,7 @@ export default function AdminProductsPage() {
                 <input type="number" step="0.01" value={form.compareAtPrice} onChange={e => setForm({ ...form, compareAtPrice: e.target.value })} className={inputCls} placeholder="e.g. 1499" />
               </Field>
               <Field label="SKU *"><input value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })} className={inputCls} /></Field>
-              <Field label="Stock *"><input type="number" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} className={inputCls} /></Field>
+              <Field label="Stock *" hint="0 hides the buy button as out of stock"><input type="number" min={0} step="1" value={form.stock} onChange={e => setForm({ ...form, stock: e.target.value })} className={inputCls} /></Field>
               <Field label="Category *">
                 <select value={form.categoryId} onChange={e => setForm({ ...form, categoryId: e.target.value })} className={inputCls}>
                   <option value="">Select...</option>
@@ -282,6 +291,38 @@ export default function AdminProductsPage() {
                 <input type="checkbox" checked={form.isActive} onChange={e => setForm({ ...form, isActive: e.target.checked })} className="h-4 w-4 accent-primary-600" />
                 <span className="text-sm font-medium">Visible in the storefront</span>
               </label>
+
+              <div className="sm:col-span-2">
+                <p className="text-sm font-bold">Images</p>
+                <p className="mt-0.5 text-xs text-stone-500">First image is the card thumbnail. Paste any image URL (e.g. a GitHub-hosted catalogue image).</p>
+                <div className="mt-3 space-y-2.5">
+                  {form.images.map((img, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <img src={img.url} alt={img.alt || ''} className="h-12 w-12 shrink-0 rounded-lg border border-stone-200 bg-stone-100 object-cover"
+                        onError={e => { (e.target as HTMLImageElement).src = 'https://placehold.co/100x100/e7e5e4/78716c?text=%3F'; }} />
+                      <input value={img.url} placeholder="https://... image URL"
+                        onChange={e => setForm({ ...form, images: form.images.map((im, i) => i === idx ? { ...im, url: e.target.value } : im) })}
+                        className={inputCls} aria-label={`Image ${idx + 1} URL`} />
+                      <input value={img.alt} placeholder="Alt text (accessibility + SEO)"
+                        onChange={e => setForm({ ...form, images: form.images.map((im, i) => i === idx ? { ...im, alt: e.target.value } : im) })}
+                        className={inputCls} aria-label={`Image ${idx + 1} alt text`} />
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <button type="button" aria-label="Move image up" disabled={idx === 0}
+                          onClick={() => setForm({ ...form, images: form.images.map((im, i) => i === idx - 1 ? form.images[idx] : i === idx ? form.images[idx - 1] : im) })}
+                          className="rounded-md border border-stone-200 px-1.5 text-xs hover:bg-stone-50 disabled:opacity-30">↑</button>
+                        <button type="button" aria-label="Remove image"
+                          onClick={() => setForm({ ...form, images: form.images.filter((_, i) => i !== idx) })}
+                          className="rounded-md border border-stone-200 px-1.5 text-xs text-rose-600 hover:bg-rose-50">×</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button type="button"
+                  onClick={() => setForm({ ...form, images: [...form.images, { url: '', alt: '' }] })}
+                  className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-dashed border-stone-300 px-4 py-2 text-sm font-semibold text-stone-600 hover:border-primary-400 hover:text-primary-700">
+                  + Add image
+                </button>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 border-t border-stone-100 px-6 py-4">

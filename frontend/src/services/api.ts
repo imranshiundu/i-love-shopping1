@@ -253,7 +253,7 @@ export const admin = {
   bulkUploadProducts: (file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return fetch(`${API_URL}/admin/products/bulk-upload`, {
+    return fetch(`${API_URL}/products/bulk-upload`, {
       method: 'POST',
       headers: authHeadersMultipart(),
       body: form,
