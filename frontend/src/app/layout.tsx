@@ -2,6 +2,7 @@ import { ClerkProvider } from '@clerk/nextjs';
 import type { Metadata } from 'next';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/lib/currency';
+import { config } from '@/lib/config';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -10,14 +11,17 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  // Clerk (social sign-in) mounts only when a publishable key is configured —
+  // a clean checkout with password auth must build and run with no Clerk setup.
+  const app = (
+    <AuthProvider>
+      <CurrencyProvider>{children}</CurrencyProvider>
+    </AuthProvider>
+  );
   return (
     <html lang="en">
       <body>
-        <ClerkProvider>
-          <AuthProvider>
-          <CurrencyProvider>{children}</CurrencyProvider>
-          </AuthProvider>
-        </ClerkProvider>
+        {config.clerk.enabled ? <ClerkProvider>{app}</ClerkProvider> : app}
       </body>
     </html>
   );

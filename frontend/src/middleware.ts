@@ -1,6 +1,15 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextResponse } from 'next/server';
+import { clerkMiddleware } from '@clerk/nextjs/server';
 
-export default clerkMiddleware();
+// Clerk's middleware only mounts when a publishable key is configured; on a
+// password-only deployment every request simply passes through. This keeps a
+// clean checkout (no Clerk key) runnable end-to-end.
+const clerkKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+const middleware = clerkKey
+  ? clerkMiddleware()
+  : () => NextResponse.next();
+
+export default middleware;
 
 export const config = {
   matcher: [

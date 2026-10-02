@@ -76,6 +76,13 @@ if [ ! -f ".env" ]; then
   ok "Created .env from .env.example — review it, then re-run."
 fi
 
+# Compose interpolates ${VARS} from the compose project directory (docker/),
+# not from the repo root — link the root .env there so every invocation
+# (scripted or manual "docker compose -f docker/docker-compose.yml ...")
+# sees the real secrets instead of falling back to empty defaults.
+ln -sfn "$REPO_DIR/.env" "$REPO_DIR/docker/.env" 2>/dev/null || true
+
+
 needs_val() { # needs_val VAR [minlen] — true if missing/too short/placeholder
   local val; val=$(grep -E "^$1=" .env 2>/dev/null | cut -d= -f2-)
   local minlen=${2:-1}

@@ -216,6 +216,9 @@ check_node() {
 
 # ── .env file ─────────────────────────────────────────────────────────────────
 setup_env() {
+  # Compose interpolates ${VARS} from docker/ (the compose project dir), so
+  # the root .env must be visible there for every compose invocation.
+  ln -sfn "$REPO_DIR/.env" "$REPO_DIR/docker/.env" 2>/dev/null || true
   if [ -f "$REPO_DIR/.env" ]; then
     ok ".env already exists — keeping current settings."
     return

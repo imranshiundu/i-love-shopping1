@@ -82,10 +82,23 @@ function ClerkCallback() {
   );
 }
 
+function ClerkNotConfigured() {
+  const router = useRouter();
+  useEffect(() => { router.replace('/'); }, [router]);
+  return (
+    <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-4 text-center">
+      <FiXCircle className="h-8 w-8 text-stone-400" />
+      <p className="text-sm text-stone-600">Social sign-in is not configured on this deployment.</p>
+    </div>
+  );
+}
+
 export default function ClerkCallbackPage() {
+  // The Clerk flow only mounts when Clerk is configured — the hook above
+  // would throw without a provider on a password-only deployment.
   return (
     <Suspense>
-      <ClerkCallback />
+      {config.clerk.enabled ? <ClerkCallback /> : <ClerkNotConfigured />}
     </Suspense>
   );
 }

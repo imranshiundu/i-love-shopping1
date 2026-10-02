@@ -6,6 +6,13 @@ export const config = {
     siteKey: process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY || '',
     enabled: process.env.NEXT_PUBLIC_RECAPTCHA_ENABLED !== 'false',
   },
+  clerk: {
+    publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '',
+    // Clerk is an optional social-sign-in layer on top of the store's own
+    // password auth. Everything Clerk-related renders only when a key exists,
+    // so the app builds and runs without any Clerk configuration.
+    enabled: !!(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '').trim(),
+  },
   oauth: {
     // Social sign-in is handled by Clerk now. GitHub appears once its
     // connection is configured in the Clerk dashboard and this is flipped.

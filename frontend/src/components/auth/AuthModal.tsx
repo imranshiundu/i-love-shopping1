@@ -197,7 +197,7 @@ export default function AuthModal({
             : 'Join for faster checkout, order tracking and offers.'}
         </p>
 
-        <OAuthButtons />
+        {config.clerk.enabled && <OAuthButtons />}
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           {mode === 'register' && (
