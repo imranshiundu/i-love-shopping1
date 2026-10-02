@@ -62,6 +62,9 @@ temp/
 # Unnecessary project files
 git.txt
 test.txt
+fix.txt
+integrator.txt
+integrator/
 description.txt
 description2.txt
 # Reusable standalone admin console template (local only, do not push)
