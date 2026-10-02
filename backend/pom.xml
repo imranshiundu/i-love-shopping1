@@ -280,7 +280,11 @@
                 <configuration>
                     <includes>
                         <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
                     </includes>
+                    <excludes>
+                        <exclude>**/*IntegrationTest.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             <plugin>
