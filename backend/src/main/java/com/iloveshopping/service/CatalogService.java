@@ -10,9 +10,11 @@ import com.iloveshopping.dto.catalog.ProductSearchResponse;
 import com.iloveshopping.entity.Brand;
 import com.iloveshopping.entity.Category;
 import com.iloveshopping.entity.Product;
+import com.iloveshopping.entity.ProductImage;
 import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.BrandRepository;
 import com.iloveshopping.repository.CategoryRepository;
+import com.iloveshopping.repository.ProductImageRepository;
 import com.iloveshopping.repository.ProductRepository;
 import com.iloveshopping.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +43,7 @@ public class CatalogService {
     private final CategoryRepository categoryRepository;
     private final BrandRepository brandRepository;
     private final ProductRepository productRepository;
+    private final ProductImageRepository productImageRepository;
     private final ReviewRepository reviewRepository;
     private final RedisTemplate<String, Object> redisTemplate;
 
@@ -226,6 +229,7 @@ public class CatalogService {
         }
 
         category = categoryRepository.save(category);
+        evictCategoryCache();
         return CategoryResponse.from(category);
     }
 
@@ -246,6 +250,7 @@ public class CatalogService {
         }
 
         category = categoryRepository.save(category);
+        evictCategoryCache();
         return CategoryResponse.from(category);
     }
 
@@ -254,6 +259,7 @@ public class CatalogService {
         Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Category", "id", id));
         categoryRepository.delete(category);
+        evictCategoryCache();
     }
 
     @Transactional
@@ -266,6 +272,7 @@ public class CatalogService {
                 .build();
 
         brand = brandRepository.save(brand);
+        evictBrandCache();
         return BrandResponse.from(brand);
     }
 
@@ -283,6 +290,7 @@ public class CatalogService {
         }
 
         brand = brandRepository.save(brand);
+        evictBrandCache();
         return BrandResponse.from(brand);
     }
 
@@ -317,6 +325,7 @@ public class CatalogService {
                 .build();
 
         product = productRepository.save(product);
+        saveImages(product, request.getImages());
         return ProductResponse.from(product);
     }
 
@@ -344,6 +353,10 @@ public class CatalogService {
         product.setBrand(brand);
 
         product = productRepository.save(product);
+        if (request.getImages() != null) {
+            productImageRepository.deleteByProductId(product.getId());
+            saveImages(product, request.getImages());
+        }
         return ProductResponse.from(product);
     }
 
@@ -355,6 +368,34 @@ public class CatalogService {
     }
 
     // ===== Helpers =====
+
+    /** Persists the request's image rows for a freshly saved product. */
+    private void saveImages(Product product, List<CreateProductRequest.ImageRequest> images) {
+        if (images == null || images.isEmpty()) {
+            return;
+        }
+        int order = 0;
+        for (CreateProductRequest.ImageRequest image : images) {
+            productImageRepository.save(ProductImage.builder()
+                    .product(product)
+                    .url(image.getUrl())
+                    .alt(image.getAlt())
+                    .sortOrder(image.getSortOrder() != null ? image.getSortOrder() : order)
+                    .build());
+            order++;
+        }
+    }
+
+    /** New/changed categories must show up in the cached public list immediately. */
+    private void evictCategoryCache() {
+        redisTemplate.delete(List.of(
+                CATEGORY_CACHE_PREFIX + "all:true",
+                CATEGORY_CACHE_PREFIX + "all:false"));
+    }
+
+    private void evictBrandCache() {
+        redisTemplate.delete(BRAND_CACHE_PREFIX + "all");
+    }
 
     private CategoryResponse toCategoryResponse(Category category, boolean includeChildren) {
         return CategoryResponse.builder()

@@ -1,8 +1,10 @@
 package com.iloveshopping.dto.catalog;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,6 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @Data
 @Builder
@@ -36,7 +39,7 @@ public class CreateProductRequest {
     private String sku;
 
     @NotNull(message = "Stock is required")
-    @Positive(message = "Stock must not be negative")
+    @PositiveOrZero(message = "Stock must not be negative")
     private Integer stock;
 
     private BigDecimal weight;
@@ -52,4 +55,23 @@ public class CreateProductRequest {
     private String brandId;
 
     private Boolean isActive;
+
+    /** Optional on create/update; a null list leaves existing images untouched. */
+    @Valid
+    private List<ImageRequest> images;
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ImageRequest {
+        @NotBlank(message = "Image URL is required")
+        @Size(max = 500, message = "Image URL must not exceed 500 characters")
+        private String url;
+
+        @Size(max = 200, message = "Alt text must not exceed 200 characters")
+        private String alt;
+
+        private Integer sortOrder;
+    }
 }
