@@ -44,6 +44,15 @@ public class RateLimitFilter implements Filter {
     @Value("${security.rate-limit.burst-capacity:20}")
     private int burstCapacity;
 
+    /**
+     * Forwarded headers (X-Forwarded-For / X-Real-IP) are only honoured when
+     * the request actually arrives through a trusted reverse proxy. Default is
+     * false: direct clients can otherwise evade their bucket simply by
+     * rotating the X-Forwarded-For header on every request.
+     */
+    @Value("${security.rate-limit.trust-forwarded-ips:false}")
+    private boolean trustForwardedIps;
+
     public RateLimitFilter(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }
@@ -80,6 +89,9 @@ public class RateLimitFilter implements Filter {
     }
 
     private String getClientIp(HttpServletRequest request) {
+        if (!trustForwardedIps) {
+            return request.getRemoteAddr();
+        }
         String xForwardedFor = request.getHeader("X-Forwarded-For");
         if (xForwardedFor != null && !xForwardedFor.isEmpty()) {
             return xForwardedFor.split(",")[0].trim();
