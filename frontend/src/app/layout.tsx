@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CurrencyProvider } from '@/lib/currency';
 import { config } from '@/lib/config';
+import ToastProvider from '@/components/ui/Toast';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -15,7 +16,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   // a clean checkout with password auth must build and run with no Clerk setup.
   const app = (
     <AuthProvider>
-      <CurrencyProvider>{children}</CurrencyProvider>
+      <CurrencyProvider>
+        {children}
+        {/* react-hot-toast outlet — without it every toast.error/success is invisible */}
+        <ToastProvider />
+      </CurrencyProvider>
     </AuthProvider>
   );
   return (

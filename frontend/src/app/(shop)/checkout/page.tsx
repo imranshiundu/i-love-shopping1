@@ -379,6 +379,12 @@ function CheckoutContent() {
         toast.error('Enter a valid phone number'); return false;
       }
     }
+    // Never consume the cart into an order that cannot be paid: if the card
+    // rail is not configured on this deployment, fail before checkout.
+    if (paymentMethod === 'stripe' && !stripePromise) {
+      toast.error('Card payments are not available on this deployment. Choose M-Pesa or pay later from the invoice email.');
+      return false;
+    }
     return true;
   };
 
