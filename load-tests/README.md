@@ -57,7 +57,7 @@ Record the VU level where p(95) first crosses 5s — that is the platform's prac
 
 ## Report template
 
-Fill this in from real runs and paste into the README performance section:
+Fill this in from real runs and paste into the performance section of docs/testing.md:
 
 | Metric | Result |
 |---|---|
