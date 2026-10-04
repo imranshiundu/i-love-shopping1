@@ -56,9 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (hydrated.current) return;
     hydrated.current = true;
 
-    setLoading(false);
-
     (async () => {
+      // Loading stays true until the restore attempt finishes: route guards
+      // (e.g. the admin layout) must not see user=null while a valid session
+      // is still being re-established, or reloads bounce to the login page.
       try {
         const profileRes = await authApi.getProfile();
         if (profileRes.data) {
@@ -82,7 +83,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(null);
       setRefreshToken(null);
       await refreshCart();
-    })();
+    })().finally(() => setLoading(false));
   }, [refreshCart]);
 
   const login = async (email: string, password: string, twoFactorCode?: string) => {

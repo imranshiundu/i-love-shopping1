@@ -157,7 +157,8 @@ export const products = {
   getSuggestions: (q: string) => request<string[]>(`/products/search/suggestions?query=${encodeURIComponent(q)}`),
   getSimilar: (slug: string) => request<Product[]>(`/products/similar/${slug}`),
   getReviews: (slug: string, page = 0, sortBy: 'helpful' | 'newest' = 'helpful') =>
-    request<{ reviews: Review[]; pagination: any }>(`/products/${slug}/reviews?page=${page}&sortBy=${sortBy}`),
+    // no-store: viewerVoted/counts must never come from a cached response
+    request<{ reviews: Review[]; pagination: any }>(`/products/${slug}/reviews?page=${page}&sortBy=${sortBy}`, { cache: 'no-store' }),
   addReview: (slug: string, rating: number, title: string, content: string) =>
     request<Review>(`/products/${slug}/reviews`, { method: 'POST', body: JSON.stringify({ rating, title, content }) }),
   voteReviewHelpful: (reviewId: string) =>
@@ -263,7 +264,7 @@ export const admin = {
       return data as ApiResponse<any>;
     });
   },
-  listShippingMethods: () => request<any>(`/shipping-methods`),
+  listShippingMethods: () => request<any>(`/admin/shipping-methods`),
   createShippingMethod: (method: any) =>
     request<any>(`/admin/shipping-methods`, { method: 'POST', body: JSON.stringify(method) }),
   saveShippingMethod: (method: any) =>

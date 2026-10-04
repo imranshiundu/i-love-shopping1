@@ -41,7 +41,7 @@ export default function AdminProductsPage() {
     setLoading(true);
     try {
       const [p, c, b] = await Promise.all([
-        productsApi.search({ page: '0', size: '100' }),
+        productsApi.search({ page: '0', size: '100', includeInactive: 'true' }),
         categoriesApi.list(),
         brandsApi.list(),
       ]);
