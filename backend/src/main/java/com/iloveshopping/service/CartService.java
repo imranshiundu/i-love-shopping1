@@ -97,9 +97,8 @@ public class CartService {
     }
 
     @Transactional
-    public CartResponse updateItem(String itemId, UpdateCartItemRequest request) {
-        CartItem item = cartItemRepository.findById(itemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Cart item not found: " + itemId));
+    public CartResponse updateItem(String itemId, UpdateCartItemRequest request, String sessionId) {
+        CartItem item = requireOwnedItem(itemId, sessionId);
 
         int qty = request.getQuantity() == null ? 1 : request.getQuantity();
         if (qty <= 0) {
@@ -119,9 +118,8 @@ public class CartService {
     }
 
     @Transactional
-    public CartResponse removeItem(String itemId) {
-        CartItem item = cartItemRepository.findById(itemId)
-                .orElseThrow(() -> new ResourceNotFoundException("Cart item not found: " + itemId));
+    public CartResponse removeItem(String itemId, String sessionId) {
+        CartItem item = requireOwnedItem(itemId, sessionId);
 
         String cartId = item.getCart().getId();
         cartItemRepository.delete(item);
@@ -239,6 +237,22 @@ public class CartService {
         }
 
         return cart;
+    }
+
+    /**
+     * Loads a cart item and verifies it belongs to the caller's cart — the
+     * signed-in user's own cart, or the current guest session's cart.
+     * Cart item IDs are not secrets, so PATCH/DELETE must not cross owners.
+     * Foreign items answer 404 exactly like missing ones (no existence leak).
+     */
+    private CartItem requireOwnedItem(String itemId, String sessionId) {
+        CartItem item = cartItemRepository.findById(itemId)
+                .orElseThrow(() -> new ResourceNotFoundException("Cart item not found: " + itemId));
+        Cart ownerCart = findCart(sessionId);
+        if (ownerCart == null || !ownerCart.getId().equals(item.getCart().getId())) {
+            throw new ResourceNotFoundException("Cart item not found: " + itemId);
+        }
+        return item;
     }
 
     private Cart findCart(String sessionId) {

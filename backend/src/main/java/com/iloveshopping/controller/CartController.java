@@ -70,14 +70,21 @@ public class CartController {
     @Operation(summary = "Update cart item quantity")
     public ResponseEntity<ApiResponse<CartResponse>> updateItem(
             @PathVariable String itemId,
-            @Valid @RequestBody UpdateCartItemRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(cartService.updateItem(itemId, request)));
+            @Valid @RequestBody UpdateCartItemRequest request,
+            @CookieValue(name = COOKIE, required = false) String cookieSessionId,
+            @RequestHeader(value = "X-Cart-Session", required = false) String headerSessionId) {
+        String sessionId = resolveSessionId(cookieSessionId, headerSessionId);
+        return ResponseEntity.ok(ApiResponse.success(cartService.updateItem(itemId, request, sessionId)));
     }
 
     @DeleteMapping("/items/{itemId}")
     @Operation(summary = "Remove an item from the cart")
-    public ResponseEntity<ApiResponse<CartResponse>> removeItem(@PathVariable String itemId) {
-        return ResponseEntity.ok(ApiResponse.success(cartService.removeItem(itemId)));
+    public ResponseEntity<ApiResponse<CartResponse>> removeItem(
+            @PathVariable String itemId,
+            @CookieValue(name = COOKIE, required = false) String cookieSessionId,
+            @RequestHeader(value = "X-Cart-Session", required = false) String headerSessionId) {
+        String sessionId = resolveSessionId(cookieSessionId, headerSessionId);
+        return ResponseEntity.ok(ApiResponse.success(cartService.removeItem(itemId, sessionId)));
     }
 
     @DeleteMapping
