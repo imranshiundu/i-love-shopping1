@@ -85,6 +85,10 @@ services:
       - NEXT_PUBLIC_RECAPTCHA_SITE_KEY=dev-test-site
       - NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=${STRIPE_PUBLISHABLE_KEY:-}
       - NEXT_PUBLIC_APP_NAME=i-love-shopping
+      # Next standalone binds process.env.HOSTNAME; Docker sets that to the
+      # container id, so the healthcheck's localhost:3000 gets refused.
+      # Binding 0.0.0.0 keeps the server reachable on loopback.
+      - HOSTNAME=0.0.0.0
     ports:
       - "${FRONTEND_PORT:-3000}:3000"
     depends_on:
@@ -118,16 +122,19 @@ services:
       - JWT_REFRESH_SECRET=dev-refresh-secret-min-32-chars-long-for-test
       - JWT_ACCESS_EXPIRY_MINUTES=15
       - JWT_REFRESH_EXPIRY_DAYS=7
+      - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY:-}
       - RECAPTCHA_SECRET_KEY=dev-test-secret
       - RECAPTCHA_SITE_KEY=dev-test-site
-      - GOOGLE_CLIENT_ID=dev-google-id
-      - GOOGLE_CLIENT_SECRET=dev-google-secret
-      - GITHUB_CLIENT_ID=dev-github-id
-      - GITHUB_CLIENT_SECRET=dev-github-secret
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
       - MAIL_HOST=mailhog
       - MAIL_PORT=1025
       - MAIL_USERNAME=
       - MAIL_PASSWORD=
+      - MAIL_SMTP_AUTH=false
+      - MAIL_SMTP_STARTTLS=false
       - MAIL_FROM=noreply@iloveshopping.com
       - MPESA_CONSUMER_KEY=${MPESA_CONSUMER_KEY:-}
       - MPESA_CONSUMER_SECRET=${MPESA_CONSUMER_SECRET:-}

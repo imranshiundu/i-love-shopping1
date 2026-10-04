@@ -108,6 +108,9 @@ services:
       - STRIPE_LIVE_PUBLISHABLE_KEY=${STRIPE_LIVE_PUBLISHABLE_KEY}
       - STRIPE_LIVE_WEBHOOK_SECRET=${STRIPE_LIVE_WEBHOOK_SECRET}
       - STRIPE_MIN_AMOUNT=${STRIPE_MIN_AMOUNT:-100}
+      # Behind our nginx proxy (X-Forwarded-For carries the real client IP);
+      # direct deployments must keep this false or rate limiting is spoofable.
+      - RATE_LIMIT_TRUST_FORWARDED=true
     ports:
       - "8080:8080"
     depends_on:
