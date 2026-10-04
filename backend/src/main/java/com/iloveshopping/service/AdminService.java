@@ -34,6 +34,7 @@ public class AdminService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final com.iloveshopping.repository.SessionRepository sessionRepository;
 
     private static final Set<Order.OrderStatus> PAID_STATUSES = Set.of(
             Order.OrderStatus.CONFIRMED, Order.OrderStatus.PROCESSING,
@@ -246,6 +247,15 @@ public class AdminService {
 
         user.setRoles(newRoles);
         user = userRepository.save(user);
+
+        // Privilege changes invalidate every existing session: an old refresh
+        // token must never mint tokens for the new role (e.g. a USER promoted
+        // to ADMIN would otherwise get an admin JWT without the mandatory 2FA
+        // login), and a demoted admin must not ride an unexpired access token.
+        // The next sign-in re-establishes a session through the full auth flow,
+        // including admin 2FA.
+        sessionRepository.revokeAllUserSessions(user.getId(), java.time.LocalDateTime.now());
+
         return UserProfileResponse.from(user);
     }
 }

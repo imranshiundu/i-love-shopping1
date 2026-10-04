@@ -56,8 +56,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     Optional<User> userOpt = userRepository.findById(claims.getSubject());
                     if (userOpt.isPresent() && userOpt.get().isEnabled()) {
                         User user = userOpt.get();
-                        List<SimpleGrantedAuthority> authorities = claims.getRoles().stream()
-                                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                        // Roles come from the database, not from the token's claims:
+                        // a demoted admin must lose admin access immediately, not
+                        // when the 15-minute access token happens to expire.
+                        List<SimpleGrantedAuthority> authorities = user.getRoles().stream()
+                                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name()))
                                 .toList();
 
                         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
