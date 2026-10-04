@@ -61,9 +61,16 @@ class UserFlowIntegrationTest {
             .withUrlParam("stringtype", "unspecified")
             .withCreateContainerCmdModifier(cmd -> cmd.withPortBindings(new PortBinding(Ports.Binding.bindPort(15433), ExposedPort.tcp(5432))));
 
+    // All four RabbitMQ ports stay mapped (AMQPS, AMQP, management HTTP/HTTPS):
+    // replacing the whole binding list with only 5672 starves the container's
+    // wait strategy and bootstrap fails with ContainerLaunchException.
     @Container
     static RabbitMQContainer rabbit = new RabbitMQContainer(DockerImageName.parse("rabbitmq:3-alpine"))
-            .withCreateContainerCmdModifier(cmd -> cmd.withPortBindings(new PortBinding(Ports.Binding.bindPort(16773), ExposedPort.tcp(5672))));
+            .withCreateContainerCmdModifier(cmd -> cmd.withPortBindings(
+                    new PortBinding(Ports.Binding.bindPort(16471), ExposedPort.tcp(5671)),
+                    new PortBinding(Ports.Binding.bindPort(16773), ExposedPort.tcp(5672)),
+                    new PortBinding(Ports.Binding.bindPort(16572), ExposedPort.tcp(15672)),
+                    new PortBinding(Ports.Binding.bindPort(16571), ExposedPort.tcp(15671))));
 
     @Container
     static GenericContainer<?> redis = new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
