@@ -12,13 +12,12 @@ import java.util.Optional;
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
 
-    Optional<User> findByEmail(String email);
-
-    Optional<User> findByEmailIgnoreCase(String email);
+    // Email is encrypted at rest; lookups go through the HMAC emailLookup column.
+    Optional<User> findByEmailLookup(String emailLookup);
 
     boolean existsByEmail(String email);
 
-    boolean existsByEmailIgnoreCase(String email);
+    boolean existsByEmailLookup(String emailLookup);
 
     Optional<User> findByEmailVerificationToken(String token);
 

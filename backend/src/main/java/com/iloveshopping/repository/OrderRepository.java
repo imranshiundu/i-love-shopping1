@@ -54,6 +54,6 @@ public interface OrderRepository extends JpaRepository<Order, String> {
             @Param("to") LocalDateTime to,
             Pageable pageable);
 
-    @Query("SELECT o FROM Order o WHERE o.user IS NULL AND LOWER(o.guestEmail) = LOWER(:email)")
-    List<Order> findGuestOrdersByEmail(@Param("email") String email);
+    @Query("SELECT o FROM Order o WHERE o.user IS NULL AND o.guestEmailLookup = :lookup")
+    List<Order> findGuestOrdersByEmailLookup(@Param("lookup") String lookup);
 }

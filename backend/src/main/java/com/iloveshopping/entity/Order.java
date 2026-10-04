@@ -68,8 +68,13 @@ public class Order {
     @Column(name = "billing_address", columnDefinition = "jsonb", nullable = false)
     private String billingAddress;
 
-    @Column(name = "guest_email")
+    @Column(name = "guest_email", length = 512)
+    @Convert(converter = EncryptedStringConverter.class)
     private String guestEmail;
+
+    /** HMAC-SHA256 of the lowercased guest email - used to claim orders on sign-in. */
+    @Column(name = "guest_email_lookup", length = 64)
+    private String guestEmailLookup;
 
     @Column(name = "cart_session_id", length = 255)
     private String cartSessionId;

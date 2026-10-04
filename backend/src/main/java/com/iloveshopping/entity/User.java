@@ -32,13 +32,20 @@ public class User implements UserDetails {
     @Column(name = "id", updatable = false, nullable = false)
     private String id;
 
-    @Column(name = "email", unique = true, nullable = false, length = 255)
+    // PII encrypted at rest; equality lookups go through emailLookup
+    // (HMAC-SHA256 of the lowercased address, see DataEncryptionService).
+    @Column(name = "email", nullable = false, length = 512)
+    @Convert(converter = EncryptedStringConverter.class)
     private String email;
+
+    @Column(name = "email_lookup", nullable = false, length = 64, unique = true)
+    private String emailLookup;
 
     @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
-    @Column(name = "name", length = 100)
+    @Column(name = "name", length = 512)
+    @Convert(converter = EncryptedStringConverter.class)
     private String name;
 
     @Column(name = "avatar", length = 500)

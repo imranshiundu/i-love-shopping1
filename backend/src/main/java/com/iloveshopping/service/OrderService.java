@@ -130,6 +130,7 @@ public class OrderService {
                 .number(orderNumber)
                 .user(user)
                 .guestEmail(email)
+                .guestEmailLookup(com.iloveshopping.service.DataEncryptionService.lookupHashStatic(email))
                 .cartSessionId(user == null ? cart.getSessionId() : null)
                 .status(Order.OrderStatus.PENDING)
                 .subtotal(subtotal)

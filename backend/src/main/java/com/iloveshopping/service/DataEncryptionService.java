@@ -23,9 +23,35 @@ public class DataEncryptionService {
     private final SecureRandom random = new SecureRandom();
     private static volatile DataEncryptionService instance;
 
-    public DataEncryptionService(@Value("${app.data-encryption-key:i-love-shopping-dev-encryption-key-32b}") String keyMaterial) {
+    public DataEncryptionService(@Value("${app.data-encryption-key:}") String keyMaterial) {
+        if (keyMaterial == null || keyMaterial.isBlank()) {
+            throw new IllegalStateException(
+                    "DATA_ENCRYPTION_KEY is not configured. Sensitive data is encrypted at rest; "
+                            + "the key must be supplied via .env (see .env.example) — a hardcoded "
+                            + "fallback key would let anyone with the source decrypt every database.");
+        }
         byte[] keyBytes = normalize(keyMaterial);
         this.secretKey = new SecretKeySpec(keyBytes, "AES");
+    }
+
+    /**
+     * Deterministic keyed hash used for equality lookups over encrypted
+     * columns (login by email, guest-order claiming). HMAC-SHA256 with the
+     * data-encryption key: same input -> same hash, never reversible to the
+     * plaintext, and it never reuses the AES encryption key.
+     */
+    public String lookupHash(String plain) {
+        if (plain == null || plain.isBlank()) {
+            return null;
+        }
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(secretKey);
+            byte[] hash = mac.doFinal(plain.trim().toLowerCase().getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString(hash);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to compute lookup hash", e);
+        }
     }
 
     @PostConstruct
@@ -43,6 +69,15 @@ public class DataEncryptionService {
         DataEncryptionService svc = instance;
         if (svc == null) return plain;
         return svc.encrypt(plain);
+    }
+
+    /** Deterministic lookup hash usable wherever the bean can't be injected. */
+    public static String lookupHashStatic(String plain) {
+        DataEncryptionService svc = instance;
+        if (svc == null) {
+            throw new IllegalStateException("DataEncryptionService not initialized");
+        }
+        return svc.lookupHash(plain);
     }
 
     public static String encryptForJson(String plain) {

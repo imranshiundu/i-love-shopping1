@@ -28,13 +28,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
             throw new OAuth2AuthenticationException("Email not found from OAuth2 provider");
         }
 
-        Optional<User> userOptional = userRepository.findByEmailIgnoreCase(email);
+        Optional<User> userOptional = userRepository.findByEmailLookup(com.iloveshopping.service.DataEncryptionService.lookupHashStatic(email));
         User user;
         if (userOptional.isPresent()) {
             user = userOptional.get();
         } else {
             user = User.builder()
                     .email(email.toLowerCase())
+                    .emailLookup(com.iloveshopping.service.DataEncryptionService.lookupHashStatic(email))
                     .name(oAuth2User.getAttribute("name"))
                     .avatar(oAuth2User.getAttribute("picture") != null ? oAuth2User.getAttribute("picture") : oAuth2User.getAttribute("avatar_url"))
                     .emailVerified(LocalDateTime.now()) // Since it's from OAuth2, we consider it verified

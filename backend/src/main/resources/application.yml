@@ -125,6 +125,8 @@ security:
     auth-requests-per-minute: ${RATE_LIMIT_AUTH_PER_MINUTE:10}
     api-requests-per-minute: ${RATE_LIMIT_API_PER_MINUTE:100}
     burst-capacity: ${RATE_LIMIT_BURST_CAPACITY:20}
+    # X-Forwarded-For/X-Real-IP are only trusted behind our own nginx proxy
+    trust-forwarded-ips: ${RATE_LIMIT_TRUST_FORWARDED:false}
 
 mpesa:
   environment: ${MPESA_ENVIRONMENT:sandbox}
@@ -245,6 +247,9 @@ security:
   jwt:
     access-secret: test-access-secret-min-32-chars-long-for-hs256-test
     refresh-secret: test-refresh-secret-min-32-chars-long-for-hs256-test
+
+app:
+  data-encryption-key: test-data-encryption-key-min-32-chars-long
   recaptcha:
     secret-key: dev-test-secret
     site-key: dev-test-site-key

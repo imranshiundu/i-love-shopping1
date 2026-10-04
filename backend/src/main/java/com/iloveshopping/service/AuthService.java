@@ -45,6 +45,7 @@ public class AuthService {
     private final ClerkTokenVerifier clerkTokenVerifier;
     private final RecaptchaProperties recaptchaProperties;
     private final EmailService emailService;
+    private final com.iloveshopping.service.DataEncryptionService dataEncryptionService;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -54,7 +55,7 @@ public class AuthService {
             throw AuthenticationException.invalidCredentials();
         }
 
-        if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
+        if (userRepository.existsByEmailLookup(lookupHash(request.getEmail()))) {
             throw new ResourceConflictException("User with this email already exists");
         }
 
@@ -67,6 +68,8 @@ public class AuthService {
 
         User user = User.builder()
                 .email(request.getEmail().toLowerCase())
+                .emailLookup(lookupHash(request.getEmail()))
+                .name(request.getName() != null ? request.getName() : request.getEmail())
                 .passwordHash(passwordHash)
                 .name(request.getName())
                 .emailVerified(emailVerified)
@@ -116,7 +119,7 @@ public class AuthService {
     public AuthResponse login(LoginRequest request, String ipAddress, String userAgent) {
         log.info("Login attempt for email: {}", request.getEmail());
 
-        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(request.getEmail());
+        Optional<User> userOpt = userRepository.findByEmailLookup(lookupHash(request.getEmail()));
         if (userOpt.isEmpty()) {
             throw AuthenticationException.accountNotFound();
         }
@@ -217,7 +220,7 @@ public class AuthService {
 
         Optional<User> userOpt = userRepository.findByClerkId(clerkUser.id());
         if (userOpt.isEmpty()) {
-            userOpt = userRepository.findByEmailIgnoreCase(clerkUser.email());
+            userOpt = userRepository.findByEmailLookup(lookupHash(clerkUser.email()));
         }
         User user;
         if (userOpt.isPresent()) {
@@ -247,6 +250,7 @@ public class AuthService {
         } else {
             user = User.builder()
                     .email(clerkUser.email())
+                    .emailLookup(lookupHash(clerkUser.email()))
                     .clerkId(clerkUser.id())
                     .name(clerkUser.name() != null ? clerkUser.name() : clerkUser.email())
                     .avatar(clerkUser.avatarUrl())
@@ -376,7 +380,7 @@ public class AuthService {
         log.info("Password reset requested for: {}", request.getEmail());
 
         // Never reveal whether the address exists (prevents account enumeration).
-        userRepository.findByEmailIgnoreCase(request.getEmail()).ifPresent(user -> {
+        userRepository.findByEmailLookup(lookupHash(request.getEmail())).ifPresent(user -> {
             user.setPasswordResetToken(UUID.randomUUID().toString());
             user.setPasswordResetExpiresAt(LocalDateTime.now().plusHours(1));
             userRepository.save(user);
@@ -442,7 +446,7 @@ public class AuthService {
         log.info("Verification email re-requested");
 
         // Never reveal whether the address exists or is already verified.
-        userRepository.findByEmailIgnoreCase(request.getEmail()).ifPresent(user -> {
+        userRepository.findByEmailLookup(lookupHash(request.getEmail())).ifPresent(user -> {
             if (user.getEmailVerified() != null) {
                 return;
             }
@@ -548,7 +552,7 @@ public class AuthService {
         if (email == null || email.isBlank() || password == null || password.isBlank()) {
             throw AuthenticationException.invalidCredentials();
         }
-        Optional<User> userOpt = userRepository.findByEmailIgnoreCase(email);
+        Optional<User> userOpt = userRepository.findByEmailLookup(lookupHash(email));
         if (userOpt.isEmpty() || !passwordEncoder.matches(password, userOpt.get().getPasswordHash())) {
             throw AuthenticationException.invalidCredentials();
         }
@@ -595,10 +599,11 @@ public class AuthService {
             user.setAvatar(request.getAvatar());
         }
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
+            if (userRepository.existsByEmailLookup(lookupHash(request.getEmail()))) {
                 throw new ResourceConflictException("User with this email already exists");
             }
             user.setEmail(request.getEmail().toLowerCase());
+            user.setEmailLookup(lookupHash(request.getEmail()));
             user.setEmailVerified(null);
         }
 
@@ -651,9 +656,14 @@ public class AuthService {
         return TwoFactorAuthUtil.verifyCode(secret, code);
     }
 
+    /** Deterministic HMAC hash of an email for encrypted-column lookups. */
+    private String lookupHash(String email) {
+        return dataEncryptionService.lookupHash(email);
+    }
+
     private void claimGuestOrders(User user) {
         try {
-            var guestOrders = orderRepository.findGuestOrdersByEmail(user.getEmail());
+            var guestOrders = orderRepository.findGuestOrdersByEmailLookup(lookupHash(user.getEmail()));
             if (guestOrders.isEmpty()) return;
             for (var order : guestOrders) {
                 order.setUser(user);

@@ -20,7 +20,7 @@ public class CustomUserDetailsService implements UserDetailsService {
     @Override
     @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
+        return userRepository.findByEmailLookup(com.iloveshopping.service.DataEncryptionService.lookupHashStatic(email))
                 .orElseThrow(() -> {
                     log.debug("User not found: {}", email);
                     return new UsernameNotFoundException("User not found: " + email);

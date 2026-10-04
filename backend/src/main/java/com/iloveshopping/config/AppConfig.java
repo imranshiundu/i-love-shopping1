@@ -62,4 +62,15 @@ public class AppConfig {
         engine.setEnableSpringELCompiler(true);
         return engine;
     }
+
+    /**
+     * Spring-managed Flyway Java migration: backfills encrypted PII columns
+     * using the configured DATA_ENCRYPTION_KEY (registered explicitly so the
+     * migration can inject the DataEncryptionService bean).
+     */
+    @Bean
+    public org.flywaydb.core.api.migration.JavaMigration v20BackfillEncryptedPii(
+            com.iloveshopping.service.DataEncryptionService encryptionService) {
+        return new com.iloveshopping.db.migration.V20BackfillEncryptedPii(encryptionService);
+    }
 }

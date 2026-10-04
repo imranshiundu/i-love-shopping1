@@ -43,10 +43,11 @@ public class UserManagementService {
             user.setAvatar(request.getAvatar());
         }
         if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
+            if (userRepository.existsByEmailLookup(com.iloveshopping.service.DataEncryptionService.lookupHashStatic(request.getEmail()))) {
                 throw new ResourceConflictException("User with this email already exists");
             }
             user.setEmail(request.getEmail().toLowerCase());
+            user.setEmailLookup(com.iloveshopping.service.DataEncryptionService.lookupHashStatic(request.getEmail()));
             user.setEmailVerified(null);
             // New address must be verified before it is trusted: issue a
             // single-use token and mail the verification link.
