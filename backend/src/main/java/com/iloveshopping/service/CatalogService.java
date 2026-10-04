@@ -18,6 +18,7 @@ import com.iloveshopping.repository.ProductImageRepository;
 import com.iloveshopping.repository.ProductRepository;
 import com.iloveshopping.repository.ReviewRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -36,6 +37,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CatalogService {
@@ -138,8 +140,24 @@ public class CatalogService {
                                                  BigDecimal maxPrice, boolean inStockOnly,
                                                  boolean onSaleOnly, String sortBy,
                                                  int page, int size) {
+        return searchProducts(query, categorySlugs, brandSlugs, minPrice, maxPrice,
+                inStockOnly, onSaleOnly, sortBy, page, size, false);
+    }
 
-        List<Product> allProducts = productRepository.findAllActive();
+    /**
+     * @param includeInactive admin view: archived (inactive) products are
+     *                        included so they stay manageable; callers are
+     *                        responsible for gating this on ROLE_ADMIN.
+     */
+    public ProductSearchResponse searchProducts(String query, List<String> categorySlugs,
+                                                 List<String> brandSlugs, BigDecimal minPrice,
+                                                 BigDecimal maxPrice, boolean inStockOnly,
+                                                 boolean onSaleOnly, String sortBy,
+                                                 int page, int size, boolean includeInactive) {
+
+        List<Product> allProducts = includeInactive
+                ? productRepository.findAll()
+                : productRepository.findAllActive();
 
         List<Product> filtered = allProducts.stream()
                 .filter(p -> query == null || query.isBlank() ||
@@ -360,11 +378,26 @@ public class CatalogService {
         return ProductResponse.from(product);
     }
 
+    /**
+     * Deletes a product that has never been sold. A product with purchase
+     * history is archived instead (isActive=false): order lines are historical
+     * snapshots and must keep their product, and the row also keeps reviews,
+     * images and averages intact for past buyers.
+     */
     @Transactional
-    public void deleteProduct(String id) {
+    public ProductResponse deleteProduct(String id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", "id", id));
+
+        boolean hasPurchaseHistory = product.getOrderItems() != null && !product.getOrderItems().isEmpty();
+        if (hasPurchaseHistory) {
+            product.setIsActive(false);
+            product = productRepository.save(product);
+            log.info("Product {} has purchase history - archived instead of deleted", id);
+            return ProductResponse.from(product);
+        }
         productRepository.delete(product);
+        return ProductResponse.from(product);
     }
 
     // ===== Helpers =====

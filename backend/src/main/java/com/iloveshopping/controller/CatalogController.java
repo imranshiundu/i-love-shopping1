@@ -122,10 +122,19 @@ public class CatalogController {
             @Parameter(description = "Page number")
             @RequestParam(defaultValue = "0") int page,
             @Parameter(description = "Page size")
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @Parameter(description = "Include inactive products (admin only)")
+            @RequestParam(defaultValue = "false") boolean includeInactive) {
+
+        // Admins manage archived/inactive products too; the storefront never sees them.
+        boolean adminView = includeInactive && org.springframework.security.core.context.SecurityContextHolder
+                .getContext().getAuthentication() != null
+                && org.springframework.security.core.context.SecurityContextHolder.getContext()
+                        .getAuthentication().getAuthorities().stream()
+                        .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
         ProductSearchResponse products = catalogService.searchProducts(
-                query, categories, brands, minPrice, maxPrice, inStockOnly, onSaleOnly, sortBy, page, size
+                query, categories, brands, minPrice, maxPrice, inStockOnly, onSaleOnly, sortBy, page, size, adminView
         );
 
         return ResponseEntity.ok(ApiResponse.success(products));
@@ -246,11 +255,10 @@ public class CatalogController {
 
     @DeleteMapping("/products/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "Delete a product (Admin)")
-    public ResponseEntity<ApiResponse<Void>> deleteProduct(@PathVariable String id) {
+    @Operation(summary = "Delete a product (Admin); products with purchase history are archived instead")
+    public ResponseEntity<ApiResponse<ProductResponse>> deleteProduct(@PathVariable String id) {
 
-        catalogService.deleteProduct(id);
-        return ResponseEntity.ok(ApiResponse.success(null));
+        return ResponseEntity.ok(ApiResponse.success(catalogService.deleteProduct(id)));
     }
 
     @PostMapping(value = "/products/bulk-upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)

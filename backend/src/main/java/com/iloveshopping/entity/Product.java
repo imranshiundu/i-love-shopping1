@@ -84,7 +84,10 @@ public class Product {
     @Builder.Default
     private List<CartItem> cartItems = new ArrayList<>();
 
-    @OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+    // No cascade: historical order lines are snapshots (name/price/total) and
+    // must survive the product; a product with purchase history is archived,
+    // never hard-deleted.
+    @OneToMany(mappedBy = "product")
     @Builder.Default
     private List<OrderItem> orderItems = new ArrayList<>();
 
