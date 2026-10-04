@@ -31,7 +31,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Shop</h3>
+            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Shop</h2>
             <ul className="mt-5 space-y-3 text-sm">
               <li><Link href="/products" className="transition-colors hover:text-white">All products</Link></li>
               <li><Link href="/products?onSaleOnly=true" className="transition-colors hover:text-white">Offers</Link></li>
@@ -41,7 +41,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Account</h3>
+            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Account</h2>
             <ul className="mt-5 space-y-3 text-sm">
               <li><Link href="/account" className="transition-colors hover:text-white">My profile</Link></li>
               <li><Link href="/account/orders" className="transition-colors hover:text-white">Order history</Link></li>
@@ -51,7 +51,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Company</h3>
+            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Company</h2>
             <ul className="mt-5 space-y-3 text-sm">
               <li><Link href="/about" className="transition-colors hover:text-white">About us</Link></li>
               <li><Link href="/contact" className="transition-colors hover:text-white">Contact & support</Link></li>
@@ -59,7 +59,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Client care</h3>
+            <h2 className="text-xs font-bold uppercase tracking-[0.18em] text-stone-200">Client care</h2>
             <ul className="mt-5 space-y-3 text-sm">
               <li className="flex items-start gap-2.5">
                 <FiMail className="mt-0.5 h-4 w-4 shrink-0 text-stone-600" />

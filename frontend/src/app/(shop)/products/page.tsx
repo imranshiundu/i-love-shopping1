@@ -57,6 +57,21 @@ function ProductsContent() {
     });
   }, []);
 
+  // Same-route navigations (e.g. picking a search suggestion while filtered)
+  // change the URL without remounting this page — the catalogue state must
+  // follow, or the displayed results no longer match the URL's query/filters.
+  useEffect(() => {
+    setQueryInput(searchParams.get('q') || '');
+    setSelectedCategory(searchParams.get('category') || '');
+    setSelectedBrand(searchParams.get('brand') || '');
+    setMinPrice(searchParams.get('minPrice') || '');
+    setMaxPrice(searchParams.get('maxPrice') || '');
+    setSortBy(searchParams.get('sortBy') || 'relevance');
+    setInStockOnly(searchParams.get('inStockOnly') === 'true');
+    setOnSaleOnly(searchParams.get('onSaleOnly') === 'true');
+    setCurrentPage(parseInt(searchParams.get('page') || '0', 10));
+  }, [searchParams]);
+
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
   const clearFilters = () => {

@@ -119,7 +119,7 @@ function SuccessContent() {
             <ul className="mt-4 divide-y divide-stone-100">
               {order.items.map(item => (
                 <li key={item.id} className="flex items-center justify-between gap-4 py-2.5 text-sm">
-                  <span className="min-w-0 flex-1 truncate">{item.quantity} x {item.name}</span>
+                  <span className="min-w-0 flex-1 truncate">{item.quantity} x {item.productName || (item as any).name}</span>
                   <span className="font-semibold tabular-nums">{formatKES(item.total)}</span>
                 </li>
               ))}

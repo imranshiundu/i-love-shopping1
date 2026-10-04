@@ -84,7 +84,7 @@ export default function ProductCard({ product }: { product: Product }) {
         <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-stone-400">
           {product.brand?.name || 'Marketplace'}
         </p>
-        <h3 className="line-clamp-1 text-sm font-semibold text-stone-900">{product.name}</h3>
+        <h2 className="line-clamp-1 text-sm font-semibold text-stone-900">{product.name}</h2>
         <div className="mt-auto flex items-center justify-between pt-2">
           <div className="flex items-baseline gap-1.5">
             <span className="text-base font-bold text-stone-900">{formatKES(product.price)}</span>

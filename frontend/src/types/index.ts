@@ -92,8 +92,12 @@ export interface Order {
 }
 
 export interface OrderItem {
-  id: string; productId: string; name: string; price: number;
-  quantity: number; total: number; image?: string;
+  id: string; productId: string;
+  // The API returns productName/productImage (OrderItemResponse)
+  productName: string; productImage?: string | null;
+  name?: string; image?: string;
+  price: number;
+  quantity: number; total: number;
 }
 
 export interface Payment {

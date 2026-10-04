@@ -59,10 +59,10 @@ export default function Header() {
 
       <div className="border-b border-stone-200/70 bg-white/85 backdrop-blur-xl">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-[4.5rem] items-center justify-between gap-6">
-            <Link href="/" className="flex items-baseline gap-1 whitespace-nowrap">
-              <span className="text-xl font-extrabold tracking-tight text-stone-900">{config.app.name}</span>
-              <span className="hidden text-xl font-extrabold tracking-tight text-primary-600 sm:inline">.</span>
+          <div className="flex h-[4.5rem] items-center justify-between gap-3 sm:gap-6">
+            <Link href="/" className="flex min-w-0 items-baseline gap-1 whitespace-nowrap">
+              <span className="text-lg font-extrabold tracking-tight text-stone-900 sm:text-xl">{config.app.name}</span>
+              <span className="hidden text-lg font-extrabold tracking-tight text-primary-600 sm:inline sm:text-xl">.</span>
             </Link>
 
             <nav className="hidden items-center gap-8 text-sm font-medium text-stone-600 lg:flex">
@@ -225,7 +225,7 @@ export default function Header() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <button onClick={() => openAuthModal('login')} className="rounded-full px-3.5 py-2 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-100">
+                  <button onClick={() => openAuthModal('login')} className="rounded-full px-2.5 py-2 text-sm font-semibold text-stone-700 transition-colors hover:bg-stone-100 sm:px-3.5">
                     Sign in
                   </button>
                   <button onClick={() => openAuthModal('register')} className="hidden rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-stone-800 sm:block">
@@ -256,6 +256,12 @@ export default function Header() {
                   {label}
                 </Link>
               ))}
+              {!user && (
+                <button type="button" onClick={() => { setMobileMenuOpen(false); openAuthModal('login'); }}
+                  className="flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left font-medium text-primary-700 hover:bg-primary-50">
+                  Sign in / Create account
+                </button>
+              )}
             </nav>
           </div>
         )}
