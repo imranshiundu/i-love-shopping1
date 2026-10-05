@@ -147,10 +147,10 @@ function ReceiptContent({ orderNumber }: { orderNumber: string }) {
   );
 }
 
-export default function ReceiptPage({ params }: { params: { orderNumber: string } }) {
+export default async function ReceiptPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   return (
     <Suspense>
-      <ReceiptContent orderNumber={params.orderNumber} />
+      <ReceiptContent orderNumber={(await params).orderNumber} />
     </Suspense>
   );
 }

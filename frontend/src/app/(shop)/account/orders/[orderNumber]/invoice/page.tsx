@@ -137,10 +137,10 @@ function InvoiceContent({ orderNumber }: { orderNumber: string }) {
   );
 }
 
-export default function InvoicePage({ params }: { params: { orderNumber: string } }) {
+export default async function InvoicePage({ params }: { params: Promise<{ orderNumber: string }> }) {
   return (
     <Suspense>
-      <InvoiceContent orderNumber={params.orderNumber} />
+      <InvoiceContent orderNumber={(await params).orderNumber} />
     </Suspense>
   );
 }

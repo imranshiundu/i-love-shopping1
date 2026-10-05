@@ -3,11 +3,12 @@ import ProductDetailClient from './ProductDetailClient';
 import { products as productsApi } from '@/services/api';
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const product = await productsApi.getBySlug(params.slug).then(r => r.data).catch(() => null);
+  const { slug } = await params;
+  const product = await productsApi.getBySlug(slug).then(r => r.data).catch(() => null);
 
   if (!product) {
     return {

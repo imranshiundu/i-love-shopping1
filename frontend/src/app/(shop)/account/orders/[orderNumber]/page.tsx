@@ -312,10 +312,10 @@ function OrderDetailContent({ orderNumber }: { orderNumber: string }) {
   );
 }
 
-export default function OrderDetailPage({ params }: { params: { orderNumber: string } }) {
+export default async function OrderDetailPage({ params }: { params: Promise<{ orderNumber: string }> }) {
   return (
     <Suspense fallback={<div className="mx-auto max-w-lg px-4 py-16 text-center">Loading...</div>}>
-      <OrderDetailContent orderNumber={params.orderNumber} />
+      <OrderDetailContent orderNumber={(await params).orderNumber} />
     </Suspense>
   );
 }
