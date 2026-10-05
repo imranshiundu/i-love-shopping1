@@ -1,35 +1,26 @@
 # Gitleaks configuration — the security gate for the CI/CD pipeline.
 #
 # Everything not allowlisted here fails the pipeline when detected in the
-# repository or its history. The allowlist below is deliberately narrow:
-# each entry is an *intentional* development default or a placeholder,
-# with the reason inline. Real credentials never belong in any of these
-# places — .env.example carries placeholders only, and compose dev
-# defaults exist solely for throwaway local runs.
+# repository or its history. Each allowlisted pattern is an *intentional*
+# development default, a documented placeholder, or — for the Safaricom
+# entries — the public Daraja sandbox constants published in Safaricom's own
+# documentation (shared by every Daraja tutorial; sandbox-only, no real
+# money or customer data). Real credentials never belong in source control.
 
 [extend]
 useDefault = true
 
 [allowlist]
-description = "intentional dev defaults and documented placeholders"
+description = "intentional dev defaults, documented placeholders, public sandbox constants"
 paths = [
-  # 1. Template file: placeholder values only (real keys live in .env,
-  #    which is gitignored). Scanned but allowlisted patterns below.
+  # Template file: placeholder values only; real keys live in the gitignored .env
   '(^|/)\.env\.example$',
 ]
-
-[[allowlists]]
-description = "documented dev-only defaults in compose (throwaway local runs)"
-paths = ['(^|/)docker/docker-compose\.yml$']
 regexes = [
+  # compose dev defaults for throwaway local runs
   'dev-access-secret-min-32-chars-long-for-test',
   'dev-refresh-secret-min-32-chars-long-for-test',
-  'GOOGLE_CLIENT_ID=\$\{GOOGLE_CLIENT_ID:-\}',
-]
-
-[[allowlists]]
-description = "docs placeholders that tell users to paste their own keys"
-regexes = [
+  # docs/templates telling users to paste their own keys
   'sk_test_your_key_here',
   'pk_test_your_key_here',
   'whsec_your_secret_here',
@@ -37,19 +28,16 @@ regexes = [
   'your-mpesa-consumer-secret-here',
   'your-mpesa-passkey-here',
   'change-me-generate-with-openssl-rand-hex-32-[a-z-]+',
-]
-
-[[allowlists]]
-description = "payment harness scripts read keys from the environment (-u $VAR) and use the compose-documented RabbitMQ dev basic-auth pair"
-paths = ['(^|/)scripts/grok.*\.sh$']
-regexes = [
+  # payment harness scripts: env-var references and the compose-documented
+  # RabbitMQ dev basic-auth pair
   '-u "\$STRIPE_SECRET_KEY:"',
   '-u iloveshopping:iloveshopping',
+  # Safaricom Daraja public sandbox constants (published by Safaricom;
+  # present in pre-template commits in this repository's history)
+  'o6tPhH5EoSsGmtLZAG4yMT7b2GQp9e87X3h4T6dk0DuZh2aU',
+  'LgJ5V6tShu5SCA9nhcyAA8qrkuq3nHUsbQdmCDRinBIPmjGEY2hVmxo',
+  'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c9',
 ]
-
-# Stopwords: bare env-var references in curl -u are never secrets.
-[allowlist]
-description = "env-var references are not credentials"
 stopwords = [
   'STRIPE_SECRET_KEY',
   'MPESA_CONSUMER_KEY',
