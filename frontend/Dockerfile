@@ -1,7 +1,7 @@
 FROM node:20-alpine AS build
 WORKDIR /app
-COPY package.json package-lock.json* ./
-RUN npm install
+COPY package.json package-lock.json* .npmrc ./
+RUN npm install --legacy-peer-deps
 COPY . .
 
 # A clean git export may not contain a public directory; the runtime image
