@@ -71,6 +71,6 @@ public class AppConfig {
     @Bean
     public org.flywaydb.core.api.migration.JavaMigration v20BackfillEncryptedPii(
             com.iloveshopping.service.DataEncryptionService encryptionService) {
-        return new com.iloveshopping.db.migration.V20BackfillEncryptedPii(encryptionService);
+        return new com.iloveshopping.db.migration.V20__Backfill_encrypted_pii(encryptionService);
     }
 }

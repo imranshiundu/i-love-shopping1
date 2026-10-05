@@ -19,11 +19,11 @@ import java.sql.Statement;
  * DATA_ENCRYPTION_KEY (a SQL migration cannot compute the keyed hashes).
  * Re-runnable by design: rows are skipped when already encrypted.
  */
-public class V20BackfillEncryptedPii extends BaseJavaMigration {
+public class V20__Backfill_encrypted_pii extends BaseJavaMigration {
 
     private final DataEncryptionService encryption;
 
-    public V20BackfillEncryptedPii(DataEncryptionService encryption) {
+    public V20__Backfill_encrypted_pii(DataEncryptionService encryption) {
         this.encryption = encryption;
     }
 
