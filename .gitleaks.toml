@@ -28,10 +28,9 @@ regexes = [
   'your-mpesa-consumer-secret-here',
   'your-mpesa-passkey-here',
   'change-me-generate-with-openssl-rand-hex-32-[a-z-]+',
-  # payment harness scripts: env-var references and the compose-documented
-  # RabbitMQ dev basic-auth pair
-  '-u "\$STRIPE_SECRET_KEY:"',
-  '-u iloveshopping:iloveshopping',
+  # payment harness scripts: the compose-documented RabbitMQ dev basic-auth
+  # pair (gitleaks matches these against the extracted secret, not the line)
+  'iloveshopping:iloveshopping',
   # Safaricom Daraja public sandbox constants (published by Safaricom;
   # present in pre-template commits in this repository's history)
   'o6tPhH5EoSsGmtLZAG4yMT7b2GQp9e87X3h4T6dk0DuZh2aU',
