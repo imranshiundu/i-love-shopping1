@@ -14,11 +14,14 @@ public class TwoFactorAuthUtil {
     private static final String QR_PREFIX = "otpauth://totp/";
     private static final String HMAC_SHA1 = "HmacSHA1";
 
+    // One shared SecureRandom: SecureRandom is thread-safe, and constructing
+    // a fresh generator per secret wastes entropy and flags DMI analysis.
+    private static final java.security.SecureRandom RANDOM = new java.security.SecureRandom();
+
     public static String generateSecret() {
         try {
             byte[] secretBytes = new byte[20];
-            java.security.SecureRandom random = new java.security.SecureRandom();
-            random.nextBytes(secretBytes);
+            RANDOM.nextBytes(secretBytes);
             return encodeBase32(secretBytes);
         } catch (Exception e) {
             throw new RuntimeException("Failed to generate 2FA secret", e);

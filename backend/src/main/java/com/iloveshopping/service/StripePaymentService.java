@@ -10,7 +10,7 @@ import com.iloveshopping.messaging.OrderMessagePublisher;
 import com.iloveshopping.repository.OrderRepository;
 import com.iloveshopping.repository.PaymentRepository;
 import com.iloveshopping.repository.ProductRepository;
-import com.stripe.Stripe;
+import com.stripe.StripeClient;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.model.Refund;
@@ -39,13 +39,19 @@ public class StripePaymentService {
     private final OrderMessagePublisher orderMessagePublisher;
     private final EmailService emailService;
 
+    // The SDK's static Stripe.apiKey is process-global mutable state; a
+    // StripeClient instance is the thread-safe pattern and keeps each call
+    // scoped to this service's configuration.
+    private StripeClient stripeClient;
+
     @PostConstruct
     public void init() {
-        if (effectiveSecretKey() != null) {
-            Stripe.apiKey = effectiveSecretKey();
-            log.info("Stripe API key configured ({} mode)", stripeProperties.isLive() ? "LIVE — real money" : "test");
+        String key = effectiveSecretKey();
+        if (key != null) {
+            stripeClient = new StripeClient(key);
+            log.info("Stripe client configured ({} mode)", stripeProperties.isLive() ? "LIVE - real money" : "test");
         } else {
-            log.warn("Stripe secret key not configured — card payments will be unavailable");
+            log.warn("Stripe secret key not configured - card payments will be unavailable");
         }
     }
 
@@ -105,7 +111,7 @@ public class StripePaymentService {
                     .putMetadata("orderNumber", order.getNumber())
                     .build();
 
-            PaymentIntent paymentIntent = PaymentIntent.create(params);
+            PaymentIntent paymentIntent = stripeClient.paymentIntents().create(params);
 
             Payment payment = Payment.builder()
                     .order(order)
@@ -145,7 +151,7 @@ public class StripePaymentService {
         }
 
         try {
-            PaymentIntent intent = PaymentIntent.retrieve(paymentIntentId);
+            PaymentIntent intent = stripeClient.paymentIntents().retrieve(paymentIntentId);
 
             // If the intent was already confirmed client-side (status=succeeded),
             // re-confirming throws. Detect that and just finalize.
@@ -188,7 +194,7 @@ public class StripePaymentService {
             // keep the order open so the customer can retry.
             boolean terminalFailure = false;
             try {
-                PaymentIntent current = PaymentIntent.retrieve(paymentIntentId);
+                PaymentIntent current = stripeClient.paymentIntents().retrieve(paymentIntentId);
                 String st = current.getStatus();
                 terminalFailure = "canceled".equals(st) || "failed".equals(st);
             } catch (StripeException retrieveEx) {
@@ -258,7 +264,7 @@ public class StripePaymentService {
                     .setPaymentIntent(payment.getProviderId())
                     .setReason(RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
                     .build();
-            Refund refund = Refund.create(params);
+            Refund refund = stripeClient.refunds().create(params);
             log.info("Stripe refund {} for intent {} (order {})",
                     refund.getId(), payment.getProviderId(), order.getNumber());
 
@@ -364,7 +370,7 @@ public class StripePaymentService {
         if (order.getStatus() == Order.OrderStatus.CANCELLED) {
             log.warn("Payment succeeded for cancelled order {} — auto-refunding {}", order.getNumber(), payment.getProviderId());
             try {
-                Refund refund = Refund.create(RefundCreateParams.builder()
+                Refund refund = stripeClient.refunds().create(RefundCreateParams.builder()
                         .setPaymentIntent(payment.getProviderId())
                         .setReason(RefundCreateParams.Reason.REQUESTED_BY_CUSTOMER)
                         .build());
