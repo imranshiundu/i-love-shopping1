@@ -1,0 +1,57 @@
+# Gitleaks configuration — the security gate for the CI/CD pipeline.
+#
+# Everything not allowlisted here fails the pipeline when detected in the
+# repository or its history. The allowlist below is deliberately narrow:
+# each entry is an *intentional* development default or a placeholder,
+# with the reason inline. Real credentials never belong in any of these
+# places — .env.example carries placeholders only, and compose dev
+# defaults exist solely for throwaway local runs.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "intentional dev defaults and documented placeholders"
+paths = [
+  # 1. Template file: placeholder values only (real keys live in .env,
+  #    which is gitignored). Scanned but allowlisted patterns below.
+  '(^|/)\.env\.example$',
+]
+
+[[allowlists]]
+description = "documented dev-only defaults in compose (throwaway local runs)"
+paths = ['(^|/)docker/docker-compose\.yml$']
+regexes = [
+  'dev-access-secret-min-32-chars-long-for-test',
+  'dev-refresh-secret-min-32-chars-long-for-test',
+  'GOOGLE_CLIENT_ID=\$\{GOOGLE_CLIENT_ID:-\}',
+]
+
+[[allowlists]]
+description = "docs placeholders that tell users to paste their own keys"
+regexes = [
+  'sk_test_your_key_here',
+  'pk_test_your_key_here',
+  'whsec_your_secret_here',
+  'your-mpesa-consumer-key-here',
+  'your-mpesa-consumer-secret-here',
+  'your-mpesa-passkey-here',
+  'change-me-generate-with-openssl-rand-hex-32-[a-z-]+',
+]
+
+[[allowlists]]
+description = "payment harness scripts read keys from the environment (-u $VAR) and use the compose-documented RabbitMQ dev basic-auth pair"
+paths = ['(^|/)scripts/grok.*\.sh$']
+regexes = [
+  '-u "\$STRIPE_SECRET_KEY:"',
+  '-u iloveshopping:iloveshopping',
+]
+
+# Stopwords: bare env-var references in curl -u are never secrets.
+[allowlist]
+description = "env-var references are not credentials"
+stopwords = [
+  'STRIPE_SECRET_KEY',
+  'MPESA_CONSUMER_KEY',
+  'MPESA_CONSUMER_SECRET',
+]
