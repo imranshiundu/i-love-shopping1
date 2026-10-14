@@ -38,6 +38,7 @@ public class ReviewService {
             Order.OrderStatus.REFUNDED);
 
     private final ReviewRepository reviewRepository;
+    private final AppMetrics appMetrics;
     private final ReviewVoteRepository reviewVoteRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
@@ -82,6 +83,7 @@ public class ReviewService {
                 .build();
 
         review = reviewRepository.save(review);
+        appMetrics.reviewCreated(request.getRating());
         log.info("Review added for product {} by {} (verified={}, status={})",
                 product.getSlug(), user.getEmail(), verified, review.getStatus());
         return ReviewResponse.from(review);

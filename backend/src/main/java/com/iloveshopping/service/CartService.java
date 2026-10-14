@@ -1,5 +1,6 @@
 package com.iloveshopping.service;
 
+import com.iloveshopping.service.AppMetrics;
 import com.iloveshopping.dto.cart.AddToCartRequest;
 import com.iloveshopping.dto.cart.CartResponse;
 import com.iloveshopping.dto.cart.UpdateCartItemRequest;
@@ -34,6 +35,7 @@ public class CartService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final AppMetrics appMetrics;
 
     @Transactional(readOnly = true)
     public CartResponse getCart(String sessionId) {
@@ -82,6 +84,7 @@ public class CartService {
             }
             item.setQuantity(newQty);
             cartItemRepository.save(item);
+            appMetrics.cartItemAdded();
         } else {
             CartItem newItem = CartItem.builder()
                     .cart(cart)
@@ -91,6 +94,7 @@ public class CartService {
                     .priceSnapshot(product.getPrice())
                     .build();
             cartItemRepository.save(newItem);
+            appMetrics.cartItemAdded();
         }
 
         return toResponse(cart);

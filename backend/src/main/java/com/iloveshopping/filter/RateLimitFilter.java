@@ -8,6 +8,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -33,6 +35,7 @@ public class RateLimitFilter implements Filter {
 
     private final ConcurrentHashMap<String, TokenBucket> buckets = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
+    private final MeterRegistry meterRegistry;
 
     @Value("${security.rate-limit.auth-requests-per-minute:10}")
     private int authRequestsPerMinute;
@@ -53,8 +56,9 @@ public class RateLimitFilter implements Filter {
     @Value("${security.rate-limit.trust-forwarded-ips:false}")
     private boolean trustForwardedIps;
 
-    public RateLimitFilter(ObjectMapper objectMapper) {
+    public RateLimitFilter(ObjectMapper objectMapper, MeterRegistry meterRegistry) {
         this.objectMapper = objectMapper;
+        this.meterRegistry = meterRegistry;
     }
 
     @Override
@@ -78,6 +82,7 @@ public class RateLimitFilter implements Filter {
                 existing == null ? new TokenBucket(capacity, refillPerSecond) : existing);
 
         if (!bucket.tryConsume()) {
+            meterRegistry.counter("ils_rate_limited_total", "scope", isAuthEndpoint(requestUri) ? "auth" : "api").increment();
             long retryAfterSeconds = (long) Math.ceil(bucket.secondsUntilNextToken());
             log.warn("Rate limit exceeded for IP: {} on path: {} ({} req/min, burst {})",
                     clientIp, requestUri, perMinute, (long) capacity);

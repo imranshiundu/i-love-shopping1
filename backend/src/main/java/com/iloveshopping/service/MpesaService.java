@@ -43,6 +43,7 @@ import java.util.Optional;
 public class MpesaService {
 
     private final MpesaProperties mpesaProperties;
+    private final AppMetrics appMetrics;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final ProductRepository productRepository;
@@ -294,6 +295,7 @@ public class MpesaService {
                 }
 
                 payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
+                appMetrics.orderPaid(payment.getAmount());
                 payment.setAmount(amount);
                 paymentRepository.save(payment);
 
@@ -545,6 +547,7 @@ public class MpesaService {
     // ---- helpers ----
 
     private void markPaymentFailed(Payment payment, Order order, String reason) {
+        appMetrics.paymentFailed("mpesa", reason != null && !reason.isBlank() ? reason : "unknown");
         // Guard against double-processing (idempotency)
         if (payment.getStatus() == Payment.PaymentStatus.FAILED
                 || payment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {

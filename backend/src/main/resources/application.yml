@@ -73,6 +73,21 @@ spring:
       time-to-live: 3600000
       key-prefix: "iloveshopping:"
 
+
+management:
+  server:
+    # Never the public API port: metrics are scraped over the internal
+    # network only (compose network / VPN). Prometheus hits :9090.
+    port: ${MANAGEMENT_PORT:9090}
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
 server:
   port: ${SERVER_PORT:8080}
   forward-headers-strategy: framework

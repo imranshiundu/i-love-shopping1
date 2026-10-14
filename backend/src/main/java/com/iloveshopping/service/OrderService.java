@@ -22,6 +22,7 @@ import com.iloveshopping.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
+import io.micrometer.core.annotation.Timed;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +48,7 @@ public class OrderService {
     private final CartItemRepository cartItemRepository;
     private final ProductRepository productRepository;
     private final UserRepository userRepository;
+    private final AppMetrics appMetrics;
     private final com.iloveshopping.repository.ShippingMethodRepository shippingMethodRepository;
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -55,6 +57,7 @@ public class OrderService {
     private final com.iloveshopping.validation.AddressValidator addressValidator;
     private final EmailService emailService;
 
+    @Timed(value = "ils_orders_checkout_seconds", percentiles = {0.5, 0.9, 0.99})
     @Transactional
     public OrderResponse checkout(CheckoutRequest request, String sessionId) {
         User user = currentUser();
@@ -166,6 +169,7 @@ public class OrderService {
         }
 
         final Order saved = orderRepository.save(order);
+        appMetrics.orderCreated();
 
         // Atomic stock decrement with compensation on failure.
         // Items are decremented in a deterministic order (sorted by product id)

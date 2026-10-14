@@ -17,6 +17,7 @@ import com.iloveshopping.repository.CategoryRepository;
 import com.iloveshopping.repository.ProductImageRepository;
 import com.iloveshopping.repository.ProductRepository;
 import com.iloveshopping.repository.ReviewRepository;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -149,6 +150,7 @@ public class CatalogService {
      *                        included so they stay manageable; callers are
      *                        responsible for gating this on ROLE_ADMIN.
      */
+    @Timed(value = "ils_catalog_search_seconds", percentiles = {0.5, 0.9, 0.99})
     public ProductSearchResponse searchProducts(String query, List<String> categorySlugs,
                                                  List<String> brandSlugs, BigDecimal minPrice,
                                                  BigDecimal maxPrice, boolean inStockOnly,

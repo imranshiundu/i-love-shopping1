@@ -9,6 +9,7 @@ import com.iloveshopping.dto.user.UpdateProfileRequest;
 import com.iloveshopping.entity.Session;
 import com.iloveshopping.entity.User;
 import com.iloveshopping.exception.AuthenticationException;
+import com.iloveshopping.service.AppMetrics;
 import com.iloveshopping.exception.ResourceConflictException;
 import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.OrderRepository;
@@ -46,6 +47,7 @@ public class AuthService {
     private final RecaptchaProperties recaptchaProperties;
     private final EmailService emailService;
     private final com.iloveshopping.service.DataEncryptionService dataEncryptionService;
+    private final AppMetrics appMetrics;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -121,12 +123,14 @@ public class AuthService {
 
         Optional<User> userOpt = userRepository.findByEmailLookup(lookupHash(request.getEmail()));
         if (userOpt.isEmpty()) {
+            appMetrics.loginFailed("account_not_found");
             throw AuthenticationException.accountNotFound();
         }
 
         User user = userOpt.get();
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            appMetrics.loginFailed("incorrect_password");
             log.warn("Failed login attempt for email: {}", request.getEmail());
             throw AuthenticationException.incorrectPassword();
         }
@@ -156,6 +160,8 @@ public class AuthService {
             }
 
             if (!verifyTwoFactorCode(user.getTwoFactorSecret(), request.getTwoFactorCode())) {
+                appMetrics.loginFailed("two_factor_invalid");
+                appMetrics.twoFaFailed();
                 throw AuthenticationException.invalidTwoFactorCode();
             }
 
@@ -191,6 +197,7 @@ public class AuthService {
 
         String accessToken = jwtService.generateAccessToken(user, sessionId);
 
+        appMetrics.loginSuccess(user.getTwoFactorEnabled() != null && user.getTwoFactorEnabled() ? "password+2fa" : "password");
         log.info("User logged in successfully: {}", user.getEmail());
 
         // Claim any guest orders made with this email
@@ -282,6 +289,7 @@ public class AuthService {
 
         String accessToken = jwtService.generateAccessToken(user, sessionId);
 
+        appMetrics.loginSuccess("clerk-oauth2");
         log.info("User logged in via Clerk successfully: {}", user.getEmail());
 
         claimGuestOrders(user);
@@ -377,7 +385,7 @@ public class AuthService {
 
     @Transactional
     public void forgotPassword(ForgotPasswordRequest request) {
-        log.info("Password reset requested for: {}", request.getEmail());
+        appMetrics.passwordResetRequested();        log.info("Password reset requested for: {}", request.getEmail());
 
         // Never reveal whether the address exists (prevents account enumeration).
         userRepository.findByEmailLookup(lookupHash(request.getEmail())).ifPresent(user -> {
@@ -503,6 +511,7 @@ public class AuthService {
         user.setTwoFactorEnabled(true);
         userRepository.save(user);
 
+        appMetrics.twoFaEnrolled();
         log.info("2FA enabled for user: {}", user.getEmail());
     }
 
@@ -545,6 +554,7 @@ public class AuthService {
 
         user.setTwoFactorEnabled(true);
         userRepository.save(user);
+        appMetrics.twoFaEnrolled();
         log.info("2FA enrollment completed: {}", user.getEmail());
     }
 

@@ -33,6 +33,7 @@ import java.util.Map;
 public class StripePaymentService {
 
     private final StripeProperties stripeProperties;
+    private final AppMetrics appMetrics;
     private final OrderRepository orderRepository;
     private final PaymentRepository paymentRepository;
     private final ProductRepository productRepository;
@@ -269,6 +270,7 @@ public class StripePaymentService {
                     refund.getId(), payment.getProviderId(), order.getNumber());
 
             payment.setStatus(Payment.PaymentStatus.REFUNDED);
+            appMetrics.orderRefunded();
             payment.setMetadata(buildMetadata(payment.getProviderId(), "refunded:" + refund.getId()));
             paymentRepository.save(payment);
 
@@ -324,6 +326,8 @@ public class StripePaymentService {
                 }
                 case "payment_intent.payment_failed" -> {
                     payment.setStatus(Payment.PaymentStatus.FAILED);
+                    appMetrics.paymentFailed("stripe", "provider_failed");
+                appMetrics.paymentFailed("stripe", "provider_failed");
                     payment.setMetadata(buildMetadata(intent.getId(), "failed"));
                     paymentRepository.save(payment);
                     log.warn("Stripe webhook: payment failed for {}", intent.getId());
@@ -362,6 +366,7 @@ public class StripePaymentService {
     }
 
     private void onPaymentSucceeded(Payment payment) {
+        appMetrics.orderPaid(payment.getAmount());
         Order order = payment.getOrder();
 
         // Race guard: the customer may have cancelled while the card payment
