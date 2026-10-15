@@ -76,6 +76,12 @@ public class SecurityConfig {
                         .requestMatchers("/uploads/**").permitAll()
                         .requestMatchers("/images/**").permitAll()
                         .requestMatchers("/health", "/live", "/ready").permitAll()
+                        // Actuator/metrics live on the dedicated management port
+                        // (9090, never published to the host, internal compose
+                        // network only), so Prometheus can scrape unauthenticated.
+                        // On the public 8080 context these paths have no handler
+                        // (management.server.port is separate) — nothing to leak.
+                        .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/docs/**", "/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/orders/checkout").permitAll()
