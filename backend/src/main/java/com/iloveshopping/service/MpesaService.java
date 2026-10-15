@@ -466,6 +466,7 @@ public class MpesaService {
     protected void markQuerySucceeded(Payment payment) {
         if (payment.getStatus() == Payment.PaymentStatus.SUCCEEDED) return;
         payment.setStatus(Payment.PaymentStatus.SUCCEEDED);
+        appMetrics.orderPaid(payment.getAmount());
         paymentRepository.save(payment);
 
         Order order = payment.getOrder();
@@ -547,7 +548,6 @@ public class MpesaService {
     // ---- helpers ----
 
     private void markPaymentFailed(Payment payment, Order order, String reason) {
-        appMetrics.paymentFailed("mpesa", reason != null && !reason.isBlank() ? reason : "unknown");
         // Guard against double-processing (idempotency)
         if (payment.getStatus() == Payment.PaymentStatus.FAILED
                 || payment.getStatus() == Payment.PaymentStatus.SUCCEEDED) {
@@ -560,6 +560,9 @@ public class MpesaService {
             log.info("markPaymentFailed: order {} already in terminal state {}, skipping", order.getNumber(), order.getStatus());
             return;
         }
+        // Counted only when the failure is actually applied — skipped
+        // re-processing must not inflate the counter.
+        appMetrics.paymentFailed("mpesa", reason != null && !reason.isBlank() ? reason : "unknown");
         Payment.PaymentStatus payStatus = reason != null && reason.toLowerCase().contains("cancel")
                 ? Payment.PaymentStatus.CANCELLED
                 : Payment.PaymentStatus.FAILED;

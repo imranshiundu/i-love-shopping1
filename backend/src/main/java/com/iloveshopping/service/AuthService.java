@@ -9,7 +9,6 @@ import com.iloveshopping.dto.user.UpdateProfileRequest;
 import com.iloveshopping.entity.Session;
 import com.iloveshopping.entity.User;
 import com.iloveshopping.exception.AuthenticationException;
-import com.iloveshopping.service.AppMetrics;
 import com.iloveshopping.exception.ResourceConflictException;
 import com.iloveshopping.exception.ResourceNotFoundException;
 import com.iloveshopping.repository.OrderRepository;

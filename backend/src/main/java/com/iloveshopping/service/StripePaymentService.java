@@ -208,6 +208,8 @@ public class StripePaymentService {
                         ? Payment.PaymentStatus.CANCELLED
                         : Payment.PaymentStatus.FAILED;
                 payment.setStatus(payStatus);
+                appMetrics.paymentFailed("stripe", payStatus == Payment.PaymentStatus.CANCELLED
+                        ? "canceled" : "card_declined_or_gateway_error");
                 payment.setMetadata(buildMetadata(paymentIntentId, "failed: " + e.getMessage()));
                 paymentRepository.save(payment);
 
@@ -327,7 +329,6 @@ public class StripePaymentService {
                 case "payment_intent.payment_failed" -> {
                     payment.setStatus(Payment.PaymentStatus.FAILED);
                     appMetrics.paymentFailed("stripe", "provider_failed");
-                appMetrics.paymentFailed("stripe", "provider_failed");
                     payment.setMetadata(buildMetadata(intent.getId(), "failed"));
                     paymentRepository.save(payment);
                     log.warn("Stripe webhook: payment failed for {}", intent.getId());

@@ -1,6 +1,5 @@
 package com.iloveshopping.service;
 
-import com.iloveshopping.service.AppMetrics;
 import com.iloveshopping.dto.cart.AddToCartRequest;
 import com.iloveshopping.dto.cart.CartResponse;
 import com.iloveshopping.dto.cart.UpdateCartItemRequest;
