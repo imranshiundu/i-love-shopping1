@@ -37,6 +37,7 @@ public class AppMetrics {
     private final Counter revenueKes;
     private final Counter cartItemAdded;
     private final Counter searchSuggestions;
+    private final Counter refreshSuccess;
 
     public AppMetrics(MeterRegistry registry) {
         this.registry = registry;
@@ -51,6 +52,7 @@ public class AppMetrics {
         revenueKes = counter("ils_revenue_kes_total", "Revenue collected, in KES");
         cartItemAdded = counter("ils_cart_items_added_total", "Items added to carts");
         searchSuggestions = counter("ils_search_suggestion_requests_total", "Search suggestions served");
+        refreshSuccess = counter("ils_auth_refresh_success_total", "JWT refresh tokens rotated successfully");
     }
 
     /** Enables @Timed annotations on service methods. */
@@ -65,6 +67,8 @@ public class AppMetrics {
     public void twoFaEnrolled()                 { twoFaEnrolled.increment(); }
 
     public void loginSuccess(String mode)       { registry.counter("ils_auth_login_success_total", "mode", mode).increment(); }
+    public void refreshSuccess()                { refreshSuccess.increment(); }
+    public void refreshFailed(String reason)    { registry.counter("ils_auth_refresh_failed_total", "reason", reason).increment(); }
     public void loginFailed(String reason)      { registry.counter("ils_auth_login_failed_total", "reason", reason).increment(); }
 
     public void orderCreated()                  { ordersCreated.increment(); }

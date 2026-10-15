@@ -309,6 +309,7 @@ public class AuthService {
 
         String refreshToken = request.getRefreshToken();
         if (refreshToken == null || refreshToken.isBlank()) {
+            appMetrics.refreshFailed("missing_token");
             throw AuthenticationException.invalidToken();
         }
 
@@ -316,18 +317,24 @@ public class AuthService {
         try {
             claims = jwtService.parseRefreshToken(refreshToken);
         } catch (JwtService.InvalidTokenException e) {
+            appMetrics.refreshFailed("invalid_token");
             throw AuthenticationException.invalidToken();
         }
 
         User user = userRepository.findById(claims.getSubject())
-                .orElseThrow(() -> AuthenticationException.invalidToken());
+                .orElseThrow(() -> {
+                    appMetrics.refreshFailed("invalid_token");
+                    return AuthenticationException.invalidToken();
+                });
 
         Optional<Session> sessionOpt = sessionRepository.findById(claims.getSessionId());
         if (sessionOpt.isEmpty() || sessionOpt.get().isRevoked()) {
+            appMetrics.refreshFailed("session_revoked");
             throw AuthenticationException.invalidToken();
         }
 
         if (!passwordEncoder.matches(refreshToken, sessionOpt.get().getRefreshTokenHash())) {
+            appMetrics.refreshFailed("token_reuse_detected");
             sessionRepository.revokeAllUserSessions(user.getId(), LocalDateTime.now());
             throw AuthenticationException.tokenExpired();
         }
@@ -349,6 +356,7 @@ public class AuthService {
 
         String accessToken = jwtService.generateAccessToken(user, newSessionId);
 
+        appMetrics.refreshSuccess();
         log.debug("Token refreshed successfully for user: {}", user.getEmail());
 
         return AuthResponse.builder()
