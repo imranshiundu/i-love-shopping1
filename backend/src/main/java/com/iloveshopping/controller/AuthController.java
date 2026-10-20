@@ -78,12 +78,23 @@ public class AuthController {
     public ResponseEntity<ApiResponse<AuthResponse>> refresh(
             @CookieValue(name = "refreshToken", required = false) String cookieRefreshToken,
             @RequestHeader(value = "X-Refresh-Token", required = false) String headerRefreshToken,
+            @RequestBody(required = false) RefreshRequest bodyRequest,
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
 
+        // Three accepted sources, in order: the header (cross-origin clients
+        // whose cookies get stripped), the cookie (same-site browsers), and
+        // the JSON body — the documented REST contract
+        // (README: POST /auth/refresh {"refreshToken": "..."}), which the
+        // observability simulator and pipeline tooling use. The body path
+        // was previously ignored, so every documented-contract client got
+        // 401 Invalid token on a perfectly fresh token.
+        String bodyToken = bodyRequest != null ? bodyRequest.getRefreshToken() : null;
         String token = headerRefreshToken != null && !headerRefreshToken.isBlank()
                 ? headerRefreshToken
-                : cookieRefreshToken != null ? cookieRefreshToken : "";
+                : cookieRefreshToken != null && !cookieRefreshToken.isBlank()
+                        ? cookieRefreshToken
+                        : bodyToken != null ? bodyToken : "";
         RefreshRequest request = RefreshRequest.builder().refreshToken(token).build();
         AuthResponse response = authService.refresh(request);
         setAuthCookies(httpResponse, response);
