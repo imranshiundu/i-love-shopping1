@@ -144,10 +144,15 @@ public class OrderController {
 
     private com.iloveshopping.dto.payment.MpesaStkPushRequest toStkRequest(Map<String, Object> body) {
         String orderId = String.valueOf(body.get("orderId"));
+        // amount is optional — the service always charges the order total;
+        // a missing field must not become BigDecimal("null")
         Object amountRaw = body.get("amount");
-        java.math.BigDecimal amount = amountRaw instanceof Number n
-                ? new java.math.BigDecimal(n.toString())
-                : new java.math.BigDecimal(String.valueOf(amountRaw));
+        java.math.BigDecimal amount = null;
+        if (amountRaw instanceof Number n) {
+            amount = new java.math.BigDecimal(n.toString());
+        } else if (amountRaw != null && !String.valueOf(amountRaw).isBlank()) {
+            amount = new java.math.BigDecimal(String.valueOf(amountRaw));
+        }
         return com.iloveshopping.dto.payment.MpesaStkPushRequest.builder()
                 .orderId(orderId)
                 .amount(amount)

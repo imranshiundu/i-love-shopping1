@@ -31,6 +31,7 @@ import java.util.List;
 public class CatalogController {
 
     private final CatalogService catalogService;
+    private final com.iloveshopping.service.AppMetrics appMetrics;
     private final ProductImportService productImportService;
 
     // ===== Categories =====
@@ -156,6 +157,7 @@ public class CatalogController {
             @Parameter(description = "Search query prefix")
             @RequestParam String query) {
 
+        appMetrics.searchSuggestionRequested();
         List<String> suggestions = catalogService.getSearchSuggestions(query);
         return ResponseEntity.ok(ApiResponse.success(suggestions));
     }

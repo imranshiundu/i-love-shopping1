@@ -97,7 +97,7 @@ services:
     networks:
       - iloveshopping-network
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -123,6 +123,9 @@ services:
       - JWT_ACCESS_EXPIRY_MINUTES=15
       - JWT_REFRESH_EXPIRY_DAYS=7
       - DATA_ENCRYPTION_KEY=${DATA_ENCRYPTION_KEY:-}
+      - RATE_LIMIT_AUTH_PER_MINUTE=${RATE_LIMIT_AUTH_PER_MINUTE:-10}
+      - RATE_LIMIT_API_PER_MINUTE=${RATE_LIMIT_API_PER_MINUTE:-100}
+      - RATE_LIMIT_BURST_CAPACITY=${RATE_LIMIT_BURST_CAPACITY:-20}
       - RECAPTCHA_SECRET_KEY=dev-test-secret
       - RECAPTCHA_SITE_KEY=dev-test-site
       - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
