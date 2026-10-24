@@ -8,9 +8,10 @@
 # credentials and data volumes are local.
 #
 # Usage:
-#   ./start.sh            Start everything
-#   ./start.sh --stop     Stop everything (keeps dev database)
-#   ./start.sh --rebuild  Force backend + frontend rebuild
+#   ./start.sh                       Start everything
+#   ./start.sh --observability       Start everything + Grafana/Prometheus/Loki
+#   ./start.sh --stop                Stop everything (keeps dev database)
+#   ./start.sh --rebuild             Force backend + frontend rebuild
 # =============================================================
 
 set -e
@@ -24,15 +25,17 @@ ok()   { printf "%s[start]%s %s\n" "$GRN" "$RST" "$1"; }
 warn() { printf "%s[start]%s %s\n" "$YEL" "$RST" "$1"; }
 die()  { printf "%s[start]%s %s\n" "$RED" "$RST" "$1"; exit 1; }
 
-STOP=false; REBUILD=false
+STOP=false; REBUILD=false; OBSERVABILITY=false
 for arg in "$@"; do
   case "$arg" in
-    --stop)     STOP=true ;;
-    --rebuild)  REBUILD=true ;;
+    --stop)           STOP=true ;;
+    --rebuild)        REBUILD=true ;;
+    --observability)  OBSERVABILITY=true ;;
     --help|-h)
-      echo "Usage: ./start.sh [--stop] [--rebuild]"
-      echo "  --stop     Stop all services (dev database is kept)"
-      echo "  --rebuild  Force backend + frontend rebuild"
+      echo "Usage: ./start.sh [--stop] [--rebuild] [--observability]"
+      echo "  --stop           Stop all services (dev database is kept)"
+      echo "  --rebuild        Force backend + frontend rebuild"
+      echo "  --observability  Also start Grafana + Prometheus + Loki (../observability)"
       exit 0
       ;;
   esac
@@ -59,6 +62,9 @@ free_port() {
 if $STOP; then
   log "Stopping services (database kept)..."
   (cd "$REPO_DIR/docker" && docker compose down --remove-orphans 2>/dev/null) || true
+  if [ -d "$REPO_DIR/../observability" ]; then
+    (cd "$REPO_DIR/../observability" && docker compose down --remove-orphans 2>/dev/null) || true
+  fi
   pkill -f "i-love-shopping-1.0.0-SNAPSHOT.jar" 2>/dev/null || true
   pkill -f "$REPO_DIR/frontend" 2>/dev/null || true
   ok "All stopped. To wipe dev data too: docker compose -f docker/docker-compose.yml down -v"
@@ -120,14 +126,31 @@ done
 needs_val STRIPE_SECRET_KEY 10 && warn "STRIPE_SECRET_KEY is blank — card payments will be disabled until set."
 [ -f ".env" ] && ok "Credentials checked."
 
-# ── Ports (auto-shift when busy, e.g. another project on 8080/3000) ──
-API_PORT=$(free_port "${SERVER_PORT:-8080}")
+# ── Ports (auto-shift every one when busy — neighbors on 5433/6380/etc
+#    must never break the startup) ──
+resolve_port() { # resolve_port VAR LABEL PREFERRED
+  local var=$1 label=$2 preferred=$3 chosen
+  chosen=$(free_port "$preferred")
+  export "$var=$chosen"
+  if [ "$chosen" != "$preferred" ]; then
+    warn "$label: port $preferred busy — using $chosen."
+  fi
+  return 0
+}
+resolve_port POSTGRES_PORT     "PostgreSQL"      "${POSTGRES_PORT:-5433}"
+resolve_port REDIS_PORT        "Redis"           "${REDIS_PORT:-6380}"
+resolve_port MAILHOG_SMTP_PORT "MailHog SMTP"    "${MAILHOG_SMTP_PORT:-1025}"
+resolve_port MAILHOG_UI_PORT   "MailHog UI"      "${MAILHOG_UI_PORT:-8025}"
+resolve_port RABBITMQ_AMQP_PORT "RabbitMQ"       "${RABBITMQ_AMQP_PORT:-5672}"
+resolve_port RABBITMQ_UI_PORT  "RabbitMQ UI"     "${RABBITMQ_UI_PORT:-15672}"
+resolve_port MANAGEMENT_PORT   "Management/API metrics" "${MANAGEMENT_PORT:-9090}"
 # Override the storefront port with FE_PORT_OVERRIDE=3005 ./start.sh
 FE_PORT="${FE_PORT_OVERRIDE:-$(free_port 3000)}"
+API_PORT=$(free_port "${SERVER_PORT:-8080}")
 [ "$API_PORT" != "${SERVER_PORT:-8080}" ] && warn "Port ${SERVER_PORT:-8080} busy — API will use $API_PORT."
 [ "$FE_PORT" != "3000" ] && warn "Port 3000 busy — frontend will use $FE_PORT."
 
-# ── Start Docker deps ──
+# ── Start Docker deps (with the resolved ports) ──
 log "Starting PostgreSQL, Redis, RabbitMQ, MailHog..."
 (cd "$REPO_DIR/docker" && docker compose up -d postgres redis mailhog rabbitmq)
 
@@ -166,7 +189,9 @@ export STRIPE_TEST_SECRET_KEY STRIPE_TEST_PUBLISHABLE_KEY STRIPE_TEST_WEBHOOK_SE
 export STRIPE_LIVE_SECRET_KEY STRIPE_LIVE_PUBLISHABLE_KEY STRIPE_LIVE_WEBHOOK_SECRET
 export STRIPE_MIN_AMOUNT
 export FREE_SHIPPING_THRESHOLD SHIPPING_COST TAX_RATE MIN_PASSWORD_LENGTH
-export RATE_LIMIT_AUTH_PER_MINUTE RATE_LIMIT_API_PER_MINUTE
+export RATE_LIMIT_AUTH_PER_MINUTE RATE_LIMIT_API_PER_MINUTE RATE_LIMIT_BURST_CAPACITY
+export RATE_LIMIT_TRUST_FORWARDED=false   # host-run API: the client IP is the socket address
+export MANAGEMENT_PORT
 
 # ── Mail check: fall back to MailHog when the SMTP host is unreachable ──
 if ! timeout 8 bash -c "</dev/tcp/$MAIL_HOST/$MAIL_PORT" >/dev/null 2>&1; then
@@ -256,6 +281,18 @@ for i in $(seq 1 12); do
   [ "$i" -eq 12 ] && die "Frontend did not start. See /tmp/ils-frontend.log"
   sleep 5
 done
+
+# ── Observability stack (optional: ./start.sh --observability) ──
+if $OBSERVABILITY; then
+  if [ -d "$REPO_DIR/../observability" ]; then
+    log "Starting the observability stack (Prometheus, Loki, Grafana, Alloy)..."
+    (cd "$REPO_DIR/../observability" && docker compose up -d)
+    sleep 5
+    ok "Observability is UP — Grafana http://localhost:3300 (admin / admin), alert emails in MailHog."
+  else
+    warn "../observability not found — skipping the observability stack."
+  fi
+fi
 
 # ── Done ──
 MPESA_STATE="disabled (set MPESA_* in .env)"; [ -n "$MPESA_CONSUMER_KEY" ] && MPESA_STATE="sandbox, STK to 254708374149 (Africa only)"
