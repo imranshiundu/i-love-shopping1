@@ -149,7 +149,13 @@ spring.mail.properties.mail.smtp.starttls.enable: ${MAIL_SMTP_STARTTLS:true}
 # REQUIRED — there is no fallback: the application refuses to start without
 # a key rather than encrypting with a shared hardcoded one.
 # Generate one: openssl rand -base64 32
+# Encryption at rest — REQUIRED, no fallback (blank = fail fast).
+# Generate: openssl rand -base64 32
 app.data-encryption-key: ${DATA_ENCRYPTION_KEY}
+
+# Metrics/actuator on a dedicated port (Prometheus scrapes here).
+# Never published to the host; internal network only.
+management.server.port: ${MANAGEMENT_PORT:9090}
 
 # M-Pesa (set your keys in .env)
 mpesa.environment: ${MPESA_ENVIRONMENT:sandbox}
@@ -168,6 +174,7 @@ security.rate-limit.api-requests-per-minute: 100
 # direct deployments keep it false — otherwise the client IP is spoofable
 # by rotating the forwarded header, defeating the buckets.
 security.rate-limit.trust-forwarded-ips: ${RATE_LIMIT_TRUST_FORWARDED:false}
+security.rate-limit.burst-capacity: ${RATE_LIMIT_BURST_CAPACITY:20}
 
 # Commerce rules
 app.default-currency: KES

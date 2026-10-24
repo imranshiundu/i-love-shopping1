@@ -25,17 +25,23 @@ git clone https://gitea.kood.tech/imranshiundu/i-love-shopping1.git
 cd i-love-shopping
 
 # One command: checks prerequisites, installs what is missing,
-# creates .env, starts everything (interactive menu)
+# creates .env (generating every required secret), shifts any busy
+# port, and starts everything
 bash start.sh            # Linux / macOS / Git Bash
 start.cmd                # Windows
 
-# Or fully automated (Docker dependencies + local API & frontend)
-bash start.sh --auto
+# With the observability stack (Grafana + Prometheus + Loki, alerts by email)
+bash start.sh --observability
+
+# Force a rebuild of the backend + frontend
+bash start.sh --rebuild
 ```
 
-Everything runs in the foreground - press `Ctrl+C` to stop, `bash start.sh --stop` cleans up.
+Everything runs in the foreground - press `Ctrl+C` to stop, `bash start.sh --stop` cleans up (also stops the observability stack).
 
 Alternative: run everything in Docker or start each service by hand - see [docs/deployment.md](docs/deployment.md) and [docs/configuration.md](docs/configuration.md).
+
+Observability has its own repository and one-command startup - see [../observability/README.md](../observability/README.md) (or add `--observability` to the command above).
 
 ## What runs where
 
