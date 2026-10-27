@@ -99,10 +99,10 @@ needs_val() { # needs_val VAR [minlen] — true if missing/too short/placeholder
   esac
   return 1
 }
-set_val() {
+set_val() { # portable: macOS sed lacks GNU's -i without an argument
   local key=$1 val=$2
   if grep -qE "^$key=" .env; then
-    sed -i "s|^$key=.*|$key=$val|" .env
+    awk -v k="$key" -v v="$val" 'BEGIN{FS="="} $1==k {$0=k"="v} {print}' .env > .env.tmp && mv .env.tmp .env
   else
     printf '%s=%s\n' "$key" "$val" >> .env
   fi

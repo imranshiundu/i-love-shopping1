@@ -33,6 +33,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Slf4j
 public class RateLimitFilter implements Filter {
 
+    private final com.iloveshopping.config.CorsProperties corsProperties;
+
     private final ConcurrentHashMap<String, TokenBucket> buckets = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
     private final MeterRegistry meterRegistry;
@@ -56,10 +58,14 @@ public class RateLimitFilter implements Filter {
     @Value("${security.rate-limit.trust-forwarded-ips:false}")
     private boolean trustForwardedIps;
 
-    public RateLimitFilter(ObjectMapper objectMapper, MeterRegistry meterRegistry) {
+    public RateLimitFilter(ObjectMapper objectMapper, MeterRegistry meterRegistry,
+                           com.iloveshopping.config.CorsProperties corsProperties) {
         this.objectMapper = objectMapper;
         this.meterRegistry = meterRegistry;
+        this.corsProperties = corsProperties;
     }
+
+
 
     @Override
     public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain chain)
@@ -86,7 +92,7 @@ public class RateLimitFilter implements Filter {
             long retryAfterSeconds = (long) Math.ceil(bucket.secondsUntilNextToken());
             log.warn("Rate limit exceeded for IP: {} on path: {} ({} req/min, burst {})",
                     clientIp, requestUri, perMinute, (long) capacity);
-            writeRateLimitExceeded(response, perMinute, Math.max(1, retryAfterSeconds));
+            writeRateLimitExceeded(request, response, perMinute, Math.max(1, retryAfterSeconds));
             return;
         }
 
@@ -112,7 +118,19 @@ public class RateLimitFilter implements Filter {
         return uri.contains("/auth/") || uri.contains("/login") || uri.contains("/register");
     }
 
-    private void writeRateLimitExceeded(HttpServletResponse response, int limit, long retryAfterSeconds) throws IOException {
+    private void writeRateLimitExceeded(HttpServletRequest request, HttpServletResponse response, int limit, long retryAfterSeconds) throws IOException {
+        // This filter runs before the security chain's CorsFilter, so a 429
+        // written here carries no CORS headers and the browser reports a CORS
+        // error instead of the actual rate-limit response. Echo the Origin
+        // when it is a configured allowed origin so clients can read the 429.
+        String origin = request.getHeader("Origin");
+        if (origin != null && !origin.isBlank() && corsProperties != null
+                && corsProperties.getAllowedOrigins() != null
+                && corsProperties.getAllowedOrigins().contains(origin)) {
+            response.setHeader("Access-Control-Allow-Origin", origin);
+            response.setHeader("Access-Control-Allow-Credentials", "true");
+            response.setHeader("Vary", "Origin");
+        }
         ApiResponse.ErrorResponse errorResponse = ApiResponse.ErrorResponse.builder()
                 .statusCode(HttpStatus.TOO_MANY_REQUESTS.value())
                 .error(HttpStatus.TOO_MANY_REQUESTS.getReasonPhrase())

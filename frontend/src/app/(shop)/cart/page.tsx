@@ -32,6 +32,22 @@ export default function CartPage() {
     setUpdating(null);
   };
 
+  const [qtyDraft, setQtyDraft] = useState<Record<string, string>>({});
+  const commitQty = (item: any) => {
+    const raw = qtyDraft[item.id];
+    delete qtyDraft[item.id];
+    setQtyDraft({ ...qtyDraft });
+    if (raw === undefined) return;
+    const qty = parseInt(raw, 10);
+    if (Number.isNaN(qty) || qty < 1) return;
+    const capped = Math.min(qty, item.maxStock ?? 999);
+    if (capped === item.quantity) return;
+    updateQuantity(item.id, capped);
+  };
+  const onQtyChange = (item: any, value: string) => {
+    setQtyDraft({ ...qtyDraft, [item.id]: value });
+  };
+
   const removeItem = async (itemId: string) => {
     setUpdating(itemId);
     try { await cartApi.removeItem(itemId); await refreshCart(); toast.success('Item removed'); }
@@ -130,12 +146,26 @@ export default function CartPage() {
 
                   <div className="mt-auto flex items-center justify-between pt-3">
                     <div className="inline-flex items-center rounded-lg border border-stone-300">
-                      <button onClick={() => updateQuantity(item.id, item.quantity - 1)} disabled={updating === item.id}
-                        className="px-2.5 py-1.5 text-stone-600 hover:text-stone-900 disabled:opacity-40" aria-label="Decrease quantity"><FiMinus /></button>
-                      <span className="w-9 text-center text-sm font-semibold">{item.quantity}</span>
                       <button
-                        onClick={async () => { setUpdating(item.id); try { await addToCart(item.productId, 1); } catch (e: any) { toast.error(e.message); } setUpdating(null); }}
+                        onClick={() => item.quantity > 1 && updateQuantity(item.id, item.quantity - 1)}
+                        disabled={updating === item.id || item.quantity <= 1}
+                        className="px-2.5 py-1.5 text-stone-600 hover:text-stone-900 disabled:opacity-40" aria-label="Decrease quantity"><FiMinus /></button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={item.maxStock ?? 999}
+                        inputMode="numeric"
+                        className="w-12 border-0 bg-transparent p-0 text-center text-sm font-semibold focus:outline-none focus:ring-0"
+                        aria-label={`Quantity for ${item.productName}`}
                         disabled={updating === item.id}
+                        value={qtyDraft[item.id] !== undefined ? qtyDraft[item.id] : item.quantity}
+                        onChange={(e) => onQtyChange(item, e.target.value)}
+                        onBlur={() => commitQty(item)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') commitQty(item); }}
+                      />
+                      <button
+                        onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                        disabled={updating === item.id || item.quantity >= (item.maxStock ?? 999)}
                         className="px-2.5 py-1.5 text-stone-600 hover:text-stone-900 disabled:opacity-40" aria-label="Increase quantity"><FiPlus /></button>
                     </div>
                     <p className="font-bold">{formatKES(item.lineTotal)}</p>

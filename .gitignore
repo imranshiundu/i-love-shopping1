@@ -62,7 +62,11 @@ temp/
 # Unnecessary project files
 git.txt
 test.txt
+code.txt
+github.txt
 fix.txt
+observability.txt
+observability/
 fix.pdf
 integrator.txt
 integrator/
