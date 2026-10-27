@@ -45,7 +45,7 @@ public class AppMetrics {
         passwordResetRequested = counter("ils_auth_password_reset_total", "Password reset requests");
         twoFaFailed = counter("ils_auth_2fa_failed_total", "Rejected 2FA codes");
         twoFaEnrolled = counter("ils_auth_2fa_enrolled_total", "2FA enrollments completed");
-        ordersCreated = counter("ils_orders_created_total", "Orders placed (checkout)");
+        ordersCreated = counter("ils_orders_placed_total", "Orders placed (checkout)");
         ordersPaid = counter("ils_orders_paid_total", "Orders with a verified payment");
         ordersCancelled = counter("ils_orders_cancelled_total", "Orders cancelled");
         ordersRefunded = counter("ils_orders_refunded_total", "Orders refunded");

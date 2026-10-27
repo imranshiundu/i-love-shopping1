@@ -272,6 +272,7 @@ resolve_ports() {
   resolve_one "RabbitMQ UI"   RABBITMQ_UI_PORT   "${RABBITMQ_UI_PORT:-15672}"
   resolve_one "API"           API_PORT           "${API_PORT:-8080}"
   resolve_one "Frontend"      FRONTEND_PORT      "${FRONTEND_PORT:-3000}"
+  resolve_one "Management"    MANAGEMENT_PORT    "${MANAGEMENT_PORT:-9090}"
 }
 
 # ── Print URLs ────────────────────────────────────────────────────────────────
@@ -344,6 +345,7 @@ run_local_backend() {
   export DATABASE_USER=iloveshopping
   export DATABASE_PASSWORD=iloveshopping
   export REDIS_HOST=localhost
+  export MANAGEMENT_PORT
   export RECAPTCHA_SECRET_KEY=dev-test-secret
   export RECAPTCHA_SITE_KEY=dev-test-site
   export JWT_ACCESS_SECRET=dev-access-secret-min-32-chars-long-for-test
