@@ -58,6 +58,36 @@ Observability has its own repository and one-command startup - see [../observabi
 
 ## Verify it works
 
+### Keys: required, optional, and how to update
+
+`start.sh` generates every required secret on first boot — nothing to
+do for a working demo. Optional keys unlock payments and integrations:
+
+| Key (in `.env`) | Required | Without it | Update by |
+|---|---|---|---|
+| `DATA_ENCRYPTION_KEY` | **YES** | API refuses to start (fail-fast by design) | `openssl rand -base64 32`; generated automatically on first boot. Rotating invalidates old ciphertext — wipe volumes or keep the key |
+| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | **YES** | API refuses to start | generated on first boot; rotate to force all users to re-login |
+| `MPESA_CONSUMER_KEY/SECRET/PASSKEY` | optional | M-Pesa payments disabled | Daraja dashboard → restart |
+| `STRIPE_SECRET_KEY` / `STRIPE_PUBLISHABLE_KEY` | optional | card payments disabled (test card 4242… works in test mode) | Stripe dashboard → restart |
+| `RECAPTCHA_*` | optional | dev bypass keeps registration open | Google console → restart |
+| `GOOGLE_*` / `GITHUB_*` | optional | social login buttons hidden | provider console → restart |
+| `MAIL_*` | optional | auto-falls back to MailHog | any SMTP → restart |
+
+**Update a key:** edit `.env`, restart the affected service
+(`./start.sh --stop && ./start.sh`, or `docker compose -f docker/docker-compose.yml up -d --force-recreate api`).
+The full key table lives in [docs/configuration.md](docs/configuration.md).
+
+### Observability
+
+The [observability repo](https://github.com/imranshiundu/observability)
+monitors this platform: Prometheus + Loki + Grafana with four dashboards
+(business, product, technical, security), email alerting through MailHog,
+seed history and a traffic simulator. One command from that repo:
+
+```bash
+./start.sh    # clones and starts this platform automatically if missing
+``
+
 ```bash
 # API health check
 curl http://localhost:8080/api/v1/health
